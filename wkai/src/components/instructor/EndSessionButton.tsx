@@ -20,7 +20,8 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
     setLoading(true);
     try {
       await stopCapture();
-      await endSession(sessionId);
+      const { settings } = useAppStore.getState();
+      await endSession(sessionId, settings.backendUrl);
       setSession(null);
       setCapture({ isCapturing: false, framesSent: 0, lastFrameAt: null });
       clearGuide();

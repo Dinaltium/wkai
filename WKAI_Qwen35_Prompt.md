@@ -3,7 +3,13 @@
 You are a senior full-stack engineer working on **WKAI** (Workshop AI), a real-time
 AI-powered workshop assistance platform. All project files are located in:
 
-  C:\Projects\WKAI\project_filesv2\
+  WSL2 (Kali Linux) path:   ~/Projects/wkai/
+  Windows Explorer path:    \\wsl.localhost\kali-linux\home\rafan\Projects\wkai\
+
+The three repos sit directly inside that folder:
+  ~/Projects/wkai/wkai/           ← instructor desktop app
+  ~/Projects/wkai/wkai-backend/   ← backend server
+  ~/Projects/wkai/wkai-student/   ← student web app
 
 Before doing anything, READ the relevant files from that folder first. Never assume
 file contents — always read before editing.
@@ -12,10 +18,10 @@ file contents — always read before editing.
 
 ## Project Structure Overview
 
-The project has THREE sub-repositories inside the folder:
+The project has THREE repos directly inside `~/Projects/wkai/`:
 
 ```
-project_filesv2/
+~/Projects/wkai/
 ├── wkai/               Instructor desktop app (Tauri v2 + Rust + React + TypeScript)
 ├── wkai-backend/       Backend server (Node.js ESM + WebSocket + PostgreSQL + Redis)
 └── wkai-student/       Student web app (React + TypeScript + Vite)
@@ -114,7 +120,7 @@ wkai/
 
 wkai-backend/
 ├── package.json                        groq-sdk, @langchain/*, express, ws, pg, redis, zod
-├── .env.example                        GROQ_API_KEY, DATABASE_URL, REDIS_URL, Firebase
+├── .env.example                        GROQ_API_KEY, DATABASE_URL, REDIS_URL, Cloudinary
 ├── docker-compose.yml                  postgres:16-alpine + redis:7-alpine
 ├── README.md
 └── src/
@@ -145,7 +151,7 @@ wkai-backend/
     ├── routes/
     │   ├── sessions.js                 CRUD + /memory debug endpoint
     │   ├── ai.js                       /transcribe, /diagnose, /intent
-    │   ├── files.js                    multer → Firebase Storage
+    │   ├── files.js                    multer → Cloudinary (25GB free)
     │   └── runner.js                   sandboxed code execution: python3/node/ts-node/bash
     └── middleware/
         └── errorHandler.js             Zod → 400, pg unique → 409, generic → 500
@@ -300,10 +306,10 @@ PORT=4000
 NODE_ENV=development
 DATABASE_URL=postgresql://wkai:wkai_password@localhost:5432/wkai
 REDIS_URL=redis://localhost:6379
-GROQ_API_KEY=gsk_...          # console.groq.com — free, no credit card
-FIREBASE_PROJECT_ID=wkai-app
-FIREBASE_STORAGE_BUCKET=wkai-app.appspot.com
-FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
+GROQ_API_KEY=gsk_...              # console.groq.com — free, no credit card
+CLOUDINARY_CLOUD_NAME=your_cloud_name   # cloudinary.com dashboard
+CLOUDINARY_API_KEY=your_api_key         # cloudinary.com dashboard
+CLOUDINARY_API_SECRET=your_api_secret   # cloudinary.com dashboard
 JWT_SECRET=change_this
 ```
 
@@ -312,22 +318,27 @@ JWT_SECRET=change_this
 ## How to Run (for reference)
 
 ```bash
-# Backend
-cd wkai-backend
-docker compose up -d       # Postgres + Redis
-npm install
-npm run db:migrate
-npm run dev                # http://localhost:4000
+# ── In Kali WSL2 terminal ──────────────────────────────────────────
 
-# Student web app
-cd wkai-student
-npm install
-npm run dev                # http://localhost:3000
+# Backend — Terminal 1 (databases)
+cd ~/Projects/wkai/wkai-backend
+docker compose up -d           # Postgres + Redis
 
-# Instructor desktop app
-cd wkai
-npm install
-npm run tauri:dev          # builds Rust, opens desktop window
+# Backend — Terminal 2
+cd ~/Projects/wkai/wkai-backend
+npm install                    # first time only
+npm run db:migrate             # first time only
+npm run dev                    # http://localhost:4000
+
+# Student web app — Terminal 3
+cd ~/Projects/wkai/wkai-student
+npm install                    # first time only
+npm run dev                    # http://localhost:3000
+
+# ── In Windows PowerShell (Tauri needs Windows for the .exe) ───────
+cd \\wsl.localhost\kali-linux\home\rafan\Projects\wkai\wkai
+npm install                    # first time only
+npm run tauri:dev              # builds Rust, opens desktop window
 ```
 
 ---
@@ -336,8 +347,10 @@ npm run tauri:dev          # builds Rust, opens desktop window
 
 You are working on this codebase. When I ask you to make changes:
 
-1. **Always read the file first** before editing — use the path
-   `C:\Projects\WKAI\project_filesv2\<repo>\<path>`
+1. **Always read the file first** before editing — use the WSL2 path:
+   `~/Projects/wkai/<repo>/<path>`
+   or the Windows Explorer path:
+   `\\wsl.localhost\kali-linux\home\rafan\Projects\wkai\<repo>\<path>`
 
 2. **Preserve all existing logic** unless I explicitly ask you to replace it.
    Add to files, don't rewrite them from scratch unless needed.

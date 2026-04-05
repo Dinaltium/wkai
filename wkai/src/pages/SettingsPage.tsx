@@ -7,7 +7,6 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   function handleSave() {
-    // Settings are already live in Zustand; this just gives user feedback
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -18,8 +17,8 @@ export function SettingsPage() {
         <h1 className="text-xl font-semibold">Settings</h1>
 
         {/* Profile */}
-        <section className="card space-y-4">
-          <h2 className="text-sm font-medium text-wkai-text-dim uppercase tracking-wide">
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
             Profile
           </h2>
           <Field label="Your Name">
@@ -32,28 +31,12 @@ export function SettingsPage() {
           </Field>
         </section>
 
-        {/* AI */}
-        <section className="card space-y-4">
-          <h2 className="text-sm font-medium text-wkai-text-dim uppercase tracking-wide">
-            AI Pipeline
-          </h2>
-          <Field label="OpenAI API Key">
-            <input
-              className="input font-mono text-xs"
-              type="password"
-              value={settings.openaiApiKey}
-              onChange={(e) => updateSettings({ openaiApiKey: e.target.value })}
-              placeholder="sk-..."
-            />
-          </Field>
-        </section>
-
         {/* Backend */}
-        <section className="card space-y-4">
-          <h2 className="text-sm font-medium text-wkai-text-dim uppercase tracking-wide">
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
             Backend
           </h2>
-          <Field label="Backend URL">
+          <Field label="Backend URL" hint="Where your Node.js server is running">
             <input
               className="input font-mono text-xs"
               value={settings.backendUrl}
@@ -63,12 +46,34 @@ export function SettingsPage() {
           </Field>
         </section>
 
+        {/* AI */}
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+            AI — Groq
+          </h2>
+          <Field
+            label="Groq API Key"
+            hint="Get yours free at console.groq.com — no credit card needed"
+          >
+            <input
+              className="input font-mono text-xs"
+              type="password"
+              value={settings.groqApiKey}
+              onChange={(e) => updateSettings({ groqApiKey: e.target.value })}
+              placeholder="gsk_..."
+            />
+          </Field>
+        </section>
+
         {/* Capture */}
-        <section className="card space-y-4">
-          <h2 className="text-sm font-medium text-wkai-text-dim uppercase tracking-wide">
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
             Capture
           </h2>
-          <Field label="Frames per minute" hint="Higher = more AI context, more API cost">
+          <Field
+            label="Frames per minute"
+            hint="Higher = more AI context, more Groq API usage"
+          >
             <select
               className="input"
               value={settings.framesPerMinute}
@@ -91,7 +96,7 @@ export function SettingsPage() {
                 className="accent-indigo-500"
               />
               <span className="text-sm text-wkai-text">
-                Capture microphone audio for transcription
+                Capture microphone audio for Whisper transcription
               </span>
             </label>
           </Field>

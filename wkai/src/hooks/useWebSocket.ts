@@ -12,7 +12,7 @@ interface UseWsOptions {
 export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
-  const { setStudentCount, addGuideBlock, addSharedFile } = useAppStore();
+  const { setStudentCount, addGuideBlock, addSharedFile, watchedFiles } = useAppStore();
 
   const connect = useCallback(() => {
     if (!sessionId) return;
@@ -27,12 +27,20 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
         const handler = handlers.current.get(msg.type);
         if (handler) handler(msg.payload);
         switch (msg.type) {
-          case "guide-block":    addGuideBlock(msg.payload as never); break;
-          case "file-shared":    addSharedFile(msg.payload as never);  break;
-          case "student-joined": setStudentCount((msg.payload as { count: number }).count); break;
-          case "student-left":   setStudentCount((msg.payload as { count: number }).count); break;
+          case "guide-block":
+            addGuideBlock(msg.payload as never);
+            break;
+          case "file-shared":
+            addSharedFile(msg.payload as never);
+            break;
+          case "student-joined":
+            setStudentCount((msg.payload as { count: number }).count);
+            break;
+          case "student-left":
+            setStudentCount((msg.payload as { count: number }).count);
+            break;
           case "share-intent-detected":
-            // The LangGraph intent agent found a share signal — emit to UI
+            // LangGraph intent agent detected "share this file" in audio
             window.dispatchEvent(new CustomEvent("wkai:shareIntent", { detail: msg.payload }));
             break;
         }
@@ -48,13 +56,17 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   useEffect(() => {
     connect();
 
-    // Listen for transcripts from the audio pipeline and forward to WS
+    // Forward audio transcripts to WS server for:
+    //   a) enriching the next screen-frame AI pipeline call (context)
+    //   b) running the LangGraph intent detection agent
     const handleTranscript = (e: Event) => {
       const { transcript, sessionId: sid } = (e as CustomEvent).detail;
+      // Include current watchedFiles so the intent agent can match file names
+      const currentWatchedFiles = useAppStore.getState().watchedFiles;
       send("audio-transcript", {
         transcript,
-        sessionId: sid,
-        recentFiles: [], // TODO: populated from FileSharePanel watched files
+        sessionId:   sid,
+        recentFiles: currentWatchedFiles.map((f) => ({ name: f.name, path: f.path })),
       });
     };
     window.addEventListener("wkai:transcript", handleTranscript);

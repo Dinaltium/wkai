@@ -11,7 +11,7 @@ interface Props {
 }
 
 export function FileSharePanel({ sessionId, send }: Props) {
-  const { settings, sharedFiles } = useAppStore();
+  const { settings, sharedFiles, watchedFiles, setWatchedFiles } = useAppStore();
   const [files, setFiles] = useState<WatchedFile[]>([]);
   const [sharing, setSharing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"folder" | "shared">("folder");
@@ -26,7 +26,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
   async function handleShare(file: WatchedFile) {
     setSharing(file.path);
     try {
-      const url = await shareFile(sessionId, file.path);
+      const url = await shareFile(sessionId, file.path, settings.backendUrl);
       send("file-shared", { name: file.name, url, sessionId });
     } catch (err) {
       console.error("Share failed", err);

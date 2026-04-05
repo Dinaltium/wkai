@@ -1,6 +1,15 @@
 # WKAI Backend
 
-Node.js + WebSocket + PostgreSQL + Redis + **LangChain + LangGraph + Groq**
+Node.js + WebSocket + PostgreSQL + Redis + **LangChain + LangGraph + Groq + Cloudinary**
+
+---
+
+## Project Location
+
+```
+WSL2 (Kali):   ~/Projects/wkai/wkai-backend/
+Windows:       \\wsl.localhost\kali-linux\home\rafan\Projects\wkai\wkai-backend\
+```
 
 ---
 
@@ -100,39 +109,107 @@ Each session has a `RedisSessionMemory` instance (extends `BaseListChatMessageHi
 
 ---
 
-## Quick Start
+## File Storage — Cloudinary
+
+Instructor file sharing uses **Cloudinary** (free tier — 25 GB storage, 25 GB bandwidth/month).
+
+Files are uploaded to: `wkai/{sessionId}/{timestamp}_{filename}`
+Students receive a direct HTTPS download URL via WebSocket broadcast.
+
+No credit card required — sign up at cloudinary.com.
+
+---
+
+## Quick Start (WSL2 Kali terminal)
 
 ```bash
-# 1. Start infra
+# 1. Start Postgres + Redis
+cd ~/Projects/wkai/wkai-backend
 docker compose up -d
 
-# 2. Install deps
+# 2. Install dependencies
 npm install
 
-# 3. Configure
+# 3. Configure environment
 cp .env.example .env
-# Edit: GROQ_API_KEY=gsk_...
+# Fill in:
+#   GROQ_API_KEY          → console.groq.com
+#   CLOUDINARY_CLOUD_NAME → cloudinary.com dashboard
+#   CLOUDINARY_API_KEY    → cloudinary.com dashboard
+#   CLOUDINARY_API_SECRET → cloudinary.com dashboard
+#   DATABASE_URL          → already set for local Docker
+#   REDIS_URL             → already set for local Docker
 
-# 4. Create DB tables
+# 4. Create database tables (first time only)
 npm run db:migrate
 
-# 5. Start server
+# 5. Start the server
 npm run dev
+# → http://localhost:4000
+# → ws://localhost:4000/ws
 ```
+
+---
+
+## Environment Variables
+
+| Variable | Required | Where to get it |
+|---|---|---|
+| PORT | No | Default: 4000 |
+| DATABASE_URL | Yes | Pre-filled for local Docker |
+| REDIS_URL | Yes | Pre-filled for local Docker |
+| GROQ_API_KEY | Yes | console.groq.com (free) |
+| CLOUDINARY_CLOUD_NAME | Yes | cloudinary.com → Dashboard |
+| CLOUDINARY_API_KEY | Yes | cloudinary.com → Dashboard |
+| CLOUDINARY_API_SECRET | Yes | cloudinary.com → Dashboard |
+| JWT_SECRET | No | Any long random string |
 
 ---
 
 ## API Routes
 
-| Method | Path                       | Description                               |
-|--------|----------------------------|-------------------------------------------|
-| POST   | /api/sessions              | Create session + Redis cache              |
-| GET    | /api/sessions/:roomCode    | Join validation + full initial state      |
-| PATCH  | /api/sessions/:id/end      | End session + cleanup memory + WS notify  |
-| GET    | /api/sessions/:id/guide    | Fetch all guide blocks                    |
-| GET    | /api/sessions/:id/memory   | Debug: inspect LangChain session memory   |
-| POST   | /api/ai/transcribe         | Groq Whisper audio → text                 |
-| POST   | /api/ai/diagnose           | LangGraph error agent                     |
-| POST   | /api/ai/intent             | LangGraph intent detection                |
-| POST   | /api/files/upload          | Upload to Firebase Storage                |
-| POST   | /api/run                   | Sandboxed code execution                  |
+| Method | Path | Description |
+|---|---|---|
+| POST | /api/sessions | Create session + Redis cache |
+| GET | /api/sessions/:roomCode | Join validation + full initial state |
+| PATCH | /api/sessions/:id/end | End session + cleanup memory + WS notify |
+| GET | /api/sessions/:id/guide | Fetch all guide blocks |
+| GET | /api/sessions/:id/memory | Debug: inspect LangChain session memory |
+| POST | /api/ai/transcribe | Groq Whisper audio → text |
+| POST | /api/ai/diagnose | LangGraph error agent |
+| POST | /api/ai/intent | LangGraph intent detection |
+| POST | /api/files/upload | Upload to Cloudinary |
+| POST | /api/run | Sandboxed code execution (python3/node/bash) |
+
+---
+
+## WebSocket — ws://localhost:4000/ws
+
+Connect with: `?session=ROOMCODE&role=instructor|student&studentId=OPTIONAL`
+
+| Message Type | Direction | Description |
+|---|---|---|
+| screen-frame | instructor → server | Base64 PNG → LangGraph vision pipeline |
+| audio-transcript | instructor → server | Whisper text → Redis + intent agent |
+| guide-block | server → students | AI-generated guide card |
+| comprehension-question | server → students | Comprehension gate question |
+| comprehension-answer | student → server | Student's answer index |
+| comprehension-result | server → student | Correct/wrong + explanation |
+| file-shared | server → students | Cloudinary URL broadcast |
+| student-error | student → server | Error text → LangGraph error agent |
+| error-resolved | server → student | Diagnosis + fix command |
+| student-joined | server → room | Updated student count |
+| student-left | server → room | Updated student count |
+| session-ended | server → room | Instructor ended session |
+| session-state | server → new client | Full state on connect |
+| share-intent-detected | server → instructor | LangGraph detected share intent |
+
+---
+
+## Groq Models
+
+| Task | Model |
+|---|---|
+| Screen frame vision | meta-llama/llama-4-scout-17b-16e-instruct |
+| Text / error diagnosis | llama3-70b-8192 |
+| Audio transcription | whisper-large-v3 |

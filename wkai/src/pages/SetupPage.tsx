@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, AlertCircle } from "lucide-react";
 import { useAppStore } from "../store";
-import { createSession, startCapture, watchFolder } from "../lib/tauri";
+import { createSession, startCapture, watchFolder, listWatchedFiles } from "../lib/tauri";
 
 export function SetupPage() {
   const navigate = useNavigate();
-  const { settings, updateSettings, setSession, setCapture } = useAppStore();
+  const { settings, updateSettings, setSession, setCapture, setWatchedFiles } = useAppStore();
 
   const [workshopTitle, setWorkshopTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,23 +26,29 @@ export function SetupPage() {
     setError(null);
 
     try {
-      // 1. Create session via Rust command
-      const session = await createSession(settings.instructorName, workshopTitle);
+      // 1. Create session — registers with backend, returns room code
+      const session = await createSession(
+        settings.instructorName,
+        workshopTitle,
+        settings.backendUrl
+      );
       setSession(session);
 
       // 2. Start screen capture loop
       await startCapture({
         framesPerMinute: settings.framesPerMinute,
-        captureAudio: settings.captureAudio,
-        sessionId: session.id,
+        captureAudio:    settings.captureAudio,
+        sessionId:       session.id,
       });
       setCapture({ isCapturing: true });
 
-      // 3. Start watching the share folder (if configured)
+      // 3. Watch folder and pre-load file list (if configured)
       if (settings.watchFolder) {
         await watchFolder(settings.watchFolder).catch(() => {
           // Non-fatal — folder watch is optional
         });
+        const files = await listWatchedFiles(settings.watchFolder).catch(() => []);
+        setWatchedFiles(files);
       }
 
       navigate("/session");
@@ -100,7 +106,7 @@ export function SetupPage() {
             </label>
             <input
               className="input font-mono text-xs"
-              placeholder="/Users/you/workshop-files"
+              placeholder="/home/rafan/workshop-files"
               value={settings.watchFolder}
               onChange={(e) => updateSettings({ watchFolder: e.target.value })}
             />

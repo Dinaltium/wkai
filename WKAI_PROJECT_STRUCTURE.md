@@ -250,7 +250,7 @@ wkai/
 
 ```
 wkai-backend/
-├── .env.example                        ← all env vars documented (GROQ_API_KEY, DB, Redis, Firebase)
+├── .env.example                        ← all env vars documented (GROQ_API_KEY, DB, Redis, Cloudinary)
 ├── package.json
 ├── docker-compose.yml                  ← postgres:16-alpine + redis:7-alpine
 ├── README.md
@@ -293,7 +293,7 @@ wkai-backend/
     │   │                                  GET  /api/sessions/:id/guide fetch all guide blocks
     │   ├── ai.js                       ← POST /api/ai/transcribe      Groq Whisper
     │   │                                  POST /api/ai/diagnose        Groq Llama3-70b
-    │   ├── files.js                    ← POST /api/files/upload        multer → Firebase Storage
+    │   ├── files.js                    ← POST /api/files/upload        multer → Cloudinary (25GB free)
     │   └── runner.js                   ← POST /api/run                 sandboxed code execution
     │                                      supports: python3, node, npx ts-node, bash
     │                                      timeout: 10s, output cap: 8KB
@@ -342,7 +342,7 @@ error_resolutions (
 | ws ^8.18       | WebSocket server                                      |
 | pg ^8.13       | PostgreSQL client (node-postgres)                     |
 | redis ^4.7     | Redis client                                          |
-| firebase-admin | Firebase Storage for file uploads                     |
+| cloudinary      | Cloudinary file uploads (free tier)         |
 | zod ^3.23      | Request body validation                               |
 | multer         | Multipart file upload handling                        |
 | dotenv         | Environment variable loading                          |
@@ -359,11 +359,11 @@ error_resolutions (
 | NODE_ENV                      | No       | development / production                 |
 | DATABASE_URL                  | Yes      | PostgreSQL connection string             |
 | REDIS_URL                     | Yes      | Redis connection string                  |
-| GROQ_API_KEY                  | Yes      | From console.groq.com — free tier        |
-| FIREBASE_PROJECT_ID           | No       | Firebase project (for file storage)      |
-| FIREBASE_STORAGE_BUCKET       | No       | Firebase storage bucket                  |
-| FIREBASE_SERVICE_ACCOUNT_PATH | No       | Path to service account JSON             |
-| JWT_SECRET                    | No       | For future instructor auth               |
+| GROQ_API_KEY                  | Yes      | From console.groq.com — free, no card    |
+| CLOUDINARY_CLOUD_NAME         | Yes      | From cloudinary.com dashboard            |
+| CLOUDINARY_API_KEY            | Yes      | From cloudinary.com dashboard            |
+| CLOUDINARY_API_SECRET         | Yes      | From cloudinary.com dashboard            |
+| JWT_SECRET                    | No       | Any long random string                   |
 
 ---
 
@@ -481,43 +481,58 @@ wkai-student/
 
 ### Prerequisites
 ```
-Node.js >= 20
-Rust + cargo (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh)
-Docker + Docker Compose
-Groq API key (free at console.groq.com)
+Node.js >= 20          (install in Kali WSL2)
+Rust + cargo           (install in Kali WSL2)
+Docker Desktop         (install on Windows, enable Kali WSL2 integration)
+Groq API key           (free at console.groq.com)
 ```
 
-### Step 1 — Backend
+### Paths
+```
+WSL2 root:    ~/Projects/wkai/
+Windows root: \\wsl.localhost\kali-linux\home\rafan\Projects\wkai\
+```
+
+### Step 1 — Databases (Kali WSL2 terminal)
 ```bash
-cd wkai-backend
-docker compose up -d           # Postgres + Redis
+cd ~/Projects/wkai/wkai-backend
+docker compose up -d           # starts Postgres + Redis
+docker compose ps              # verify both show "running"
+```
+
+### Step 2 — Backend (Kali WSL2 terminal)
+```bash
+cd ~/Projects/wkai/wkai-backend
 npm install
 cp .env.example .env
-# → fill in GROQ_API_KEY=gsk_...
-npm run db:migrate             # creates all 5 tables
+# edit .env and fill in:
+#   GROQ_API_KEY           → console.groq.com (free)
+#   CLOUDINARY_CLOUD_NAME  → cloudinary.com dashboard
+#   CLOUDINARY_API_KEY     → cloudinary.com dashboard
+#   CLOUDINARY_API_SECRET  → cloudinary.com dashboard
+npm run db:migrate             # creates all 5 tables (first time only)
 npm run dev                    # → http://localhost:4000
 ```
 
-### Step 2 — Student web app
+### Step 3 — Student web app (Kali WSL2 terminal)
 ```bash
-cd wkai-student
+cd ~/Projects/wkai/wkai-student
 npm install
 npm run dev                    # → http://localhost:3000
 ```
 
-### Step 3 — Instructor desktop app
-```bash
-cd wkai
+### Step 4 — Instructor desktop app (Windows PowerShell)
+```powershell
+# Must run in Windows PowerShell — not WSL2 — Tauri builds a Windows .exe
+cd \\wsl.localhost\kali-linux\home\rafan\Projects\wkai\wkai
 npm install
-# Linux only:
-sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev
-npm run tauri:dev              # builds Rust, opens the desktop window
+npm run tauri:dev              # Rust compiles (~3-5 min first time), then window opens
 ```
 
-### Step 4 — Start a workshop
+### Step 5 — Start a workshop
 1. Open the desktop app → fill in name + workshop title → click **Start Session**
 2. App gives you a 6-character room code (e.g. `A3F9KX`) and moves to system tray
-3. Students open `http://localhost:3000` (or your deployed URL), enter the code
+3. Students open `http://localhost:3000`, enter the code
 4. Teach normally — WKAI watches, generates, distributes
 
 ---
@@ -530,5 +545,5 @@ npm run tauri:dev              # builds Rust, opens the desktop window
 | wkai-student    | Vercel / Cloudflare Pages           |
 | PostgreSQL      | Railway Postgres / Supabase         |
 | Redis           | Railway Redis / Upstash             |
-| File storage    | Firebase Storage (already wired)    |
+| File storage    | Cloudinary (free — cloudinary.com)   |
 | Instructor app  | Self-hosted (runs on instructor PC) |

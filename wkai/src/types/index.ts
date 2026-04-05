@@ -91,7 +91,7 @@ export interface AppSettings {
   instructorName: string;
   watchFolder: string;
   backendUrl: string;
-  openaiApiKey: string;
+  groqApiKey: string;
   framesPerMinute: number;
   captureAudio: boolean;
 }

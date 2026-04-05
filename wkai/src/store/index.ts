@@ -4,6 +4,7 @@ import type {
   CaptureState,
   GuideBlock,
   SharedFile,
+  WatchedFile,
   AppSettings,
 } from "../types";
 
@@ -25,9 +26,13 @@ interface AppStore {
   addGuideBlock: (block: GuideBlock) => void;
   clearGuide: () => void;
 
-  // ─── Shared Files ──────────────────────────────────────────────────────────
+  // ─── Shared Files (already sent to students) ───────────────────────────────
   sharedFiles: SharedFile[];
   addSharedFile: (file: SharedFile) => void;
+
+  // ─── Watched Files (local folder — available to share) ────────────────────
+  watchedFiles: WatchedFile[];
+  setWatchedFiles: (files: WatchedFile[]) => void;
 
   // ─── Student Count ─────────────────────────────────────────────────────────
   studentCount: number;
@@ -35,12 +40,12 @@ interface AppStore {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  instructorName: "",
-  watchFolder: "",
-  backendUrl: "http://localhost:4000",
-  openaiApiKey: "",
+  instructorName:  "",
+  watchFolder:     "",
+  backendUrl:      "http://localhost:4000",
+  groqApiKey:      "",
   framesPerMinute: 6,
-  captureAudio: true,
+  captureAudio:    true,
 };
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -52,9 +57,9 @@ export const useAppStore = create<AppStore>((set) => ({
   setSession: (session) => set({ session }),
 
   capture: {
-    isCapturing: false,
-    lastFrameAt: null,
-    framesSent: 0,
+    isCapturing:  false,
+    lastFrameAt:  null,
+    framesSent:   0,
     aiProcessing: false,
   },
   setCapture: (partial) =>
@@ -68,6 +73,9 @@ export const useAppStore = create<AppStore>((set) => ({
   sharedFiles: [],
   addSharedFile: (file) =>
     set((s) => ({ sharedFiles: [file, ...s.sharedFiles] })),
+
+  watchedFiles: [],
+  setWatchedFiles: (watchedFiles) => set({ watchedFiles }),
 
   studentCount: 0,
   setStudentCount: (n) => set({ studentCount: n }),

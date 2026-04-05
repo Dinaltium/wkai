@@ -1,16 +1,26 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import { v2 as cloudinary } from "cloudinary";
 
 export const filesRouter = Router();
 
-// Store uploads in memory temporarily before sending to Firebase
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+// ─── Cloudinary config ────────────────────────────────────────────────────────
+// Initialised once when the module loads.
+// Credentials come from .env — never hardcode these.
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ─── POST /api/files/upload — Upload a file to Firebase Storage ───────────────
+// ─── Multer — keep file in memory before uploading to Cloudinary ──────────────
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB max
+});
+
+// ─── POST /api/files/upload ───────────────────────────────────────────────────
 
 filesRouter.post("/upload", upload.single("file"), async (req, res, next) => {
   try {
@@ -23,11 +33,15 @@ filesRouter.post("/upload", upload.single("file"), async (req, res, next) => {
       return res.status(400).json({ error: "sessionId required" });
     }
 
-    const fileName = `${sessionId}/${Date.now()}_${path.basename(req.file.originalname)}`;
-    const url = await uploadToFirebase(req.file.buffer, fileName, req.file.mimetype);
+    // Build a clean public_id: wkai/sessionId/timestamp_filename
+    // Cloudinary uses public_id as the file path inside your account
+    const baseName   = path.basename(req.file.originalname, path.extname(req.file.originalname));
+    const publicId   = `wkai/${sessionId}/${Date.now()}_${baseName}`;
+
+    const url = await uploadToCloudinary(req.file.buffer, publicId, req.file.mimetype);
 
     res.json({
-      name: req.file.originalname,
+      name:      req.file.originalname,
       url,
       sizeBytes: req.file.size,
     });
@@ -36,33 +50,36 @@ filesRouter.post("/upload", upload.single("file"), async (req, res, next) => {
   }
 });
 
+// ─── Upload helper ────────────────────────────────────────────────────────────
+
 /**
- * Upload a buffer to Firebase Storage.
- * Returns the public download URL.
+ * Uploads a file buffer to Cloudinary and returns the secure download URL.
+ *
+ * resource_type "raw" handles all non-image files (PDFs, .py, .zip, etc.)
+ * For images it auto-detects, but "raw" is safer for workshop files.
+ *
+ * @param {Buffer} buffer
+ * @param {string} publicId    e.g. "wkai/session-123/1234567890_notes"
+ * @param {string} mimeType    e.g. "application/pdf"
+ * @returns {Promise<string>}  secure HTTPS download URL
  */
-async function uploadToFirebase(buffer, fileName, mimeType) {
-  // Lazy-load firebase-admin to avoid crashing if credentials aren't set up yet
-  const admin = await import("firebase-admin").then((m) => m.default);
+function uploadToCloudinary(buffer, publicId, mimeType) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "raw",   // handles PDFs, code files, zip, etc.
+        public_id:     publicId,
+        overwrite:     false,
+        // Makes the file directly downloadable rather than displayed inline
+        type:          "upload",
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        // secure_url is always HTTPS — use this, not url
+        resolve(result.secure_url);
+      }
+    );
 
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(process.env.FIREBASE_SERVICE_ACCOUNT_PATH),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    });
-  }
-
-  const bucket = admin.storage().bucket();
-  const file = bucket.file(fileName);
-
-  await file.save(buffer, {
-    metadata: { contentType: mimeType },
-    public: true,
+    uploadStream.end(buffer);
   });
-
-  const [url] = await file.getSignedUrl({
-    action: "read",
-    expires: "01-01-2030",
-  });
-
-  return url;
 }

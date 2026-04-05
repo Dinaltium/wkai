@@ -5,17 +5,28 @@ import type { Session, CaptureConfig, WatchedFile } from "../types";
 
 export async function createSession(
   instructorName: string,
-  workshopTitle: string
+  workshopTitle: string,
+  backendUrl: string
 ): Promise<Session> {
-  return invoke<Session>("create_session", { instructorName, workshopTitle });
+  return invoke<Session>("create_session", {
+    instructorName,
+    workshopTitle,
+    backendUrl,
+  });
 }
 
-export async function endSession(sessionId: string): Promise<void> {
-  return invoke("end_session", { sessionId });
+export async function endSession(
+  sessionId: string,
+  backendUrl: string
+): Promise<void> {
+  return invoke("end_session", { sessionId, backendUrl });
 }
 
-export async function getSessionStatus(sessionId: string): Promise<string> {
-  return invoke("get_session_status", { sessionId });
+export async function getSessionStatus(
+  sessionId: string,
+  backendUrl: string
+): Promise<string> {
+  return invoke("get_session_status", { sessionId, backendUrl });
 }
 
 // ─── Capture Commands ─────────────────────────────────────────────────────────
@@ -24,8 +35,8 @@ export async function startCapture(config: CaptureConfig): Promise<void> {
   return invoke("start_capture", {
     config: {
       frames_per_minute: config.framesPerMinute,
-      capture_audio: config.captureAudio,
-      session_id: config.sessionId,
+      capture_audio:     config.captureAudio,
+      session_id:        config.sessionId,
     },
   });
 }
@@ -42,9 +53,10 @@ export async function watchFolder(folderPath: string): Promise<void> {
 
 export async function shareFile(
   sessionId: string,
-  filePath: string
+  filePath: string,
+  backendUrl: string
 ): Promise<string> {
-  return invoke<string>("share_file", { sessionId, filePath });
+  return invoke<string>("share_file", { sessionId, filePath, backendUrl });
 }
 
 export async function listWatchedFiles(
