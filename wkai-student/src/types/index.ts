@@ -1,0 +1,81 @@
+// ─── Session ──────────────────────────────────────────────────────────────────
+export interface Session {
+  id: string;
+  roomCode: string;
+  instructorName: string;
+  workshopTitle: string;
+  status: "active" | "paused" | "ended";
+  startedAt: string;
+}
+
+// ─── Guide ────────────────────────────────────────────────────────────────────
+export type BlockType = "step" | "tip" | "code" | "explanation" | "comprehension";
+
+export interface GuideBlock {
+  id: string;
+  sessionId: string;
+  type: BlockType;
+  title:    string | null;
+  content:  string;
+  code:     string | null;
+  language: string | null;
+  locked:   boolean;
+  timestamp: string;
+}
+
+// ─── Comprehension ────────────────────────────────────────────────────────────
+export interface ComprehensionQuestion {
+  id: string;
+  sessionId: string;
+  guideBlockId: string | null;
+  question: string;
+  options:  string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface ComprehensionResult {
+  questionId: string;
+  correct: boolean;
+  explanation: string;
+}
+
+// ─── Files ────────────────────────────────────────────────────────────────────
+export interface SharedFile {
+  id: string;
+  name: string;
+  url: string;
+  sizeBytes: number | null;
+  sharedAt: string;
+}
+
+// ─── Error resolution ─────────────────────────────────────────────────────────
+export interface ErrorResolution {
+  diagnosis:    string;
+  fixCommand:   string | null;
+  fixSteps:     string[] | null;
+  isSetupError: boolean;
+  severity:     "blocking" | "warning" | "info";
+}
+
+// ─── WebSocket ────────────────────────────────────────────────────────────────
+export type WsEventType =
+  | "session-state"
+  | "guide-block"
+  | "comprehension-question"
+  | "comprehension-result"
+  | "file-shared"
+  | "student-joined"
+  | "student-left"
+  | "error-resolved"
+  | "session-ended"
+  | "error";
+
+export interface WsMessage<T = unknown> {
+  type: WsEventType;
+  payload: T;
+  timestamp?: string;
+}
+
+// ─── Tab ─────────────────────────────────────────────────────────────────────
+export type RoomTab = "guide" | "files" | "editor" | "error";

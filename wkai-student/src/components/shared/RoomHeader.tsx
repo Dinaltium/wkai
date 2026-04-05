@@ -1,0 +1,53 @@
+import { useStore } from "../../store";
+import { clsx } from "clsx";
+import { Users } from "lucide-react";
+
+export function RoomHeader() {
+  const { session, connected, studentCount } = useStore();
+
+  return (
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-wkai-border bg-wkai-surface px-4">
+      {/* Left: brand + session title */}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500 text-white text-xs font-bold">
+          WK
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-wkai-text leading-tight">
+            {session?.workshopTitle ?? "Workshop"}
+          </p>
+          <p className="text-xs text-wkai-text-dim leading-tight">
+            {session?.instructorName}
+          </p>
+        </div>
+      </div>
+
+      {/* Right: status indicators */}
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="flex items-center gap-1.5 text-xs text-wkai-text-dim">
+          <Users size={12} />
+          {studentCount}
+        </span>
+
+        <span className="font-mono text-xs font-bold tracking-widest text-indigo-400">
+          {session?.roomCode}
+        </span>
+
+        <span
+          className={clsx(
+            "flex items-center gap-1.5 text-xs font-medium",
+            connected ? "text-emerald-400" : "text-wkai-text-dim"
+          )}
+        >
+          <span
+            className={clsx(
+              "h-1.5 w-1.5 rounded-full",
+              connected ? "bg-emerald-400 animate-pulse" : "bg-gray-600"
+            )}
+          />
+          {connected ? "Live" : "Reconnecting…"}
+        </span>
+      </div>
+    </header>
+  );
+}

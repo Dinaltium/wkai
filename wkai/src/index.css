@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #20253a;
+    --border: #2a2d3a;
+    --accent: #6366f1;
+    --accent-dim: rgba(99, 102, 241, 0.15);
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --text: #e5e7eb;
+    --text-dim: #6b7280;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3d4a;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-indigo-500 text-white hover:bg-indigo-600 active:scale-95;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text;
+  }
+  .btn-danger {
+    @apply btn bg-red-500/10 text-red-400 hover:bg-red-500/20;
+  }
+  .card {
+    @apply rounded-xl bg-wkai-surface border border-wkai-border p-4;
+  }
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .input {
+    @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors;
+  }
+  .pulse-dot {
+    @apply relative inline-flex h-2 w-2;
+  }
+  .pulse-dot::before {
+    @apply absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 content-[''];
+  }
+  .pulse-dot::after {
+    @apply relative inline-flex h-2 w-2 rounded-full content-[''];
+  }
+  .pulse-dot.active::before {
+    @apply bg-green-400;
+  }
+  .pulse-dot.active::after {
+    @apply bg-green-500;
+  }
+  .pulse-dot.idle::before {
+    @apply bg-gray-500;
+  }
+  .pulse-dot.idle::after {
+    @apply bg-gray-600;
+  }
+}

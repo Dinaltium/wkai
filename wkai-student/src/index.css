@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body, #root {
+    height: 100%;
+    background: #0f1117;
+    color: #e5e7eb;
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2d3a; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3d4a; }
+
+  code, pre, .mono { font-family: "JetBrains Mono", "Fira Code", monospace; }
+}
+
+@layer components {
+  .btn         { @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none; }
+  .btn-primary { @apply btn bg-indigo-500 text-white hover:bg-indigo-600 active:scale-95; }
+  .btn-ghost   { @apply btn text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text; }
+  .btn-success { @apply btn bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95; }
+  .btn-danger  { @apply btn bg-red-500/10 text-red-400 hover:bg-red-500/20; }
+  .card        { @apply rounded-xl border border-wkai-border bg-wkai-surface; }
+  .input       { @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors; }
+  .badge       { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
+}

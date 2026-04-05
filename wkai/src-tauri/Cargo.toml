@@ -1,0 +1,78 @@
+[package]
+name = "wkai-instructor"
+version = "0.1.0"
+description = "WKAI Instructor Desktop App"
+authors = ["WKAI Team"]
+edition = "2021"
+
+[lib]
+name = "wkai_instructor_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "wkai-instructor"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+# Tauri core
+tauri = { version = "2.0", features = [
+  "tray-icon",
+  "image-png",
+] }
+
+# Tauri plugins
+tauri-plugin-fs = "2.0"
+tauri-plugin-shell = "2.0"
+tauri-plugin-notification = "2.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# HTTP client (for calling Groq APIs)
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+
+# Screen capture
+screenshots = "0.8"
+
+# Audio capture
+cpal = "0.15"
+
+# File watching (for auto-detect shareable files)
+notify = "6.0"
+
+# Base64 (for encoding screenshots before sending)
+base64 = "0.22"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# UUID for room/session IDs
+uuid = { version = "1.0", features = ["v4"] }
+
+# Time utilities
+chrono = { version = "0.4", features = ["serde"] }
+
+# Channel for threading
+flume = "0.11"
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
