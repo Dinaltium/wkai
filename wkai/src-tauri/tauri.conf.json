@@ -60,7 +60,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/YOUR_USERNAME/wkai/releases/latest/download/latest.json"
+        "https://github.com/Dinaltium/wkai/releases/latest/download/latest.json"
       ],
       "dialog": true,
       "pubkey": "YOUR_PUBLIC_KEY_HERE"
