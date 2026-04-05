@@ -1,0 +1,264 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# WKAI — .gitignore
+# Place this file at the ROOT of your repository (one level above project_filesv2)
+# or inside project_filesv2/ if that is your repo root.
+#
+# Covers: Node.js, Rust/Tauri, React/Vite, TypeScript, Docker, VS Code,
+#         JetBrains, macOS, Windows, Linux, Firebase, environment secrets
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# SECRETS & ENVIRONMENT — NEVER COMMIT THESE
+# ───────────────────────────────────────────────────────────────────────────────
+
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+.env.*.local
+
+# Firebase service account key (contains private credentials)
+firebase-service-account.json
+firebase-adminsdk*.json
+*-service-account.json
+serviceAccountKey.json
+
+# Tauri signing keys (private key — keep this safe, DO NOT commit)
+.tauri/
+*.key
+*.pem
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# NODE.JS — wkai-backend/ and wkai-student/ and wkai/
+# ───────────────────────────────────────────────────────────────────────────────
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Package manager lock files — pick ONE and commit only that one
+# Uncomment the lock file your project uses and leave the rest ignored:
+# package-lock.json   ← uncomment to IGNORE npm lockfile (not recommended)
+# yarn.lock           ← uncomment to IGNORE yarn lockfile (not recommended)
+# pnpm-lock.yaml      ← uncomment to IGNORE pnpm lockfile (not recommended)
+# Recommendation: COMMIT your lock file (don't ignore it) for reproducible builds
+
+# Runtime / cache
+.npm/
+.yarn/
+.pnp/
+.pnp.js
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Optional: eslint cache
+.eslintcache
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# VITE / BUILD OUTPUT — wkai/ and wkai-student/
+# ───────────────────────────────────────────────────────────────────────────────
+
+dist/
+dist-ssr/
+build/
+out/
+.vite/
+*.local
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# RUST / TAURI — wkai/src-tauri/
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Cargo build artifacts (very large — can be hundreds of MB)
+wkai/src-tauri/target/
+
+# Cargo.lock — for binary crates (applications) you SHOULD commit this
+# For library crates you should ignore it. WKAI is a binary so keep it:
+# (do NOT add Cargo.lock to .gitignore)
+
+# Generated Tauri bundle output
+wkai/src-tauri/gen/
+wkai/src-tauri/WixTools/
+
+# Debug symbols
+*.pdb
+*.dSYM/
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# DOCKER
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Docker override files (local dev customizations — not for prod)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Docker volumes data (if you ever mount a local directory as a volume)
+postgres-data/
+redis-data/
+pgdata/
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# LOGS
+# ───────────────────────────────────────────────────────────────────────────────
+
+logs/
+*.log
+*.log.*
+log/
+
+# Specific log locations
+wkai-backend/logs/
+wkai-backend/*.log
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# TEMP FILES — from the code runner (wkai-backend/src/routes/runner.js)
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Temp files created by the sandboxed code execution endpoint
+wkai_*.py
+wkai_*.js
+wkai_*.ts
+wkai_*.sh
+
+# OS temp directories (just in case)
+tmp/
+temp/
+.tmp/
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# EDITORS — VS Code, JetBrains, Vim, Emacs
+# ───────────────────────────────────────────────────────────────────────────────
+
+# VS Code — keep .vscode/settings.json if you want shared editor config,
+# but ignore extensions and workspace-specific files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (WebStorm, IntelliJ, CLion, RustRover)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+*~
+tags
+[._]*.un~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# OPERATING SYSTEM
+# ───────────────────────────────────────────────────────────────────────────────
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# TESTING (add your test output dirs here when you add tests)
+# ───────────────────────────────────────────────────────────────────────────────
+
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+playwright-report/
+playwright/.cache/
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# MISC
+# ───────────────────────────────────────────────────────────────────────────────
+
+# ZIP files (the ones we generated for download — don't commit these)
+*.zip
+*.tar.gz
+*.tgz
+
+# Python virtual environments (from the code runner sandboxing)
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Vercel deployment config (auto-generated)
+.vercel
+
+# Turbo (if you ever add Turborepo)
+.turbo/
