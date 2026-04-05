@@ -19,6 +19,7 @@
 .env.staging
 .env.test
 .env.*.local
+.env.example
 
 # Firebase service account key (contains private credentials)
 firebase-service-account.json
