@@ -1,15 +1,23 @@
 name: Release
+
 on:
   push:
-    tags: ['v*']   # triggers on: git tag v0.1.0 && git push --tags
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install deps
@@ -25,6 +33,6 @@ jobs:
           projectPath: wkai
           tagName: ${{ github.ref_name }}
           releaseName: WKAI ${{ github.ref_name }}
-          releaseBody: "Release notes here"
+          releaseBody: "Automated WKAI desktop app release"
           releaseDraft: false
           prerelease: false

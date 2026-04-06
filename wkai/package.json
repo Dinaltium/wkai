@@ -1,15 +1,17 @@
 {
   "name": "wkai-instructor",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "version:bump": "node ./scripts/bump-version.mjs",
+    "release:bump": "node ./scripts/bump-version.mjs patch",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "npm run version:bump && tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

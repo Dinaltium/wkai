@@ -1,0 +1,87 @@
+name: Bump And Tag Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  bump-and-tag:
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm install
+        working-directory: wkai
+
+      - name: Resolve bump type
+        id: bump
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.bump }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump app version
+        run: node ./scripts/bump-version.mjs "${{ steps.bump.outputs.value }}"
+        working-directory: wkai
+
+      - name: Read bumped version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./wkai/package.json').version")
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version files
+        id: commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wkai/package.json wkai/src-tauri/tauri.conf.json wkai/src-tauri/Cargo.toml
+          if git diff --cached --quiet; then
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "chore(release): bump app version to v${{ steps.version.outputs.value }} [skip release]"
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.commit.outputs.committed == 'true'
+        shell: bash
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.value }}" >/dev/null 2>&1; then
+            echo "Tag v${{ steps.version.outputs.value }} already exists, skipping."
+            exit 0
+          fi
+          git tag "v${{ steps.version.outputs.value }}"
+          git push origin HEAD
+          git push origin "v${{ steps.version.outputs.value }}"
