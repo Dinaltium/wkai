@@ -3,6 +3,9 @@ import { StructuredOutputParser, OutputFixingParser } from "langchain/output_par
 import { z } from "zod";
 import { textLLM } from "./groqClient.js";
 
+// Re-export for use in other modules
+export { StructuredOutputParser, OutputFixingParser };
+
 // ─── Zod schemas for structured outputs ──────────────────────────────────────
 
 export const GuideBlockSchema = z.object({
