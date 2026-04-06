@@ -26,6 +26,7 @@ jobs:
     outputs:
       committed: ${{ steps.commit.outputs.committed }}
       version: ${{ steps.version.outputs.value }}
+      commit_sha: ${{ steps.meta.outputs.commit_sha }}
 
     steps:
       - name: Checkout
@@ -88,3 +89,83 @@ jobs:
           git tag "v${{ steps.version.outputs.value }}"
           git push origin HEAD
           git push origin "v${{ steps.version.outputs.value }}"
+
+      - name: Capture commit metadata
+        id: meta
+        shell: bash
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build-release:
+    needs: bump-and-tag
+    if: needs.bump-and-tag.outputs.committed == 'true'
+    env:
+      HAS_TAURI_SIGNING: ${{ secrets.TAURI_PRIVATE_KEY != '' && secrets.TAURI_KEY_PASSWORD != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: macos-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout bumped commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-and-tag.outputs.commit_sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install deps
+        run: npm install
+        working-directory: wkai
+
+      - name: Build Tauri app (signed)
+        if: env.HAS_TAURI_SIGNING == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          projectPath: wkai
+          args: ${{ matrix.args }}
+          tagName: v${{ needs.bump-and-tag.outputs.version }}
+          releaseName: WKAI v${{ needs.bump-and-tag.outputs.version }}
+          releaseBody: "Automated WKAI desktop app release"
+          releaseDraft: false
+          prerelease: false
+
+      - name: Build Tauri app (unsigned)
+        if: env.HAS_TAURI_SIGNING != 'true'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: wkai
+          args: ${{ matrix.args }}
+          tagName: v${{ needs.bump-and-tag.outputs.version }}
+          releaseName: WKAI v${{ needs.bump-and-tag.outputs.version }}
+          releaseBody: "Automated WKAI desktop app release (unsigned)"
+          releaseDraft: false
+          prerelease: false
