@@ -2,12 +2,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionInfo {
     pub id: String,
-    pub room_code: String,
-    pub instructor_name: String,
-    pub workshop_title: String,
-    pub started_at: String,
+    pub roomCode: String,
+    pub instructorName: String,
+    pub workshopTitle: String,
+    pub startedAt: String,
     pub status: SessionStatus,
 }
 
@@ -34,12 +35,12 @@ pub async fn create_session(
     let room_code = session_id[..6].to_uppercase().replace('-', "X");
     let now = chrono::Utc::now().to_rfc3339();
 
-    let session = SessionInfo {
+    let _session = SessionInfo {
         id: session_id.clone(),
-        room_code: room_code.clone(),
-        instructor_name: instructor_name.clone(),
-        workshop_title: workshop_title.clone(),
-        started_at: now,
+        roomCode: room_code.clone(),
+        instructorName: instructor_name.clone(),
+        workshopTitle: workshop_title.clone(),
+        startedAt: now.clone(),
         status: SessionStatus::Active,
     };
 
@@ -63,8 +64,24 @@ pub async fn create_session(
         return Err(format!("Backend error: {}", body));
     }
 
+    // Backend returns { session: {...}, ... }, we need to extract the session
+    let response: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let backend_session = response
+        .get("session")
+        .ok_or("Backend did not return session object")?;
+
+    // Merge backend data (id, startedAt) with local data
+    let merged = SessionInfo {
+        id:             backend_session["id"].as_str().unwrap_or(&session_id).to_string(),
+        roomCode:       backend_session["roomCode"].as_str().unwrap_or(&room_code).to_string(),
+        instructorName: backend_session["instructorName"].as_str().unwrap_or(&instructor_name).to_string(),
+        workshopTitle:  backend_session["workshopTitle"].as_str().unwrap_or(&workshop_title).to_string(),
+        startedAt:      backend_session["startedAt"].as_str().unwrap_or(&now).to_string(),
+        status:         SessionStatus::Active,
+    };
+
     log::info!("Session registered with backend successfully");
-    Ok(session)
+    Ok(merged)
 }
 
 /// Ends the current session — notifies backend, which cleans up

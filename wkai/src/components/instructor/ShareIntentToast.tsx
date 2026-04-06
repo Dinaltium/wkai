@@ -10,6 +10,7 @@ interface IntentPayload {
 }
 
 export function ShareIntentToast({ sessionId }: { sessionId: string }) {
+  const { settings } = useAppStore();
   const [pending, setPending] = useState<IntentPayload | null>(null);
   const [sharing, setSharing] = useState(false);
 
@@ -30,7 +31,7 @@ export function ShareIntentToast({ sessionId }: { sessionId: string }) {
     if (!pending) return;
     setSharing(true);
     try {
-      await shareFile(sessionId, pending.file.path);
+      await shareFile(sessionId, pending.file.path, settings.backendUrl);
     } catch (err) {
       console.error("Share failed", err);
     } finally {

@@ -5,6 +5,8 @@ import {
   getSessionData,
   incrementStudentCount,
   decrementStudentCount,
+  clearStudentConnections,
+  getStudentCount,
   setTranscript,
   getTranscript,
 } from "../db/redis.js";
@@ -13,7 +15,7 @@ import { processScreenFrame } from "../ai/pipeline.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { detectShareIntent } from "../ai/graphs/intentAgent.js";
 
-// Map of sessionId → Set of WebSocket clients
+// Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
 
 export function initWebSocketServer(httpServer) {
@@ -21,14 +23,19 @@ export function initWebSocketServer(httpServer) {
 
   wss.on("connection", async (ws, req) => {
     const { query: qs } = parse(req.url, true);
-    const sessionCode = String(qs.session ?? "").toUpperCase();
-    const role        = qs.role === "instructor" ? "instructor" : "student";
-    const studentId   = qs.studentId ?? `s_${Math.random().toString(36).slice(2, 8)}`;
+    const sessionParam = String(qs.session ?? "").trim();
+    const role = qs.role === "instructor" ? "instructor" : "student";
+    const studentId = typeof qs.studentId === "string" && qs.studentId.length > 0
+      ? qs.studentId
+      : `s_${Math.random().toString(36).slice(2, 8)}`;
 
-    const { rows } = await query(
-      "SELECT id, status FROM sessions WHERE room_code = $1",
-      [sessionCode]
-    );
+    const isInstructor = role === "instructor";
+    const lookupQuery = isInstructor
+      ? "SELECT id, room_code, status FROM sessions WHERE id = $1"
+      : "SELECT id, room_code, status FROM sessions WHERE room_code = $1";
+    const lookupValue = isInstructor ? sessionParam : sessionParam.toUpperCase();
+
+    const { rows } = await query(lookupQuery, [lookupValue]);
 
     if (!rows.length || rows[0].status === "ended") {
       ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found or ended" } }));
@@ -37,21 +44,39 @@ export function initWebSocketServer(httpServer) {
     }
 
     const sessionId = rows[0].id;
-    if (!rooms.has(sessionId)) rooms.set(sessionId, new Set());
-    rooms.get(sessionId).add(ws);
+    const roomCode = rows[0].room_code;
+    const clientKey = isInstructor ? "instructor" : `student:${studentId}`;
+
+    if (!rooms.has(sessionId)) rooms.set(sessionId, new Map());
+    const room = rooms.get(sessionId);
+    const previousSocket = room.get(clientKey);
+    room.set(clientKey, ws);
+
+    if (previousSocket && previousSocket.readyState === WebSocket.OPEN && previousSocket !== ws) {
+      previousSocket.close();
+    }
+
     ws.sessionId = sessionId;
+    ws.roomCode = roomCode;
+    ws.clientKey = clientKey;
     ws.role      = role;
     ws.studentId = studentId;
 
-    console.log(`[WS] ${role} connected to room ${sessionCode}`);
+    console.log(`[WS] ${role} connected to room ${roomCode} (sessionId: ${sessionId})`);
 
-    if (role === "student") {
-      const count = await incrementStudentCount(sessionId);
+    if (role === "student" && previousSocket !== ws) {
+      const count = await incrementStudentCount(sessionId, studentId);
+      console.log(`[WS] Student count for ${sessionId}: ${count}, room size: ${rooms.get(sessionId)?.size ?? 0}`);
       broadcast(sessionId, { type: "student-joined", payload: { count } }, ws);
     }
 
     const state = await getSessionData(sessionId);
     if (state) ws.send(JSON.stringify({ type: "session-state", payload: state }));
+
+    if (role === "instructor") {
+      const count = await getStudentCount(sessionId);
+      ws.send(JSON.stringify({ type: "student-joined", payload: { count } }));
+    }
 
     ws.on("message", async (raw) => {
       let msg;
@@ -80,11 +105,17 @@ export function initWebSocketServer(httpServer) {
     });
 
     ws.on("close", async () => {
-      rooms.get(sessionId)?.delete(ws);
-      if (rooms.get(sessionId)?.size === 0) rooms.delete(sessionId);
-      if (role === "student") {
-        const count = await decrementStudentCount(sessionId);
-        broadcast(sessionId, { type: "student-left", payload: { count } });
+      const room = rooms.get(sessionId);
+      if (!room) return;
+
+      if (room.get(clientKey) === ws) {
+        room.delete(clientKey);
+        if (room.size === 0) rooms.delete(sessionId);
+
+        if (role === "student") {
+          const count = await decrementStudentCount(sessionId, studentId);
+          broadcast(sessionId, { type: "student-left", payload: { count } });
+        }
       }
     });
 
@@ -218,6 +249,7 @@ async function handleComprehensionAnswer(ws, payload) {
 
 export function cleanupSession(sessionId) {
   clearSessionMemory(sessionId);
+  void clearStudentConnections(sessionId);
   rooms.delete(sessionId);
 }
 
@@ -225,20 +257,27 @@ export function cleanupSession(sessionId) {
 
 export function broadcast(sessionId, msg, exclude = null) {
   const clients = rooms.get(sessionId);
-  if (!clients) return;
+  if (!clients) {
+    console.log(`[WS] broadcast: No room found for sessionId ${sessionId}`);
+    return;
+  }
+  console.log(`[WS] broadcast: Sending ${msg.type} to ${clients.size} clients in room ${sessionId}`);
   const data = JSON.stringify(msg);
-  for (const client of clients) {
+  let sent = 0;
+  for (const client of clients.values()) {
     if (client !== exclude && client.readyState === WebSocket.OPEN) {
       client.send(data);
+      sent++;
     }
   }
+  console.log(`[WS] broadcast: Sent to ${sent} clients`);
 }
 
 export function broadcastToStudents(sessionId, msg) {
   const clients = rooms.get(sessionId);
   if (!clients) return;
   const data = JSON.stringify(msg);
-  for (const client of clients) {
+  for (const client of clients.values()) {
     if (client.role === "student" && client.readyState === WebSocket.OPEN) client.send(data);
   }
 }

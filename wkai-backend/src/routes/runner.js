@@ -37,7 +37,7 @@ runnerRouter.post("/", async (req, res) => {
 
 // ─── Execution logic ──────────────────────────────────────────────────────────
 
-async function runCode(language: string, code: string): Promise<string> {
+async function runCode(language, code) {
   const id  = randomUUID();
   const dir = tmpdir();
 
@@ -52,12 +52,7 @@ async function runCode(language: string, code: string): Promise<string> {
   }
 }
 
-function getRunner(
-  lang: string,
-  id: string,
-  dir: string,
-  _code: string
-): { file: string; cmd: string; args: string[] } {
+function getRunner(lang, id, dir, _code) {
   switch (lang) {
     case "python": {
       const file = join(dir, `wkai_${id}.py`);
@@ -81,7 +76,7 @@ function getRunner(
   }
 }
 
-function exec(cmd: string, args: string[], timeoutMs: number): Promise<string> {
+function exec(cmd, args, timeoutMs) {
   return new Promise((resolve, reject) => {
     const child = execFile(
       cmd,

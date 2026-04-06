@@ -32,18 +32,22 @@ export async function deleteSessionData(sessionId) {
 }
 
 /** Track connected clients per session */
-export async function incrementStudentCount(sessionId) {
-  return redis.incr(`students:${sessionId}`);
+export async function incrementStudentCount(sessionId, studentId) {
+  await redis.sAdd(`students_active:${sessionId}`, studentId);
+  return redis.sCard(`students_active:${sessionId}`);
 }
 
-export async function decrementStudentCount(sessionId) {
-  const val = await redis.decr(`students:${sessionId}`);
-  return Math.max(0, val);
+export async function decrementStudentCount(sessionId, studentId) {
+  await redis.sRem(`students_active:${sessionId}`, studentId);
+  return redis.sCard(`students_active:${sessionId}`);
 }
 
 export async function getStudentCount(sessionId) {
-  const val = await redis.get(`students:${sessionId}`);
-  return val ? parseInt(val, 10) : 0;
+  return redis.sCard(`students_active:${sessionId}`);
+}
+
+export async function clearStudentConnections(sessionId) {
+  await redis.del(`students_active:${sessionId}`);
 }
 
 /** Store the latest Whisper transcript for a session (30s TTL — rolling window) */

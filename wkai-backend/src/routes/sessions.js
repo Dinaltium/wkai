@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/client.js";
-import { setSessionData, deleteSessionData } from "../db/redis.js";
+import { setSessionData, deleteSessionData, clearStudentConnections } from "../db/redis.js";
 import { broadcast, cleanupSession } from "../ws/server.js";
 import { clearSessionMemory } from "../ai/memory.js";
 
@@ -88,6 +88,7 @@ sessionRouter.patch("/:id/end", async (req, res, next) => {
 
     // Clean up: Redis cache + LangChain session memory + WS room
     await deleteSessionData(session.id);
+    await clearStudentConnections(session.id);
     clearSessionMemory(session.id);
     cleanupSession(session.id);
 

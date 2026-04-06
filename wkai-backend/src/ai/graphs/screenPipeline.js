@@ -1,5 +1,6 @@
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
+import { StructuredOutputParser } from "langchain/output_parsers";
 import { visionLLM, creativeLLM } from "../groqClient.js";
 import {
   screenAnalysisPrompt,
@@ -7,7 +8,6 @@ import {
   screenAnalysisParser,
   fixingScreenParser,
   ComprehensionQuestionSchema,
-  StructuredOutputParser,
 } from "../prompts.js";
 import { getSessionMemory } from "../memory.js";
 

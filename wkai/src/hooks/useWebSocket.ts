@@ -19,7 +19,7 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?session=${sessionId}&role=instructor`;
     ws.current = new WebSocket(wsUrl);
 
-    ws.current.onopen = () => console.log("[WKAI WS] Connected");
+    ws.current.onopen = () => console.log("[WKAI WS] Connected to", wsUrl);
 
     ws.current.onmessage = (event) => {
       try {
