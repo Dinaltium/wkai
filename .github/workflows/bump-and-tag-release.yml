@@ -113,7 +113,7 @@ jobs:
           - platform: ubuntu-22.04
             args: "--bundles appimage,deb"
           - platform: macos-latest
-            args: "--bundles app"
+            args: "--bundles dmg"
 
     runs-on: ${{ matrix.platform }}
 
