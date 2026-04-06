@@ -12,7 +12,7 @@ interface UseWsOptions {
 export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
-  const { setStudentCount, addGuideBlock, addSharedFile, watchedFiles } = useAppStore();
+  const { setStudentCount, addGuideBlock, addSharedFile } = useAppStore();
 
   const connect = useCallback(() => {
     if (!sessionId) return;

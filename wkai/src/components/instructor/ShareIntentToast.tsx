@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Share2, X, Loader2 } from "lucide-react";
 import { shareFile } from "../../lib/tauri";
 import type { WatchedFile } from "../../types";
+import { useAppStore } from "../../store";
 
 interface IntentPayload {
   file: WatchedFile;

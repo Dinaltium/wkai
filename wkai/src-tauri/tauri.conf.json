@@ -47,15 +47,10 @@
   },
   "plugins": {
     "fs": {
-      "all": true,
-      "scope": ["$HOME/**", "$APPDATA/**", "$DOCUMENT/**", "$DOWNLOAD/**"]
+      "requireLiteralLeadingDot": false
     },
     "shell": {
-      "all": false,
       "open": true
-    },
-    "notification": {
-      "all": true
     },
     "updater": {
       "active": true,

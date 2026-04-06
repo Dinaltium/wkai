@@ -1,9 +1,11 @@
 use base64::{engine::general_purpose, Engine as _};
+use image::ImageEncoder;
+use image::codecs::png::PngEncoder;
 use screenshots::Screen;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
 
@@ -88,7 +90,17 @@ fn capture_screen_frame() -> Result<String, String> {
     let primary = screens.into_iter().next().ok_or("No screen found")?;
     let image = primary.capture().map_err(|e| e.to_string())?;
 
-    let png_bytes = image.to_png(None).map_err(|e| e.to_string())?;
+    let mut png_bytes = Vec::new();
+    let encoder = PngEncoder::new(&mut png_bytes);
+    encoder
+        .write_image(
+            image.as_raw(),
+            image.width(),
+            image.height(),
+            image::ColorType::Rgba8.into(),
+        )
+        .map_err(|e| e.to_string())?;
+
     let encoded = general_purpose::STANDARD.encode(&png_bytes);
     Ok(encoded)
 }

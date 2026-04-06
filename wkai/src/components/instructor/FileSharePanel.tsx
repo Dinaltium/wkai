@@ -11,7 +11,7 @@ interface Props {
 }
 
 export function FileSharePanel({ sessionId, send }: Props) {
-  const { settings, sharedFiles, watchedFiles, setWatchedFiles } = useAppStore();
+  const { settings, sharedFiles } = useAppStore();
   const [files, setFiles] = useState<WatchedFile[]>([]);
   const [sharing, setSharing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"folder" | "shared">("folder");
