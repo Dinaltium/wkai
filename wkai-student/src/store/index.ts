@@ -62,11 +62,32 @@ const STUDENT_ID =
     return id;
   })();
 
+const SESSION_STORAGE_KEY = "wkai_student_session";
+
+function readStoredSession(): Session | null {
+  const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as Session;
+  } catch {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
 export const useStore = create<StudentStore>((set, get) => ({
   studentId: STUDENT_ID,
 
-  session: null,
-  setSession: (session) => set({ session }),
+  session: readStoredSession(),
+  setSession: (session) => {
+    if (session) {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } else {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+    set({ session });
+  },
   sessionEnded: false,
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),
 

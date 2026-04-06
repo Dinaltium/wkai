@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { useRoomSocket } from "../hooks/useRoomSocket";
@@ -10,19 +10,55 @@ import { ErrorHelper } from "../components/error/ErrorHelper";
 import { CodeEditor } from "../components/shared/CodeEditor";
 import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
+import { joinRoom } from "../lib/api";
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { session, sessionEnded, activeTab, pendingQuestion } = useStore();
+  const { session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
+  const bootstrappingRef = useRef(!session && !sessionEnded);
 
-  // If no session in store (e.g. hard refresh), redirect to join
   useEffect(() => {
-    if (!session && !sessionEnded) navigate("/");
-  }, [session, sessionEnded, navigate]);
+    let cancelled = false;
 
-  if (!session && !sessionEnded) return null;
+    async function loadSession() {
+      if (session || sessionEnded || !code) return;
+
+      bootstrappingRef.current = true;
+      try {
+        const data = await joinRoom(code);
+        if (cancelled) return;
+
+        if (data.session.status === "ended") {
+          navigate("/");
+          return;
+        }
+
+        setSession(data.session);
+        setGuideBlocks(data.guideBlocks);
+        setSharedFiles(data.sharedFiles);
+      } catch {
+        if (!cancelled) navigate("/");
+      } finally {
+        if (!cancelled) bootstrappingRef.current = false;
+      }
+    }
+
+    loadSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [code, navigate, session, sessionEnded, setSession, setGuideBlocks, setSharedFiles]);
+
+  if ((bootstrappingRef.current || (!session && !sessionEnded)) && !sessionEnded) {
+    return (
+      <div className="flex h-full items-center justify-center bg-wkai-bg text-wkai-text-dim">
+        Joining room...
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-wkai-bg">

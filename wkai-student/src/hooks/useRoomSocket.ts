@@ -6,27 +6,15 @@ const BACKEND_WS = import.meta.env.VITE_BACKEND_WS ?? "ws://localhost:4000";
 
 export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const {
-    studentId,
-    setConnected,
-    setSession,
-    setSessionEnded,
-    setStudentCount,
-    addGuideBlock,
-    setGuideBlocks,
-    setPendingQuestion,
-    addSharedFile,
-    setSharedFiles,
-    setResolution,
-  } = useStore();
+  const store = useStore.getState();
+  const studentId = store.studentId;
 
   const connect = useCallback(() => {
     const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
-      setConnected(true);
+      useStore.getState().setConnected(true);
       console.log("[WS] Connected to room", roomCode);
     };
 
@@ -37,44 +25,42 @@ export function useRoomSocket(roomCode: string) {
     };
 
     ws.current.onclose = () => {
-      setConnected(false);
-      // Auto-reconnect after 3s unless session ended
-      if (!useStore.getState().sessionEnded) {
-        reconnectTimer.current = setTimeout(connect, 3000);
-      }
+      useStore.getState().setConnected(false);
     };
 
-    ws.current.onerror = () => ws.current?.close();
+    ws.current.onerror = (err) => {
+      console.error("[WS] Socket error", err);
+    };
   }, [roomCode, studentId]);
 
   function dispatch(msg: WsMessage) {
     switch (msg.type) {
       case "session-state": {
         const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[] };
-        setSession(p.session);
-        setGuideBlocks(p.guideBlocks ?? []);
-        setSharedFiles(p.sharedFiles ?? []);
+        useStore.getState().setSession(p.session);
+        useStore.getState().setGuideBlocks(p.guideBlocks ?? []);
+        useStore.getState().setSharedFiles(p.sharedFiles ?? []);
         break;
       }
       case "guide-block":
-        addGuideBlock(msg.payload as GuideBlock);
+        useStore.getState().addGuideBlock(msg.payload as GuideBlock);
         break;
       case "comprehension-question":
-        setPendingQuestion(msg.payload as ComprehensionQuestion);
+        useStore.getState().setPendingQuestion(msg.payload as ComprehensionQuestion);
         break;
       case "file-shared":
-        addSharedFile(msg.payload as SharedFile);
+        useStore.getState().addSharedFile(msg.payload as SharedFile);
         break;
       case "student-joined":
       case "student-left":
-        setStudentCount((msg.payload as { count: number }).count);
+        useStore.getState().setStudentCount((msg.payload as { count: number }).count);
         break;
       case "error-resolved":
-        setResolution(msg.payload as ErrorResolution);
+        useStore.getState().setResolution(msg.payload as ErrorResolution);
         break;
       case "session-ended":
-        setSessionEnded(true);
-        setConnected(false);
+        useStore.getState().setSessionEnded(true);
+        useStore.getState().setConnected(false);
         ws.current?.close();
         break;
       case "error":
@@ -92,7 +78,6 @@ export function useRoomSocket(roomCode: string) {
   useEffect(() => {
     connect();
     return () => {
-      clearTimeout(reconnectTimer.current!);
       ws.current?.close();
     };
   }, [connect]);

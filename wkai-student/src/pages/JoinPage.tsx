@@ -56,7 +56,7 @@ export function JoinPage() {
       setSession(data.session);
       setGuideBlocks(data.guideBlocks);
       setSharedFiles(data.sharedFiles);
-      navigate(`/room/${roomCode}`);
+      navigate(`/room/${roomCode}`, { replace: true });
     } catch {
       setError("Room not found. Check the code and try again.");
     } finally {
