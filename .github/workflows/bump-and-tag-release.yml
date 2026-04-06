@@ -23,6 +23,9 @@ jobs:
   bump-and-tag:
     if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
+    outputs:
+      committed: ${{ steps.commit.outputs.committed }}
+      version: ${{ steps.version.outputs.value }}
 
     steps:
       - name: Checkout
