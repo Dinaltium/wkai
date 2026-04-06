@@ -29,7 +29,6 @@ jobs:
     outputs:
       committed: ${{ steps.commit.outputs.committed }}
       version: ${{ steps.version.outputs.value }}
-      commit_sha: ${{ steps.meta.outputs.commit_sha }}
 
     steps:
       - name: Checkout
@@ -93,12 +92,6 @@ jobs:
           git push origin HEAD:refs/heads/${RELEASE_BRANCH}
           git push origin "v${{ steps.version.outputs.value }}"
 
-      - name: Capture commit metadata
-        id: meta
-        shell: bash
-        run: |
-          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
   build-release:
     needs: bump-and-tag
     if: needs.bump-and-tag.outputs.committed == 'true'
@@ -121,7 +114,8 @@ jobs:
       - name: Checkout bumped commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump-and-tag.outputs.commit_sha }}
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
