@@ -268,3 +268,7 @@ __pycache__/
 
 # Turbo (if you ever add Turborepo)
 .turbo/
+
+
+package-lock.json
+yarn.lock
