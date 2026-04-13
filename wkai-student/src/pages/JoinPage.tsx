@@ -13,6 +13,18 @@ export function JoinPage() {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [backendUrl, setBackendUrl] = useState(
+    sessionStorage.getItem('wkai_backend_url') ?? ''
+  );
+
+  function saveBackendUrl() {
+    if (backendUrl.trim()) {
+      sessionStorage.setItem('wkai_backend_url', backendUrl.trim());
+    } else {
+      sessionStorage.removeItem('wkai_backend_url');
+    }
+  }
 
   // Auto-focus first input on mount
   useEffect(() => { refs.current[0]?.focus(); }, []);
@@ -96,6 +108,29 @@ export function JoinPage() {
           />
         ))}
       </div>
+
+      {/* Advanced toggle */}
+      <button
+        className="mt-4 text-xs text-wkai-text-dim hover:text-wkai-text transition-colors"
+        onClick={() => setShowAdvanced(v => !v)}
+      >
+        {showAdvanced ? 'Hide' : 'Advanced settings'}
+      </button>
+
+      {showAdvanced && (
+        <div className="mt-3 w-full max-w-xs space-y-2">
+          <p className="text-xs text-wkai-text-dim text-center">
+            Enter the instructor's backend URL if not on localhost
+          </p>
+          <input
+            className="h-10 w-full rounded-lg border border-wkai-border bg-wkai-surface px-3 text-xs font-mono text-wkai-text focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all"
+            placeholder="http://192.168.1.x:4000"
+            value={backendUrl}
+            onChange={(e) => setBackendUrl(e.target.value)}
+            onBlur={saveBackendUrl}
+          />
+        </div>
+      )}
 
       {/* Error */}
       {error && (

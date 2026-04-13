@@ -2,7 +2,12 @@ import { useEffect, useRef, useCallback } from "react";
 import { useStore } from "../store";
 import type { WsMessage, Session, GuideBlock, ComprehensionQuestion, SharedFile, ErrorResolution } from "../types";
 
-const BACKEND_WS = import.meta.env.VITE_BACKEND_WS ?? "ws://localhost:4000";
+function getWsUrl(): string {
+  const stored = sessionStorage.getItem('wkai_backend_url');
+  if (stored) return stored.replace(/^http/, 'ws');
+  return import.meta.env.VITE_BACKEND_WS ?? 'ws://localhost:4000';
+}
+const BACKEND_WS = getWsUrl();
 
 export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);

@@ -1,9 +1,15 @@
 import axios from "axios";
 import type { Session, GuideBlock, SharedFile } from "../types";
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL ?? "http://localhost:4000",
-});
+function getBackendUrl(): string {
+  return (
+    sessionStorage.getItem('wkai_backend_url') ??
+    import.meta.env.VITE_BACKEND_URL ??
+    'http://localhost:4000'
+  );
+}
+
+const api = axios.create({ baseURL: getBackendUrl() });
 
 export interface JoinRoomResponse {
   session: Session;

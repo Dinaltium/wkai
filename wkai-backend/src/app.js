@@ -1,4 +1,5 @@
 import express from "express";
+import os from 'os';
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -13,7 +14,17 @@ export const app = express();
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 app.use(helmet());
-app.use(cors({ origin: "*" })); // Tighten in production
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow: no origin (curl/Postman), localhost, and any private LAN IP
+    if (!origin) return callback(null, true);
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    const isLan = /^https?:\/\/(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(origin);
+    if (isLocalhost || isLan) return callback(null, true);
+    callback(new Error('CORS: origin not allowed'));
+  },
+  credentials: true,
+}));
 app.use(morgan("dev"));
 app.use(express.json({ limit: "20mb" })); // Allow large base64 frames
 app.use(express.urlencoded({ extended: true }));
@@ -22,6 +33,26 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "wkai-backend", ts: new Date().toISOString() });
+});
+
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] ?? []) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
+
+app.get('/api/network-info', (_req, res) => {
+  const ip = getLocalIp();
+  res.json({
+    localIp: ip,
+    port: process.env.PORT ?? 4000,
+    studentUrl: ip ? `http://${ip}:3000` : null,
+    backendUrl: ip ? `http://${ip}:${process.env.PORT ?? 4000}` : null,
+  });
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
