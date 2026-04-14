@@ -62,12 +62,13 @@ jobs:
       - name: Ensure unique tag version
         id: version
         shell: bash
+        working-directory: wkai
         run: |
-          VERSION=$(node -p "require('./wkai/package.json').version")
+          VERSION=$(node -p "require('./package.json').version")
           while git rev-parse "v$VERSION" >/dev/null 2>&1; do
             echo "Version v$VERSION already exists. Bumping patch again."
             node ./scripts/bump-version.mjs patch
-            VERSION=$(node -p "require('./wkai/package.json').version")
+            VERSION=$(node -p "require('./package.json').version")
           done
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
