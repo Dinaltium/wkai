@@ -1,19 +1,25 @@
+import { useState } from "react";
+import { clsx } from "clsx";
 import { useAppStore } from "../store";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { GuidePanel } from "../components/instructor/GuidePanel";
 import { FileSharePanel } from "../components/instructor/FileSharePanel";
 import { CaptureStatus } from "../components/instructor/CaptureStatus";
 import { ShareToggle } from "../components/instructor/ShareToggle";
+import { StudentPanel } from "../components/instructor/StudentPanel";
+import { StudentJoinToast } from "../components/instructor/StudentJoinToast";
 import { RoomInfo } from "../components/instructor/RoomInfo";
 import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
 
 export function SessionPage() {
-  const { session, settings } = useAppStore();
+  const { session, settings, studentCount } = useAppStore();
   const { send } = useWebSocket({
     sessionId: session?.id ?? null,
     backendUrl: settings.backendUrl,
   });
+
+  const [leftTab, setLeftTab] = useState<"files" | "students">("files");
 
   if (!session) {
     return (
@@ -36,8 +42,27 @@ export function SessionPage() {
         <div className="border-b border-wkai-border p-4">
           <ShareToggle />
         </div>
-        <div className="flex-1 overflow-hidden">
-          <FileSharePanel sessionId={session.id} send={send} />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex border-b border-wkai-border">
+            {(["files", "students"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setLeftTab(tab)}
+                className={clsx(
+                  "flex-1 py-2 text-xs font-medium capitalize transition-colors",
+                  leftTab === tab
+                    ? "border-b-2 border-indigo-400 text-indigo-400"
+                    : "text-wkai-text-dim hover:text-wkai-text"
+                )}
+              >
+                {tab === "students" ? `Students (${studentCount})` : "Files"}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {leftTab === "files" && <FileSharePanel sessionId={session.id} send={send} />}
+            {leftTab === "students" && <StudentPanel />}
+          </div>
         </div>
         <div className="border-t border-wkai-border p-4">
           <EndSessionButton sessionId={session.id} />
@@ -53,6 +78,8 @@ export function SessionPage() {
       {/* Appears automatically when the audio transcript reveals    */}
       {/* "share this file" intent — instructor confirms with one tap */}
       <ShareIntentToast sessionId={session.id} />
+
+      <StudentJoinToast />
     </div>
   );
 }

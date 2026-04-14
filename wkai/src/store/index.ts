@@ -8,6 +8,7 @@ import type {
   AppSettings,
   DebugLogEntry,
   DebugLogLevel,
+  StudentInfo,
 } from "../types";
 
 interface AppStore {
@@ -39,6 +40,10 @@ interface AppStore {
   // ─── Student Count ─────────────────────────────────────────────────────────
   studentCount: number;
   setStudentCount: (n: number) => void;
+  students: StudentInfo[];
+  setStudents: (s: StudentInfo[]) => void;
+  addStudent: (s: StudentInfo) => void;
+  removeStudent: (studentId: string) => void;
   streamingToStudents: boolean;
   setStreamingToStudents: (v: boolean) => void;
 
@@ -90,6 +95,16 @@ export const useAppStore = create<AppStore>((set) => ({
 
   studentCount: 0,
   setStudentCount: (n) => set({ studentCount: n }),
+  students: [],
+  setStudents: (students) => set({ students }),
+  addStudent: (s) =>
+    set((state) => ({
+      students: [...state.students.filter((x) => x.studentId !== s.studentId), s],
+    })),
+  removeStudent: (studentId) =>
+    set((state) => ({
+      students: state.students.filter((s) => s.studentId !== studentId),
+    })),
   streamingToStudents: true,
   setStreamingToStudents: (streamingToStudents) => set({ streamingToStudents }),
 

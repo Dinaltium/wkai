@@ -52,6 +52,12 @@ export interface SharedFile {
   sizeBytes: number;
 }
 
+export interface StudentInfo {
+  studentId: string;
+  studentName: string;
+  joinedAt: string;
+}
+
 // ─── Capture ─────────────────────────────────────────────────────────────────
 
 export interface CaptureConfig {

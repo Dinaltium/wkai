@@ -15,7 +15,10 @@ export function useRoomSocket(roomCode: string) {
   const studentId = store.studentId;
 
   const connect = useCallback(() => {
-    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}`;
+    const studentName = encodeURIComponent(
+      sessionStorage.getItem("wkai_student_name") ?? "Student"
+    );
+    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}&studentName=${studentName}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {

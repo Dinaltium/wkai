@@ -58,3 +58,49 @@ export async function setTranscript(sessionId, transcript) {
 export async function getTranscript(sessionId) {
   return redis.get(`transcript:${sessionId}`);
 }
+
+// ─── Student list (persistent per session) ────────────────────────────────────
+
+export async function addStudentToList(sessionId, { studentId, studentName }) {
+  const key = `student_list:${sessionId}`;
+  const raw = await redis.get(key);
+  let existing = [];
+  try {
+    existing = raw ? JSON.parse(raw) : [];
+  } catch {
+    existing = [];
+  }
+
+  const updated = [
+    ...existing.filter((s) => s?.studentId !== studentId),
+    { studentId, studentName, joinedAt: new Date().toISOString() },
+  ];
+  await redis.setEx(key, 86_400, JSON.stringify(updated));
+}
+
+export async function removeStudentFromList(sessionId, studentId) {
+  const key = `student_list:${sessionId}`;
+  const raw = await redis.get(key);
+  let existing = [];
+  try {
+    existing = raw ? JSON.parse(raw) : [];
+  } catch {
+    existing = [];
+  }
+
+  await redis.setEx(
+    key,
+    86_400,
+    JSON.stringify(existing.filter((s) => s?.studentId !== studentId))
+  );
+}
+
+export async function getStudentList(sessionId) {
+  const raw = await redis.get(`student_list:${sessionId}`);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}

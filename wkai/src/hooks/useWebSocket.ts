@@ -12,7 +12,15 @@ interface UseWsOptions {
 export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
-  const { setStudentCount, addGuideBlock, addSharedFile, addDebugLog } = useAppStore();
+  const {
+    setStudentCount,
+    addGuideBlock,
+    addSharedFile,
+    addDebugLog,
+    setStudents,
+    addStudent,
+    removeStudent,
+  } = useAppStore();
 
   const connect = useCallback(() => {
     if (!sessionId) return;
@@ -29,6 +37,12 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
         const handler = handlers.current.get(msg.type);
         if (handler) handler(msg.payload);
         switch (msg.type) {
+          case "session-state": {
+            const p = msg.payload as { studentList?: Array<{ studentId: string; studentName: string; joinedAt: string }> };
+            if (p.studentList) setStudents(p.studentList);
+            addDebugLog("WS received: session-state", "info");
+            break;
+          }
           case "guide-block":
             addGuideBlock(msg.payload as never);
             addDebugLog("WS received: guide-block", "info");
@@ -38,12 +52,26 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
             addDebugLog("WS received: file-shared", "info");
             break;
           case "student-joined":
-            setStudentCount((msg.payload as { count: number }).count);
-            addDebugLog("WS received: student-joined", "info");
+            {
+              const p = msg.payload as { count: number; studentId?: string; studentName?: string };
+              setStudentCount(p.count);
+              if (p.studentId && p.studentName) {
+                addStudent({ studentId: p.studentId, studentName: p.studentName, joinedAt: new Date().toISOString() });
+                window.dispatchEvent(new CustomEvent("wkai:student-joined", { detail: p }));
+                addDebugLog(`Student joined: ${p.studentName}`, "success");
+              } else {
+                addDebugLog("WS received: student-joined", "info");
+              }
+            }
             break;
           case "student-left":
-            setStudentCount((msg.payload as { count: number }).count);
-            addDebugLog("WS received: student-left", "info");
+            {
+              const p = msg.payload as { count: number; studentId?: string; studentName?: string };
+              setStudentCount(p.count);
+              if (p.studentId) removeStudent(p.studentId);
+              if (p.studentName) addDebugLog(`Student left: ${p.studentName}`, "warn");
+              else addDebugLog("WS received: student-left", "info");
+            }
             break;
           case "share-intent-detected":
             // LangGraph intent agent detected "share this file" in audio

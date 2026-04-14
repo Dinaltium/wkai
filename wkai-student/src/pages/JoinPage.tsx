@@ -8,6 +8,10 @@ export function JoinPage() {
   const navigate = useNavigate();
   const { setSession, setGuideBlocks, setSharedFiles } = useStore();
 
+  const [studentName, setStudentName] = useState(
+    sessionStorage.getItem("wkai_student_name") ?? ""
+  );
+
   // 6 individual digit/letter inputs
   const [chars, setChars] = useState<string[]>(["", "", "", "", "", ""]);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
@@ -57,6 +61,11 @@ export function JoinPage() {
 
   async function handleJoin() {
     if (!isComplete) return;
+    if (!studentName.trim()) {
+      setError("Please enter your name before joining.");
+      return;
+    }
+    sessionStorage.setItem("wkai_student_name", studentName.trim());
     setLoading(true);
     setError(null);
     try {
@@ -87,6 +96,16 @@ export function JoinPage() {
         <p className="text-sm text-wkai-text-dim">
           Enter the 6-character code your instructor shared
         </p>
+      </div>
+
+      <div className="w-full max-w-xs mb-6">
+        <input
+          className="input text-center"
+          placeholder="Your name"
+          value={studentName}
+          onChange={(e) => setStudentName(e.target.value)}
+          maxLength={40}
+        />
       </div>
 
       {/* Code input */}

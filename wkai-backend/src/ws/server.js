@@ -9,6 +9,9 @@ import {
   getStudentCount,
   setTranscript,
   getTranscript,
+  addStudentToList,
+  removeStudentFromList,
+  getStudentList,
 } from "../db/redis.js";
 import { query } from "../db/client.js";
 import { processScreenFrame } from "../ai/pipeline.js";
@@ -28,6 +31,10 @@ export function initWebSocketServer(httpServer) {
     const studentId = typeof qs.studentId === "string" && qs.studentId.length > 0
       ? qs.studentId
       : `s_${Math.random().toString(36).slice(2, 8)}`;
+    const studentName =
+      typeof qs.studentName === "string" && qs.studentName.length > 0
+        ? decodeURIComponent(qs.studentName).slice(0, 40)
+        : "Student";
 
     const isInstructor = role === "instructor";
     const lookupQuery = isInstructor
@@ -61,17 +68,28 @@ export function initWebSocketServer(httpServer) {
     ws.clientKey = clientKey;
     ws.role      = role;
     ws.studentId = studentId;
+    ws.studentName = studentName;
 
     console.log(`[WS] ${role} connected to room ${roomCode} (sessionId: ${sessionId})`);
 
     if (role === "student" && previousSocket !== ws) {
       const count = await incrementStudentCount(sessionId, studentId);
       console.log(`[WS] Student count for ${sessionId}: ${count}, room size: ${rooms.get(sessionId)?.size ?? 0}`);
-      broadcast(sessionId, { type: "student-joined", payload: { count } }, ws);
+      broadcast(sessionId, {
+        type: "student-joined",
+        payload: { count, studentId, studentName },
+      }, ws);
+      await addStudentToList(sessionId, { studentId, studentName });
     }
 
     const state = await getSessionData(sessionId);
-    if (state) ws.send(JSON.stringify({ type: "session-state", payload: state }));
+    if (state) {
+      const studentList = await getStudentList(sessionId);
+      ws.send(JSON.stringify({
+        type: "session-state",
+        payload: { ...state, studentList },
+      }));
+    }
 
     if (role === "instructor") {
       const count = await getStudentCount(sessionId);
@@ -114,7 +132,11 @@ export function initWebSocketServer(httpServer) {
 
         if (role === "student") {
           const count = await decrementStudentCount(sessionId, studentId);
-          broadcast(sessionId, { type: "student-left", payload: { count } });
+          broadcast(sessionId, {
+            type: "student-left",
+            payload: { count, studentId, studentName: ws.studentName ?? "Student" },
+          });
+          await removeStudentFromList(sessionId, studentId);
         }
       }
     });
