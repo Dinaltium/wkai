@@ -17,11 +17,15 @@ import { query } from "../db/client.js";
 import { processScreenFrame } from "../ai/pipeline.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { detectShareIntent } from "../ai/graphs/intentAgent.js";
+import { expandTranscriptForStudents } from "../ai/graphs/transcriptExplainerAgent.js";
+import { generateTranscriptComprehension } from "../ai/graphs/comprehensionCoachAgent.js";
 import { debugLog, debugError } from "../utils/debug.js";
 
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
 const pendingStudentMessages = new Map();
+const lastTranscriptExplanationAt = new Map();
+const lastTranscriptQuizAt = new Map();
 
 function roomSnapshot(sessionId) {
   const room = rooms.get(sessionId);
@@ -340,6 +344,49 @@ async function handleAudioTranscript(ws, payload) {
     console.error("[WS] Intent detection error:", err.message);
     debugError("WS", "handleAudioTranscript failed", err);
   }
+
+  // Generate student-facing explanation from transcript (5-10s cadence friendly).
+  try {
+    const now = Date.now();
+    const lastAt = lastTranscriptExplanationAt.get(sessionId) ?? 0;
+    if (now - lastAt >= 8_000 && transcript?.trim()) {
+      lastTranscriptExplanationAt.set(sessionId, now);
+      const explanation = await expandTranscriptForStudents(sessionId, transcript);
+      if (explanation) {
+        broadcastToStudents(sessionId, {
+          type: "live-explanation",
+          payload: {
+            transcript: transcript.trim().slice(0, 180),
+            explanation,
+            timestamp: new Date().toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  } catch (err) {
+    debugError("WS", "transcript explainer failed", err);
+  }
+
+  // Generate comprehension checks from transcript at slower cadence.
+  try {
+    const now = Date.now();
+    const lastAt = lastTranscriptQuizAt.get(sessionId) ?? 0;
+    if (now - lastAt >= 45_000 && transcript?.trim()) {
+      const question = await generateTranscriptComprehension(sessionId, transcript);
+      if (question) {
+        lastTranscriptQuizAt.set(sessionId, now);
+        const { rows } = await query(
+          `INSERT INTO comprehension_questions (session_id, question, options, correct_index, explanation)
+           VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+          [sessionId, question.question, JSON.stringify(question.options), question.correctIndex, question.explanation]
+        );
+        broadcast(sessionId, { type: "comprehension-question", payload: rows[0] });
+      }
+    }
+  } catch (err) {
+    debugError("WS", "transcript comprehension generation failed", err);
+  }
 }
 
 async function handleFileShared(sessionId, payload) {
@@ -647,6 +694,8 @@ function handleWebRtcSessionReset(ws, payload) {
 export function cleanupSession(sessionId) {
   clearSessionMemory(sessionId);
   void clearStudentConnections(sessionId);
+  lastTranscriptExplanationAt.delete(sessionId);
+  lastTranscriptQuizAt.delete(sessionId);
   rooms.delete(sessionId);
 }
 

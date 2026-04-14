@@ -2,6 +2,7 @@ import { StateGraph, END, START, Annotation } from "@langchain/langgraph";
 import { textLLM, callWithRetry } from "../groqClient.js";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { getSessionMemory } from "../memory.js";
+import { getLangSmithConfig } from "../langsmith.js";
 
 const MessageAgentState = Annotation.Root({
   sessionId: Annotation({ reducer: (_, v) => v }),
@@ -24,6 +25,8 @@ Session context:
 Rules:
 - Maximum 3 sentences.
 - Do not claim certainty when unsure.
+- If related to setup/runtime issues, suggest concrete version-check commands (for example: node -v, npm -v, python --version) before proposing fixes.
+- If additional context is missing, ask one short clarifying question.
 - If unrelated to workshop context, redirect politely.`,
   ],
   ["human", "Student {student_name} asks: {message}"],
@@ -62,6 +65,9 @@ const workflow = new StateGraph(MessageAgentState)
 export const messageAgentGraph = workflow.compile();
 
 export async function generateMessageResponse(sessionId, studentName, message) {
-  const result = await messageAgentGraph.invoke({ sessionId, studentName, message });
+  const result = await messageAgentGraph.invoke(
+    { sessionId, studentName, message },
+    getLangSmithConfig("message-agent", ["langgraph", "langchain", "langsmith"])
+  );
   return result.response ?? "I could not process your question right now.";
 }
