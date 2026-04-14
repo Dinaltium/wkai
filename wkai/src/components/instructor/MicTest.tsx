@@ -8,6 +8,7 @@ export function MicTest() {
   const animRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
+  const levelRef = useRef(0);
 
   async function startTest() {
     try {
@@ -22,6 +23,7 @@ export function MicTest() {
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.2;
       source.connect(analyser);
       setTesting(true);
 
@@ -35,7 +37,12 @@ export function MicTest() {
           sumSquares += v * v;
         }
         const rms = Math.sqrt(sumSquares / data.length); // ~0..1
-        setLevel(Math.min(100, rms * 220));
+        const raw = Math.min(100, rms * 220);
+        // Meter behavior: fast attack, slow decay
+        const prev = levelRef.current;
+        const next = raw > prev ? prev + (raw - prev) * 0.6 : prev * 0.92;
+        levelRef.current = next < 0.5 ? 0 : next;
+        setLevel(levelRef.current);
         animRef.current = requestAnimationFrame(tick);
       };
       tick();
@@ -53,6 +60,7 @@ export function MicTest() {
     ctxRef.current?.close();
     setTesting(false);
     setLevel(0);
+    levelRef.current = 0;
     setError(null);
   }
 
