@@ -156,7 +156,7 @@ export const useStore = create<StudentStore>((set) => ({
     })),
   clearDebugLogs: () => set({ debugLogs: [] }),
 
-  activeTab: "guide",
+  activeTab: "live",
   setActiveTab: (activeTab) => {
     set({ activeTab });
     if (activeTab === "files") set({ newFileCount: 0 });

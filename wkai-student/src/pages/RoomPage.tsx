@@ -51,6 +51,7 @@ export function RoomPage() {
 
         setEndedModalDismissed(false);
         useStore.getState().setSessionEnded(false);
+        useStore.getState().setActiveTab("live");
         setSession(data.session);
         setGuideBlocks(data.guideBlocks);
         setSharedFiles(data.sharedFiles);

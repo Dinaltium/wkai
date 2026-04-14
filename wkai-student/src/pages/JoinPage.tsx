@@ -6,7 +6,7 @@ import { useStore } from "../store";
 
 export function JoinPage() {
   const navigate = useNavigate();
-  const { setSession, setGuideBlocks, setSharedFiles, setSessionEnded, setConnected } = useStore();
+  const { setSession, setGuideBlocks, setSharedFiles, setSessionEnded, setConnected, setActiveTab } = useStore();
 
   const [studentName, setStudentName] = useState(
     sessionStorage.getItem("wkai_student_name") ?? ""
@@ -77,6 +77,7 @@ export function JoinPage() {
       // Reset stale state from any previous ended/disconnected room before entering a new one.
       setSessionEnded(false);
       setConnected(false);
+      setActiveTab("live");
       setSession(data.session);
       setGuideBlocks(data.guideBlocks);
       setSharedFiles(data.sharedFiles);
