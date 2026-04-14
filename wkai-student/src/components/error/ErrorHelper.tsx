@@ -83,7 +83,7 @@ export function ErrorHelper({ send }: Props) {
           Error Helper
         </p>
         <p className="text-xs text-wkai-text-dim mt-0.5">
-          Paste your terminal error — AI will diagnose and fix it.
+          Paste terminal output here. The AI will analyse the error and suggest a fix.
         </p>
       </div>
 
@@ -93,7 +93,7 @@ export function ErrorHelper({ send }: Props) {
           <div className="space-y-3">
             <textarea
               className="input font-mono text-xs resize-none h-44 leading-relaxed"
-              placeholder={`Paste your error here…\n\nExample:\nModuleNotFoundError: No module named 'numpy'\n  File "main.py", line 1, in <module>`}
+              placeholder="Paste terminal output here"
               value={errorText}
               onChange={(e) => setErrorText(e.target.value)}
               spellCheck={false}
@@ -104,7 +104,7 @@ export function ErrorHelper({ send }: Props) {
               disabled={!errorText.trim() || errorDiagnosing}
             >
               {errorDiagnosing ? (
-                <><Loader2 size={14} className="animate-spin" /> Diagnosing…</>
+                <><Loader2 size={14} className="animate-spin" /> Analysing...</>
               ) : (
                 <><Bug size={14} /> Diagnose Error</>
               )}

@@ -84,7 +84,7 @@ function EmptyFiles() {
         <FolderOpen size={22} className="text-wkai-text-dim" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium text-wkai-text">No files yet</p>
+        <p className="text-sm font-medium text-wkai-text">No files have been shared</p>
         <p className="text-xs text-wkai-text-dim max-w-xs">
           Files your instructor shares will appear here instantly.
         </p>

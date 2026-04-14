@@ -140,7 +140,7 @@ function EmptyState() {
       </div>
       <div className="flex items-center gap-2 mt-2">
         <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-ping" />
-        <span className="text-xs text-indigo-400">Listening for content…</span>
+        <span className="text-xs text-indigo-400">Waiting for session content</span>
       </div>
     </div>
   );

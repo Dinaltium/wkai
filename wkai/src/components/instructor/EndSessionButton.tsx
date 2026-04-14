@@ -48,7 +48,7 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
       ) : (
         <StopCircle size={13} />
       )}
-      {loading ? "Ending…" : confirm ? "Tap again to confirm" : "End Session"}
+      {loading ? "Closing session..." : confirm ? "Tap again to confirm" : "End Session"}
     </button>
   );
 }
