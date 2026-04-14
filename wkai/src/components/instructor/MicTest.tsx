@@ -4,32 +4,46 @@ import { Mic, MicOff } from "lucide-react";
 export function MicTest() {
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const animRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
 
   async function startTest() {
     try {
+      setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const ctx = new AudioContext();
       ctxRef.current = ctx;
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       setTesting(true);
 
-      const data = new Uint8Array(analyser.frequencyBinCount);
+      const data = new Uint8Array(analyser.fftSize);
       const tick = () => {
-        analyser.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        setLevel(Math.min(100, (avg / 128) * 100));
+        analyser.getByteTimeDomainData(data);
+        // RMS over time-domain samples (more reliable than frequency avg)
+        let sumSquares = 0;
+        for (let i = 0; i < data.length; i += 1) {
+          const v = (data[i] - 128) / 128;
+          sumSquares += v * v;
+        }
+        const rms = Math.sqrt(sumSquares / data.length); // ~0..1
+        setLevel(Math.min(100, rms * 220));
         animRef.current = requestAnimationFrame(tick);
       };
       tick();
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
       setLevel(0);
+      setTesting(false);
     }
   }
 
@@ -39,6 +53,7 @@ export function MicTest() {
     ctxRef.current?.close();
     setTesting(false);
     setLevel(0);
+    setError(null);
   }
 
   useEffect(() => () => stopTest(), []);
@@ -74,6 +89,12 @@ export function MicTest() {
           <p className="text-xs text-wkai-text-dim">
             {level > 10 ? "Microphone is working." : "No audio detected. Speak or check your mic settings."}
           </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
+          Microphone access failed: {error}
         </div>
       )}
     </div>
