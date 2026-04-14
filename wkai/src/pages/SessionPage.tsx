@@ -3,6 +3,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { GuidePanel } from "../components/instructor/GuidePanel";
 import { FileSharePanel } from "../components/instructor/FileSharePanel";
 import { CaptureStatus } from "../components/instructor/CaptureStatus";
+import { ShareToggle } from "../components/instructor/ShareToggle";
 import { RoomInfo } from "../components/instructor/RoomInfo";
 import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
@@ -31,6 +32,9 @@ export function SessionPage() {
         </div>
         <div className="border-b border-wkai-border p-4">
           <CaptureStatus />
+        </div>
+        <div className="border-b border-wkai-border p-4">
+          <ShareToggle />
         </div>
         <div className="flex-1 overflow-hidden">
           <FileSharePanel sessionId={session.id} send={send} />

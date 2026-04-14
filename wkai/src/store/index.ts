@@ -37,6 +37,8 @@ interface AppStore {
   // ─── Student Count ─────────────────────────────────────────────────────────
   studentCount: number;
   setStudentCount: (n: number) => void;
+  streamingToStudents: boolean;
+  setStreamingToStudents: (v: boolean) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -79,4 +81,6 @@ export const useAppStore = create<AppStore>((set) => ({
 
   studentCount: 0,
   setStudentCount: (n) => set({ studentCount: n }),
+  streamingToStudents: true,
+  setStreamingToStudents: (streamingToStudents) => set({ streamingToStudents }),
 }));

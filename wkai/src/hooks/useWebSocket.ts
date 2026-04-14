@@ -77,10 +77,11 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
         timestamp: string;
         stream_to_students: boolean;
       };
+      const { streamingToStudents } = useAppStore.getState();
       send("screen-frame", {
         frameB64: payload.frame_b64,
         timestamp: payload.timestamp,
-        streamToStudents: payload.stream_to_students,
+        streamToStudents: streamingToStudents,
       });
     };
     window.addEventListener("wkai:screen-frame", handleScreenFrame);
