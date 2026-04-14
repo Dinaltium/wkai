@@ -59,11 +59,16 @@ jobs:
         run: node ./scripts/bump-version.mjs "${{ steps.bump.outputs.value }}"
         working-directory: wkai
 
-      - name: Read bumped version
+      - name: Ensure unique tag version
         id: version
         shell: bash
         run: |
           VERSION=$(node -p "require('./wkai/package.json').version")
+          while git rev-parse "v$VERSION" >/dev/null 2>&1; do
+            echo "Version v$VERSION already exists. Bumping patch again."
+            node ./scripts/bump-version.mjs patch
+            VERSION=$(node -p "require('./wkai/package.json').version")
+          done
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Commit version files
@@ -83,10 +88,6 @@ jobs:
         if: steps.commit.outputs.committed == 'true'
         shell: bash
         run: |
-          if git rev-parse "v${{ steps.version.outputs.value }}" >/dev/null 2>&1; then
-            echo "Tag v${{ steps.version.outputs.value }} already exists, skipping."
-            exit 0
-          fi
           git push origin "HEAD:${TARGET_BRANCH}"
           git tag "v${{ steps.version.outputs.value }}"
           git push origin "v${{ steps.version.outputs.value }}"
