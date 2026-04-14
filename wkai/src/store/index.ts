@@ -64,7 +64,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   watchFolder:     "",
   backendUrl:      "http://localhost:4000",
   groqApiKey:      "",
-  framesPerMinute: 6,
+  framesPerMinute: 30,
   captureAudio:    true,
 };
 

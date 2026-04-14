@@ -38,6 +38,7 @@ export async function startCapture(config: CaptureConfig): Promise<void> {
       captureAudio: config.captureAudio,
       sessionId: config.sessionId,
       streamToStudents: config.streamToStudents ?? true,
+      backendUrl: config.backendUrl,
     },
   });
 }

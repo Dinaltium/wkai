@@ -17,6 +17,7 @@ pub struct CaptureConfig {
     pub capture_audio: bool,
     pub session_id: String,
     pub stream_to_students: bool,
+    pub backend_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -72,10 +73,21 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
         return Err("Capture already running".to_string());
     }
 
-    let interval_ms = ((60_000u64) / (config.frames_per_minute.max(1) as u64)).max(5_000);
+    // For live student preview, low FPM values (e.g. 6/min) feel like screenshots.
+    // Enforce a higher effective cadence while streaming is enabled.
+    let effective_fpm = if config.stream_to_students {
+        config.frames_per_minute.max(30)
+    } else {
+        config.frames_per_minute.max(1)
+    };
+    let interval_ms = ((60_000u64) / (effective_fpm as u64)).max(1_000);
     println!(
-        "[Capture] Starting: session={} fpm={} stream={} interval={}ms",
-        config.session_id, config.frames_per_minute, config.stream_to_students, interval_ms
+        "[Capture] Starting: session={} fpm={} effective_fpm={} stream={} interval={}ms",
+        config.session_id,
+        config.frames_per_minute,
+        effective_fpm,
+        config.stream_to_students,
+        interval_ms
     );
     emit_frontend(&app, "capture-status", serde_json::json!({ "running": true }));
 
@@ -104,6 +116,8 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
     let app_clone = app.clone();
     let session_id = config.session_id.clone();
     let stream_to_students = config.stream_to_students;
+    let backend_url = config.backend_url.clone();
+    let http_client = reqwest::Client::new();
 
     tauri::async_runtime::spawn(async move {
         let mut frame_count: u64 = 0;
@@ -166,13 +180,33 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
                         "screen-frame",
                         ScreenFramePayload {
                             session_id: session_id.clone(),
-                            frame_b64,
+                            frame_b64: frame_b64.clone(),
                             timestamp: chrono::Utc::now().to_rfc3339(),
                             width: w,
                             height: h,
                             stream_to_students,
                         },
                     );
+                    if let Some(url) = backend_url.as_ref() {
+                        let endpoint = format!("{}/api/ai/screen-frame", url.trim_end_matches('/'));
+                        let body = serde_json::json!({
+                            "sessionId": session_id,
+                            "frameB64": frame_b64,
+                            "streamToStudents": stream_to_students,
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                        });
+                        match http_client.post(&endpoint).json(&body).send().await {
+                            Ok(resp) if resp.status().is_success() => {
+                                println!("[Capture] HTTP relay ok status={}", resp.status());
+                            }
+                            Ok(resp) => {
+                                println!("[Capture] HTTP relay failed status={}", resp.status());
+                            }
+                            Err(err) => {
+                                println!("[Capture] HTTP relay error: {}", err);
+                            }
+                        }
+                    }
                 }
                 Ok(Err(e)) => {
                     consecutive_failures += 1;

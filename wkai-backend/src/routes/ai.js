@@ -2,6 +2,8 @@ import { Router } from "express";
 import { transcribeAudio } from "../ai/whisper.js";
 import { diagnoseError } from "../ai/errorDiagnosis.js";
 import { z } from "zod";
+import { ingestScreenFrame } from "../ws/server.js";
+import { debugLog, debugError } from "../utils/debug.js";
 
 export const aiRouter = Router();
 
@@ -52,6 +54,29 @@ aiRouter.post("/intent", async (req, res, next) => {
     const result = await detectShareIntent(transcript, recentFiles);
     res.json(result);
   } catch (err) {
+    next(err);
+  }
+});
+
+const ScreenFrameSchema = z.object({
+  sessionId: z.string().uuid(),
+  frameB64: z.string().min(1),
+  streamToStudents: z.boolean().optional().default(true),
+  timestamp: z.string().optional(),
+});
+
+aiRouter.post("/screen-frame", async (req, res, next) => {
+  try {
+    const payload = ScreenFrameSchema.parse(req.body);
+    debugLog("AI", "screen-frame ingest via HTTP", {
+      sessionId: payload.sessionId,
+      frameLen: payload.frameB64.length,
+      stream: payload.streamToStudents,
+    });
+    await ingestScreenFrame(payload.sessionId, payload, "http");
+    res.json({ ok: true });
+  } catch (err) {
+    debugError("AI", "screen-frame ingest failed", err);
     next(err);
   }
 });

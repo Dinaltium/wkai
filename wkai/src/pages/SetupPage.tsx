@@ -43,6 +43,7 @@ export function SetupPage() {
         framesPerMinute: settings.framesPerMinute,
         captureAudio:    settings.captureAudio,
         sessionId:       session.id,
+        backendUrl:      settings.backendUrl,
       });
       setCapture({ isCapturing: true });
       addDebugLog("Capture start requested", "success");

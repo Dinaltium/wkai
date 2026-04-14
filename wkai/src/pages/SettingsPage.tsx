@@ -112,7 +112,7 @@ export function SettingsPage() {
           </h2>
           <Field
             label="Frames per minute"
-            hint="Higher = more AI context, more Groq API usage"
+            hint="Higher = smoother live preview and more AI context (also more API usage)"
           >
             <select
               className="input"
@@ -123,8 +123,10 @@ export function SettingsPage() {
             >
               <option value={2}>2 (every 30s)</option>
               <option value={4}>4 (every 15s)</option>
-              <option value={6}>6 (every 10s) — recommended</option>
+              <option value={6}>6 (every 10s)</option>
               <option value={12}>12 (every 5s)</option>
+              <option value={30}>30 (every 2s) — live preview recommended</option>
+              <option value={60}>60 (every 1s) — smoother, higher usage</option>
             </select>
           </Field>
           <Field label="Audio capture">
