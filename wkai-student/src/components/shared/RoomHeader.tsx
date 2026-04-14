@@ -1,9 +1,11 @@
 import { useStore } from "../../store";
 import { clsx } from "clsx";
-import { Users } from "lucide-react";
+import { Users, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export function RoomHeader() {
   const { session, connected, studentCount } = useStore();
+  const navigate = useNavigate();
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-wkai-border bg-wkai-surface px-4">
@@ -22,7 +24,7 @@ export function RoomHeader() {
         </div>
       </div>
 
-      {/* Right: status indicators */}
+      {/* Right: status indicators + leave button */}
       <div className="flex items-center gap-3 shrink-0">
         <span className="flex items-center gap-1.5 text-xs text-wkai-text-dim">
           <Users size={12} />
@@ -47,6 +49,14 @@ export function RoomHeader() {
           />
           {connected ? "Live" : "Reconnecting…"}
         </span>
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-1.5 text-xs text-wkai-text-dim hover:text-red-400 transition-colors"
+          title="Leave session"
+        >
+          <LogOut size={13} />
+          <span className="hidden sm:inline">Leave</span>
+        </button>
       </div>
     </header>
   );

@@ -1,16 +1,14 @@
 use base64::{engine::general_purpose, Engine as _};
 use image::codecs::jpeg::JpegEncoder;
 use image::DynamicImage;
-use screenshots::Screen;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter};
-use std::time::Instant;
+use tauri::{AppHandle, Emitter, Manager};
+use xcap::Monitor;
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
-
 const MAX_FRAME_WIDTH: u32 = 1024;
-const AI_FRAME_QUALITY: u8 = 75;
+const JPEG_QUALITY: u8 = 75;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -34,9 +32,38 @@ pub struct ScreenFramePayload {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct CaptureDebugPayload {
+    pub stage: String,
+    pub frame_count: u64,
+    pub elapsed_ms: Option<u128>,
+    pub w: Option<u32>,
+    pub h: Option<u32>,
+    pub error: Option<String>,
+    pub ts: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureError {
     pub message: String,
     pub timestamp: String,
+}
+
+fn emit_frontend<T: Serialize + Clone>(app: &AppHandle, event: &str, payload: T) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.emit(event, payload.clone()).is_ok() {
+            println!("[Capture] emit_frontend window ok: {}", event);
+            return;
+        }
+        println!("[Capture] emit_frontend window failed: {}", event);
+    } else {
+        println!("[Capture] emit_frontend missing main window: {}", event);
+    }
+    if app.emit(event, payload).is_ok() {
+        println!("[Capture] emit_frontend app ok: {}", event);
+    } else {
+        println!("[Capture] emit_frontend app failed: {}", event);
+    }
 }
 
 #[tauri::command]
@@ -45,75 +72,97 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
         return Err("Capture already running".to_string());
     }
 
-    log::info!(
-        "[Capture] Starting for session={} fps_per_min={} stream={}",
-        config.session_id,
-        config.frames_per_minute,
-        config.stream_to_students
+    let interval_ms = ((60_000u64) / (config.frames_per_minute.max(1) as u64)).max(5_000);
+    println!(
+        "[Capture] Starting: session={} fpm={} stream={} interval={}ms",
+        config.session_id, config.frames_per_minute, config.stream_to_students, interval_ms
     );
+    emit_frontend(&app, "capture-status", serde_json::json!({ "running": true }));
 
+    match Monitor::all() {
+        Ok(monitors) => {
+            println!("[Capture] xcap found {} monitor(s)", monitors.len());
+            for (i, m) in monitors.iter().enumerate() {
+                println!(
+                    "[Capture]   Monitor {}: {}x{} is_primary={}",
+                    i,
+                    m.width(),
+                    m.height(),
+                    m.is_primary()
+                );
+            }
+        }
+        Err(e) => {
+            let msg = format!("xcap Monitor::all() failed: {e}");
+            println!("[Capture] ERROR: {}", msg);
+            CAPTURING.store(false, Ordering::SeqCst);
+            emit_frontend(&app, "capture-status", serde_json::json!({ "running": false }));
+            return Err(msg);
+        }
+    }
+
+    let app_clone = app.clone();
     let session_id = config.session_id.clone();
-    let interval_secs = (60u64 / config.frames_per_minute.max(1) as u64).max(5);
+    let stream_to_students = config.stream_to_students;
+
     tauri::async_runtime::spawn(async move {
-        let _ = app.emit("capture-status", serde_json::json!({ "running": true }));
         let mut frame_count: u64 = 0;
+        let mut consecutive_failures: u32 = 0;
+        println!("[Capture] Loop started");
 
         loop {
             if !CAPTURING.load(Ordering::SeqCst) {
+                println!("[Capture] Stop flag set, exiting loop");
                 break;
             }
 
-            let attempt_started = Instant::now();
-            let _ = app.emit(
+            let ts_start = std::time::Instant::now();
+            frame_count += 1;
+            println!("[Capture] Attempting frame #{}", frame_count);
+
+            emit_frontend(
+                &app_clone,
                 "capture-debug",
-                serde_json::json!({ "stage": "attempt", "frameCount": frame_count, "ts": chrono::Utc::now().to_rfc3339() }),
+                CaptureDebugPayload {
+                    stage: "attempt".to_string(),
+                    frame_count,
+                    elapsed_ms: None,
+                    w: None,
+                    h: None,
+                    error: None,
+                    ts: chrono::Utc::now().to_rfc3339(),
+                },
             );
 
-            let result = tokio::time::timeout(
-                tokio::time::Duration::from_secs(10),
-                tokio::task::spawn_blocking(|| capture_frame_jpeg()),
-            )
-            .await;
+            let capture_result = tokio::task::spawn_blocking(capture_frame_jpeg_xcap).await;
+            let elapsed = ts_start.elapsed().as_millis();
 
-            match result {
-                Err(_) => {
-                    let msg = "Screen capture timed out after 10s".to_string();
-                    log::error!("[Capture] {}", msg);
-                    let _ = app.emit(
-                        "capture-error",
-                        CaptureError {
-                            message: msg,
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                        },
-                    );
-                }
-                Ok(Err(join_err)) => {
-                    let msg = format!("Capture task join failed: {join_err}");
-                    log::error!("[Capture] {}", msg);
-                    let _ = app.emit(
-                        "capture-error",
-                        CaptureError {
-                            message: msg,
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                        },
-                    );
-                }
-                Ok(Ok(Ok((frame_b64, w, h)))) => {
-                    frame_count += 1;
-                    log::debug!(
-                        "[Capture] Frame #{} captured ({}x{} -> base64 len={})",
+            match capture_result {
+                Ok(Ok((frame_b64, w, h))) => {
+                    consecutive_failures = 0;
+                    println!(
+                        "[Capture] Frame #{} OK: {}x{} b64_len={} elapsed={}ms",
                         frame_count,
                         w,
                         h,
-                        frame_b64.len()
+                        frame_b64.len(),
+                        elapsed
                     );
-                    let elapsed_ms = attempt_started.elapsed().as_millis();
-                    let _ = app.emit(
+                    emit_frontend(
+                        &app_clone,
                         "capture-debug",
-                        serde_json::json!({ "stage": "captured", "frameCount": frame_count, "elapsedMs": elapsed_ms, "w": w, "h": h }),
+                        CaptureDebugPayload {
+                            stage: "captured".to_string(),
+                            frame_count,
+                            elapsed_ms: Some(elapsed),
+                            w: Some(w),
+                            h: Some(h),
+                            error: None,
+                            ts: chrono::Utc::now().to_rfc3339(),
+                        },
                     );
-
-                    let _ = app.emit(
+                    emit_frontend(
+                        &app_clone,
                         "screen-frame",
                         ScreenFramePayload {
                             session_id: session_id.clone(),
@@ -121,32 +170,72 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
                             timestamp: chrono::Utc::now().to_rfc3339(),
                             width: w,
                             height: h,
-                            stream_to_students: config.stream_to_students,
+                            stream_to_students,
                         },
                     );
                 }
-                Ok(Ok(Err(e))) => {
-                    log::error!("[Capture] Frame capture failed: {}", e);
-                    let elapsed_ms = attempt_started.elapsed().as_millis();
-                    let _ = app.emit(
-                        "capture-debug",
-                        serde_json::json!({ "stage": "failed", "frameCount": frame_count, "elapsedMs": elapsed_ms, "error": e }),
+                Ok(Err(e)) => {
+                    consecutive_failures += 1;
+                    println!(
+                        "[Capture] Frame #{} FAILED (consecutive={}): {}",
+                        frame_count, consecutive_failures, e
                     );
-                    let _ = app.emit(
+                    emit_frontend(
+                        &app_clone,
+                        "capture-debug",
+                        CaptureDebugPayload {
+                            stage: "failed".to_string(),
+                            frame_count,
+                            elapsed_ms: Some(elapsed),
+                            w: None,
+                            h: None,
+                            error: Some(e.clone()),
+                            ts: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
+                    emit_frontend(
+                        &app_clone,
                         "capture-error",
                         CaptureError {
                             message: e,
                             timestamp: chrono::Utc::now().to_rfc3339(),
                         },
                     );
+                    if consecutive_failures >= 5 {
+                        println!("[Capture] 5 consecutive failures — aborting capture loop");
+                        CAPTURING.store(false, Ordering::SeqCst);
+                        emit_frontend(
+                            &app_clone,
+                            "capture-status",
+                            serde_json::json!({ "running": false }),
+                        );
+                        break;
+                    }
+                }
+                Err(join_err) => {
+                    consecutive_failures += 1;
+                    let msg = format!("spawn_blocking panicked: {join_err}");
+                    println!("[Capture] Frame #{} JOIN ERROR: {}", frame_count, msg);
+                    emit_frontend(
+                        &app_clone,
+                        "capture-error",
+                        CaptureError {
+                            message: msg,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
                 }
             }
 
-            tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
         }
 
-        let _ = app.emit("capture-status", serde_json::json!({ "running": false }));
-        log::info!("[Capture] Loop exited for session={}", session_id);
+        emit_frontend(
+            &app_clone,
+            "capture-status",
+            serde_json::json!({ "running": false }),
+        );
+        println!("[Capture] Loop exited cleanly");
     });
 
     Ok(())
@@ -154,46 +243,41 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
 
 #[tauri::command]
 pub async fn stop_capture(app: AppHandle) -> Result<(), String> {
+    println!("[Capture] Stop requested");
     CAPTURING.store(false, Ordering::SeqCst);
-    let _ = app.emit("capture-status", serde_json::json!({ "running": false }));
-    log::info!("[Capture] Stop requested");
+    emit_frontend(&app, "capture-status", serde_json::json!({ "running": false }));
     Ok(())
 }
 
 #[tauri::command]
 pub async fn capture_test_frame() -> Result<String, String> {
-    let (frame_b64, w, h) = capture_frame_jpeg()?;
-    log::info!(
-        "[Capture] Test frame captured: {}x{} base64_len={}",
-        w,
-        h,
-        frame_b64.len()
+    let result = tokio::task::spawn_blocking(capture_frame_jpeg_xcap)
+        .await
+        .map_err(|e| format!("spawn_blocking panicked: {e}"))??;
+    println!(
+        "[Capture] Test frame: {}x{} b64_len={}",
+        result.1,
+        result.2,
+        result.0.len()
     );
-    Ok(frame_b64)
+    Ok(result.0)
 }
 
-fn capture_frame_jpeg() -> Result<(String, u32, u32), String> {
-    let screens = Screen::all().map_err(|e| format!("Screen::all() failed: {e}"))?;
-    if screens.is_empty() {
-        return Err("No screens found".to_string());
+fn capture_frame_jpeg_xcap() -> Result<(String, u32, u32), String> {
+    let monitors = Monitor::all().map_err(|e| format!("Monitor::all() failed: {e}"))?;
+    if monitors.is_empty() {
+        return Err("No monitors found by xcap".to_string());
     }
+    let monitor = monitors
+        .iter()
+        .find(|m| m.is_primary())
+        .or_else(|| monitors.iter().max_by_key(|m| m.width() * m.height()))
+        .ok_or("Could not select a monitor")?;
 
-    let screen = screens
-        .into_iter()
-        .max_by_key(|s| {
-            let info = s.display_info;
-            info.width * info.height
-        })
-        .ok_or("Could not select a screen")?;
-
-    let raw_image = screen
-        .capture()
-        .map_err(|e| format!("Screen::capture() failed: {e}"))?;
-
-    let img = DynamicImage::ImageRgba8(
-        image::RgbaImage::from_raw(raw_image.width(), raw_image.height(), raw_image.into_raw())
-            .ok_or("Failed to create RgbaImage from raw bytes")?,
-    );
+    let raw = monitor
+        .capture_image()
+        .map_err(|e| format!("Monitor::capture_image() failed: {e}"))?;
+    let img = DynamicImage::ImageRgba8(raw);
 
     let (orig_w, orig_h) = (img.width(), img.height());
     let img = if orig_w > MAX_FRAME_WIDTH {
@@ -207,7 +291,7 @@ fn capture_frame_jpeg() -> Result<(String, u32, u32), String> {
     let (w, h) = (img.width(), img.height());
     let rgb = img.to_rgb8();
     let mut jpeg_bytes: Vec<u8> = Vec::new();
-    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, AI_FRAME_QUALITY);
+    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, JPEG_QUALITY);
     encoder
         .encode(&rgb, w, h, image::ExtendedColorType::Rgb8)
         .map_err(|e| format!("JPEG encode failed: {e}"))?;

@@ -13,8 +13,23 @@ export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);
   const store = useStore.getState();
   const studentId = store.studentId;
+  const reconnectAttemptsRef = useRef(0);
+  const MAX_RECONNECT = 3;
+  const reconnectTimerRef = useRef<number | null>(null);
+  const shouldReconnectRef = useRef(true);
+  const isConnectingRef = useRef(false);
 
   const connect = useCallback(() => {
+    if (!shouldReconnectRef.current) return;
+    if (isConnectingRef.current) return;
+    if (ws.current?.readyState === WebSocket.OPEN || ws.current?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    isConnectingRef.current = true;
     const studentName = encodeURIComponent(
       sessionStorage.getItem("wkai_student_name") ?? "Student"
     );
@@ -22,7 +37,14 @@ export function useRoomSocket(roomCode: string) {
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
+      isConnectingRef.current = false;
+      reconnectAttemptsRef.current = 0;
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       useStore.getState().setConnected(true);
+      useStore.getState().addDebugLog("Connected to room", "success");
       console.log("[WS] Connected to room", roomCode);
     };
 
@@ -33,10 +55,21 @@ export function useRoomSocket(roomCode: string) {
     };
 
     ws.current.onclose = () => {
+      isConnectingRef.current = false;
       useStore.getState().setConnected(false);
+      useStore.getState().addDebugLog("Disconnected from room", "warn");
+      reconnectAttemptsRef.current += 1;
+      if (reconnectAttemptsRef.current >= MAX_RECONNECT) {
+        useStore.getState().setSessionEnded(true);
+        return;
+      }
+      if (!useStore.getState().sessionEnded) {
+        reconnectTimerRef.current = window.setTimeout(connect, 3000);
+      }
     };
 
     ws.current.onerror = (err) => {
+      isConnectingRef.current = false;
       console.error("[WS] Socket error", err);
     };
   }, [roomCode, studentId]);
@@ -51,6 +84,10 @@ export function useRoomSocket(roomCode: string) {
         break;
       }
       case "guide-block":
+        useStore.getState().addDebugLog(
+          `Guide block received: ${(msg.payload as GuideBlock).type}`,
+          "success"
+        );
         useStore.getState().addGuideBlock(msg.payload as GuideBlock);
         break;
       case "comprehension-question":
@@ -61,6 +98,7 @@ export function useRoomSocket(roomCode: string) {
         break;
       case "screen-preview": {
         const p = msg.payload as { frameB64: string; timestamp: string };
+        useStore.getState().addDebugLog("Screen preview frame received", "info");
         useStore.getState().setScreenPreview(p.frameB64, p.timestamp);
         break;
       }
@@ -69,6 +107,7 @@ export function useRoomSocket(roomCode: string) {
         useStore.getState().setStudentCount((msg.payload as { count: number }).count);
         break;
       case "error-resolved":
+        useStore.getState().addDebugLog("Error diagnosis received", "success");
         useStore.getState().setResolution(msg.payload as ErrorResolution);
         break;
       case "instructor-reply":
@@ -85,6 +124,7 @@ export function useRoomSocket(roomCode: string) {
         break;
       }
       case "session-ended":
+        useStore.getState().addDebugLog("Session ended by instructor", "warn");
         useStore.getState().setSessionEnded(true);
         useStore.getState().setConnected(false);
         ws.current?.close();
@@ -102,8 +142,15 @@ export function useRoomSocket(roomCode: string) {
   }, []);
 
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connect();
     return () => {
+      shouldReconnectRef.current = false;
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      isConnectingRef.current = false;
       ws.current?.close();
     };
   }, [connect]);

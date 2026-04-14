@@ -7,6 +7,8 @@ import type {
   ErrorResolution,
   RoomTab,
   ChatMessage,
+  DebugLogEntry,
+  DebugLogLevel,
 } from "../types";
 
 interface StudentStore {
@@ -54,6 +56,9 @@ interface StudentStore {
   chatMessages: ChatMessage[];
   addChatMessage: (m: ChatMessage) => void;
   updateChatMessage: (id: string, update: Partial<ChatMessage>) => void;
+  debugLogs: DebugLogEntry[];
+  addDebugLog: (message: string, level?: DebugLogLevel) => void;
+  clearDebugLogs: () => void;
 
   // ─── UI ────────────────────────────────────────────────────────────────────
   activeTab: RoomTab;
@@ -136,6 +141,20 @@ export const useStore = create<StudentStore>((set) => ({
     set((s) => ({
       chatMessages: s.chatMessages.map((m) => (m.id === id ? { ...m, ...update } : m)),
     })),
+  debugLogs: [],
+  addDebugLog: (message, level = "info") =>
+    set((s) => ({
+      debugLogs: [
+        ...s.debugLogs.slice(-19),
+        {
+          id: Math.random().toString(36).slice(2),
+          timestamp: new Date().toLocaleTimeString(),
+          message,
+          level,
+        },
+      ],
+    })),
+  clearDebugLogs: () => set({ debugLogs: [] }),
 
   activeTab: "guide",
   setActiveTab: (activeTab) => {

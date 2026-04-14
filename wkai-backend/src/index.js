@@ -5,6 +5,7 @@ import { app } from "./app.js";
 import { initWebSocketServer } from "./ws/server.js";
 import { connectDb } from "./db/client.js";
 import { connectRedis } from "./db/redis.js";
+import { debugLog, debugEnabled } from "./utils/debug.js";
 
 const PORT = process.env.PORT ?? 4000;
 
@@ -21,6 +22,12 @@ function getLocalIp() {
 }
 
 async function main() {
+  debugLog("BOOT", "starting backend process", {
+    pid: process.pid,
+    node: process.version,
+    debugVerbose: debugEnabled(),
+    port: PORT,
+  });
   // Connect to Postgres and Redis before accepting traffic
   await connectDb();
   await connectRedis();
@@ -38,6 +45,7 @@ async function main() {
       console.log(`[WKAI] Student URL: http://${networkIp}:3000`);
     }
     console.log(`[WKAI] WebSocket:   ws://localhost:${PORT}/ws`);
+    debugLog("BOOT", "server listening", { port: PORT, networkIp });
   });
 }
 

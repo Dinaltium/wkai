@@ -12,12 +12,19 @@ const TABS: { id: RoomTab; label: string; icon: React.ReactNode }[] = [
   { id: "messages", label: "Q&A",   icon: <MessageSquare size={14} /> },
 ];
 
-export function TabBar() {
+interface Props {
+  sessionEnded?: boolean;
+}
+
+export function TabBar({ sessionEnded = false }: Props) {
   const { activeTab, setActiveTab, newFileCount } = useStore();
+  const visibleTabs = sessionEnded
+    ? TABS.filter((t) => t.id === "guide" || t.id === "files")
+    : TABS;
 
   return (
     <nav className="flex shrink-0 border-b border-wkai-border bg-wkai-surface">
-      {TABS.map((tab) => (
+      {visibleTabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => setActiveTab(tab.id)}

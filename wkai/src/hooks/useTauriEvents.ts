@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useAppStore } from "../store";
 
 /**
@@ -13,9 +14,19 @@ export function useTauriEvents() {
   const { setCapture, settings, addDebugLog } = useAppStore();
 
   useEffect(() => {
-    const unlistenCaptureDebug = listen<{
+    const windowApi = getCurrentWebviewWindow();
+    const listenWindow = windowApi.listen.bind(windowApi);
+    const addDualListener = <T,>(eventName: string, handler: Parameters<typeof listen<T>>[1]) =>
+      Promise.all([listen<T>(eventName, handler), listenWindow<T>(eventName, handler)]).then(
+        ([offA, offB]) => () => {
+          offA();
+          offB();
+        }
+      );
+
+    const unlistenCaptureDebug = addDualListener<{
       stage: string;
-      frameCount?: number;
+      frameCount: number;
       elapsedMs?: number;
       w?: number;
       h?: number;
@@ -24,42 +35,54 @@ export function useTauriEvents() {
     }>("capture-debug", (event) => {
       const p = event.payload;
       if (p.stage === "attempt") {
-        addDebugLog(`Capture attempt #${(p.frameCount ?? 0) + 1}`, "info");
+        addDebugLog(`Capture attempt #${p.frameCount}`, "info");
       } else if (p.stage === "captured") {
         addDebugLog(
-          `Capture ok (${p.w}x${p.h}, ${p.elapsedMs ?? "?"}ms)`,
+          `Capture OK (${p.w}x${p.h}, ${p.elapsedMs ?? "?"}ms)`,
           "success"
         );
       } else if (p.stage === "failed") {
         addDebugLog(
-          `Capture failed (${p.elapsedMs ?? "?"}ms): ${p.error ?? "unknown"}`,
+          `Capture FAILED (${p.elapsedMs ?? "?"}ms): ${p.error ?? "unknown"}`,
           "error"
         );
       }
     });
 
     // ── Screen frame captured ─────────────────────────────────────────────────
-    const unlistenFrame = listen<{
-      session_id: string;
-      frame_b64: string;
+    const unlistenFrame = addDualListener<{
+      sessionId?: string;
+      session_id?: string;
+      frameB64?: string;
+      frame_b64?: string;
       timestamp: string;
       width: number;
       height: number;
-      stream_to_students: boolean;
+      streamToStudents?: boolean;
+      stream_to_students?: boolean;
     }>("screen-frame", (event) => {
+      const normalizedPayload = {
+        sessionId: event.payload.sessionId ?? event.payload.session_id ?? "",
+        frameB64: event.payload.frameB64 ?? event.payload.frame_b64 ?? "",
+        timestamp: event.payload.timestamp,
+        width: event.payload.width,
+        height: event.payload.height,
+        streamToStudents:
+          event.payload.streamToStudents ?? event.payload.stream_to_students ?? false,
+      };
       const previous = useAppStore.getState().capture.framesSent ?? 0;
       setCapture({
-        lastFrameAt: event.payload.timestamp,
+        lastFrameAt: normalizedPayload.timestamp,
         aiProcessing: true,
         framesSent: previous + 1,
       });
       setTimeout(() => setCapture({ aiProcessing: false }), 3000);
 
-      addDebugLog(`Frame captured ${event.payload.width}x${event.payload.height}`, "info");
-      window.dispatchEvent(new CustomEvent("wkai:screen-frame", { detail: event.payload }));
+      addDebugLog(`Frame captured ${normalizedPayload.width}x${normalizedPayload.height}`, "info");
+      window.dispatchEvent(new CustomEvent("wkai:screen-frame", { detail: normalizedPayload }));
     });
 
-    const unlistenStatus = listen<{ running: boolean }>("capture-status", (event) => {
+    const unlistenStatus = addDualListener<{ running: boolean }>("capture-status", (event) => {
       setCapture({ isCapturing: event.payload.running });
       addDebugLog(
         event.payload.running ? "Screen capture started" : "Screen capture stopped",
@@ -67,7 +90,7 @@ export function useTauriEvents() {
       );
     });
 
-    const unlistenError = listen<{ message: string; timestamp: string }>(
+    const unlistenError = addDualListener<{ message: string; timestamp: string }>(
       "capture-error",
       (event) => {
         addDebugLog(`Capture error: ${event.payload.message}`, "error");
@@ -75,7 +98,7 @@ export function useTauriEvents() {
     );
 
     // ── Audio chunk → Whisper → send transcript to WS for context + intent ────
-    const unlistenAudio = listen<{
+    const unlistenAudio = addDualListener<{
       session_id: string;
       audio_b64: string;
     }>("audio-chunk", async (event) => {
@@ -110,7 +133,7 @@ export function useTauriEvents() {
     });
 
     // ── File changed in watched folder ────────────────────────────────────────
-    const unlistenFile = listen<{ file: { name: string }; event: string }>(
+    const unlistenFile = addDualListener<{ file: { name: string }; event: string }>(
       "file-changed",
       (event) => console.log(`[WKAI] File ${event.payload.event}: ${event.payload.file.name}`)
     );

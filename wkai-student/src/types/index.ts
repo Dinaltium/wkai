@@ -91,3 +91,12 @@ export interface ChatMessage {
   timestamp: string;
   pending?: boolean;
 }
+
+export type DebugLogLevel = "info" | "warn" | "error" | "success";
+
+export interface DebugLogEntry {
+  id: string;
+  timestamp: string;
+  message: string;
+  level: DebugLogLevel;
+}

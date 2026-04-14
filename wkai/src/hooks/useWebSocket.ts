@@ -14,6 +14,9 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
   const reconnectTimeout = useRef<number | null>(null);
   const shouldReconnect = useRef(true);
+  const isConnectingRef = useRef(false);
+  const reconnectCountRef = useRef(0);
+  const MAX_RECONNECT = 3;
   const {
     setStudentCount,
     addGuideBlock,
@@ -27,26 +30,38 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
 
   const connect = useCallback(() => {
     if (!sessionId) return;
+    if (isConnectingRef.current) return;
+    if (ws.current?.readyState === WebSocket.OPEN || ws.current?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
     if (reconnectTimeout.current) {
       window.clearTimeout(reconnectTimeout.current);
       reconnectTimeout.current = null;
     }
-
-    // Close any previous socket to avoid duplicates
-    if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
-      try {
-        ws.current.onclose = null;
-        ws.current.close();
-      } catch {
-        // ignore
-      }
-    }
+    isConnectingRef.current = true;
 
     const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?session=${sessionId}&role=instructor`;
     ws.current = new WebSocket(wsUrl);
 
     ws.current.onopen = () => {
+      isConnectingRef.current = false;
+      if (reconnectTimeout.current) {
+        window.clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = null;
+      }
+      reconnectCountRef.current = 0;
       addDebugLog("WebSocket connected to backend", "success");
+      try {
+        ws.current?.send(
+          JSON.stringify({
+            type: "instructor-hello",
+            payload: { ts: new Date().toISOString(), sessionId },
+          })
+        );
+        addDebugLog("WS hello sent", "info");
+      } catch {
+        addDebugLog("WS hello failed to send", "warn");
+      }
     };
 
     ws.current.onmessage = (event) => {
@@ -117,13 +132,29 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     };
 
     ws.current.onclose = () => {
+      isConnectingRef.current = false;
       if (!shouldReconnect.current) return;
-      addDebugLog("WebSocket disconnected, retrying in 3s", "warn");
+      reconnectCountRef.current += 1;
+      addDebugLog("WebSocket disconnected", "warn");
+      if (reconnectCountRef.current >= MAX_RECONNECT) {
+        addDebugLog("Backend appears down — clearing session", "error");
+        useAppStore.getState().setSession(null);
+        useAppStore.getState().setCapture({
+          isCapturing: false,
+          framesSent: 0,
+          lastFrameAt: null,
+          aiProcessing: false,
+        });
+        window.location.hash = "/";
+        return;
+      }
+      addDebugLog("Retrying backend connection in 3s", "warn");
       reconnectTimeout.current = window.setTimeout(() => {
         connect();
       }, 3000);
     };
     ws.current.onerror = () => {
+      isConnectingRef.current = false;
       addDebugLog("WebSocket error", "warn");
     };
   }, [sessionId, backendUrl]);
@@ -149,21 +180,41 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
 
     const handleScreenFrame = (e: Event) => {
       const payload = (e as CustomEvent).detail as {
-        frame_b64: string;
+        frameB64?: string;
+        frame_b64?: string;
         timestamp: string;
-        stream_to_students: boolean;
+        streamToStudents?: boolean;
+        stream_to_students?: boolean;
       };
       const { streamingToStudents } = useAppStore.getState();
+      const frameB64 = payload.frameB64 ?? payload.frame_b64 ?? "";
+      if (!frameB64) {
+        addDebugLog("Skipping frame send: missing frameB64 payload", "warn");
+        return;
+      }
+      const socketState = ws.current?.readyState;
+      if (socketState !== WebSocket.OPEN) {
+        addDebugLog(`Skipping frame send: WS not open (state=${String(socketState)})`, "warn");
+        return;
+      }
       send("screen-frame", {
-        frameB64: payload.frame_b64,
+        frameB64,
         timestamp: payload.timestamp,
         streamToStudents: streamingToStudents,
       });
+      console.log(
+        `[WKAI WS OUT] screen-frame sent session=${sessionId ?? "none"} b64_len=${frameB64.length} stream=${streamingToStudents}`
+      );
+      addDebugLog(
+        `WS sent screen-frame (b64=${frameB64.length}, stream=${streamingToStudents ? "on" : "off"})`,
+        "info"
+      );
     };
     window.addEventListener("wkai:screen-frame", handleScreenFrame);
 
     return () => {
       shouldReconnect.current = false;
+      isConnectingRef.current = false;
       if (reconnectTimeout.current) {
         window.clearTimeout(reconnectTimeout.current);
         reconnectTimeout.current = null;
@@ -181,6 +232,10 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const send = useCallback(<T>(type: WsEventType | string, payload: T) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type, payload }));
+    } else {
+      const state = ws.current?.readyState;
+      addDebugLog(`WS blocked send(${String(type)}): socket state=${String(state)}`, "warn");
+      console.warn(`[WKAI WS OUT] blocked type=${String(type)} state=${String(state)}`);
     }
   }, []);
 

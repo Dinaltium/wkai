@@ -8,6 +8,7 @@ import { aiRouter } from "./routes/ai.js";
 import { filesRouter } from "./routes/files.js";
 import { runnerRouter } from "./routes/runner.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { debugLog, debugEnabled } from "./utils/debug.js";
 
 export const app = express();
 
@@ -28,6 +29,29 @@ app.use(cors({
 app.use(morgan("dev"));
 app.use(express.json({ limit: "20mb" })); // Allow large base64 frames
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  const started = Date.now();
+  if (debugEnabled()) {
+    debugLog("HTTP", "incoming", {
+      method: req.method,
+      path: req.originalUrl,
+      ip: req.ip,
+      query: req.query,
+      bodyKeys: req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
+    });
+  }
+  res.on("finish", () => {
+    if (debugEnabled()) {
+      debugLog("HTTP", "completed", {
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+        elapsedMs: Date.now() - started,
+      });
+    }
+  });
+  next();
+});
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 

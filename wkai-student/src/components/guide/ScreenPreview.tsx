@@ -11,11 +11,11 @@ export function ScreenPreview() {
           <Monitor size={28} />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-medium text-wkai-text">No screen preview</p>
-          <p className="text-xs">
+          <p className="text-sm font-medium text-wkai-text">Screen preview not available</p>
+          <p className="text-xs text-wkai-text-dim max-w-xs text-center">
             {session?.status === "ended"
-              ? "The session has ended."
-              : "The instructor has not enabled screen sharing."}
+              ? "The session has ended. Guide blocks and files remain available."
+              : "Screen sharing will be enabled in a future update. Guide blocks and AI assistance work normally."}
           </p>
         </div>
       </div>

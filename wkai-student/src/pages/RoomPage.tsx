@@ -12,6 +12,7 @@ import { SessionEndedModal } from "../components/shared/SessionEndedModal";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
 import { ScreenPreview } from "../components/guide/ScreenPreview";
 import { MessagePanel } from "../components/messages/MessagePanel";
+import { StudentDebugPanel } from "../components/shared/StudentDebugPanel";
 import { joinRoom } from "../lib/api";
 
 export function RoomPage() {
@@ -22,11 +23,20 @@ export function RoomPage() {
   const bootstrappingRef = useRef(!session && !sessionEnded);
   const [endedModalDismissed, setEndedModalDismissed] = useState(false);
 
+  function handleStay() {
+    setEndedModalDismissed(true);
+    const { activeTab: currentTab, setActiveTab } = useStore.getState();
+    if (currentTab === "live" || currentTab === "messages") {
+      setActiveTab("guide");
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadSession() {
-      if (session || sessionEnded || !code) return;
+      if (!code) return;
+      if (session?.roomCode === code.toUpperCase() && !sessionEnded) return;
 
       bootstrappingRef.current = true;
       try {
@@ -34,10 +44,13 @@ export function RoomPage() {
         if (cancelled) return;
 
         if (data.session.status === "ended") {
+          setSession(null);
           navigate("/");
           return;
         }
 
+        setEndedModalDismissed(false);
+        useStore.getState().setSessionEnded(false);
         setSession(data.session);
         setGuideBlocks(data.guideBlocks);
         setSharedFiles(data.sharedFiles);
@@ -64,9 +77,9 @@ export function RoomPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-wkai-bg">
+    <div className="relative flex h-full flex-col overflow-hidden bg-wkai-bg">
       <RoomHeader />
-      <TabBar />
+      <TabBar sessionEnded={sessionEnded} />
 
       <div className="flex-1 overflow-hidden">
         {activeTab === "guide"  && <GuideFeed />}
@@ -80,8 +93,9 @@ export function RoomPage() {
       {/* Comprehension gate — modal overlay */}
       {pendingQuestion && <ComprehensionModal send={send} />}
       {sessionEnded && !endedModalDismissed && (
-        <SessionEndedModal onDismiss={() => setEndedModalDismissed(true)} />
+        <SessionEndedModal onStay={handleStay} />
       )}
+      <StudentDebugPanel />
     </div>
   );
 }
