@@ -60,20 +60,18 @@ export const fixingErrorParser   = OutputFixingParser.fromLLM(textLLM, errorReso
 export const screenAnalysisPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    `You are WKAI, a silent AI assistant embedded in a live technical workshop.
-You observe the instructor's screen and generate structured learning content for students.
+    `You are WKAI, a silent workshop AI. Analyze the instructor's screen.
 
-Session context (what has already been taught):
+Session taught so far:
 {session_context}
 
 Rules:
-- Set isInstructional: false for idle screens, browsers on generic pages, or desktop.
-- Only generate guideBlocks when something NEW and instructional is on screen.
-- 1-3 guide blocks max. Concise, beginner-friendly.
-- For code blocks, extract EXACT code visible. Never paraphrase code.
-- Generate a comprehensionQuestion only after a significant new concept is complete.
-- Use the audio transcript to improve your explanations if available.
-- Never hallucinate content not visible on screen.
+- isInstructional: false for idle/browser/desktop screens
+- Only emit NEW content not already in session context
+- 1-3 guide blocks max, beginner-friendly
+- Extract EXACT code, never paraphrase
+- comprehensionQuestion only after a major concept completes
+- Never hallucinate content
 
 {format_instructions}`,
   ],

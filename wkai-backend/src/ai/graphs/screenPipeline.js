@@ -1,7 +1,7 @@
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
 import { StructuredOutputParser } from "langchain/output_parsers";
-import { visionLLM, creativeLLM } from "../groqClient.js";
+import { visionLLM, creativeLLM, callWithRetry } from "../groqClient.js";
 import {
   screenAnalysisPrompt,
   questionRefinementPrompt,
@@ -48,12 +48,14 @@ async function visionAnalysisNode(state) {
 
     const chain = screenAnalysisPrompt.pipe(visionLLM);
 
-    const response = await chain.invoke({
-      session_context:    state.sessionContext || "No prior context — this is the start of the session.",
-      frame_b64:          state.frameB64,
-      transcript:         state.transcript || "(no audio transcript)",
-      format_instructions: formatInstructions,
-    });
+    const response = await callWithRetry(() =>
+      chain.invoke({
+        session_context: state.sessionContext || "No prior context — this is the start of the session.",
+        frame_b64: state.frameB64,
+        transcript: state.transcript || "(no audio transcript)",
+        format_instructions: formatInstructions,
+      })
+    );
 
     return { rawAnalysis: response.content, parseAttempts: 1 };
   } catch (err) {
@@ -110,14 +112,16 @@ async function refineQuestionNode(state) {
     const parser = StructuredOutputParser.fromZodSchema(ComprehensionQuestionSchema);
     const chain  = questionRefinementPrompt.pipe(creativeLLM);
 
-    const response = await chain.invoke({
-      session_context:    state.sessionContext,
-      question:           q.question,
-      options:            q.options.join(" | "),
-      correct_index:      q.correctIndex,
-      explanation:        q.explanation,
-      format_instructions: parser.getFormatInstructions(),
-    });
+    const response = await callWithRetry(() =>
+      chain.invoke({
+        session_context: state.sessionContext,
+        question: q.question,
+        options: q.options.join(" | "),
+        correct_index: q.correctIndex,
+        explanation: q.explanation,
+        format_instructions: parser.getFormatInstructions(),
+      })
+    );
 
     const refined = await parser.parse(response.content);
     return { comprehensionQuestion: refined };

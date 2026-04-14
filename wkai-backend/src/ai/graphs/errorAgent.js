@@ -1,6 +1,6 @@
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
-import { textLLM } from "../groqClient.js";
+import { textLLM, callWithRetry } from "../groqClient.js";
 import {
   errorDiagnosisPrompt,
   errorResolutionParser,
@@ -59,10 +59,12 @@ async function diagnoseNode(state) {
     const formatInstructions = errorResolutionParser.getFormatInstructions();
     const chain = errorDiagnosisPrompt.pipe(textLLM);
 
-    const response = await chain.invoke({
-      error_message:       state.errorMessage,
-      format_instructions: formatInstructions,
-    });
+    const response = await callWithRetry(() =>
+      chain.invoke({
+        error_message: state.errorMessage,
+        format_instructions: formatInstructions,
+      })
+    );
 
     return { rawDiagnosis: response.content };
   } catch (err) {

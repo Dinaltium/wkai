@@ -58,7 +58,7 @@ export class RedisSessionMemory extends BaseListChatMessageHistory {
     const messages = await this.getMessages();
     if (!messages.length) return "";
     return messages
-      .slice(-8) // last 8 messages for context window efficiency
+      .slice(-4)
       .map((m) => {
         if (m instanceof AIMessage) return `Assistant: ${m.content}`;
         if (m instanceof HumanMessage) return `Student: ${m.content}`;

@@ -1,6 +1,6 @@
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
-import { textLLM } from "../groqClient.js";
+import { textLLM, callWithRetry } from "../groqClient.js";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
@@ -81,11 +81,13 @@ async function classifyIntentNode(state) {
       ? state.recentFiles.map((f) => f.name).join(", ")
       : "(no files in watch folder)";
 
-    const response = await chain.invoke({
-      transcript:         state.transcript,
-      file_list:          fileList,
-      format_instructions: intentParser.getFormatInstructions(),
-    });
+    const response = await callWithRetry(() =>
+      chain.invoke({
+        transcript: state.transcript,
+        file_list: fileList,
+        format_instructions: intentParser.getFormatInstructions(),
+      })
+    );
 
     const parsed = await intentParser.parse(response.content);
     return { detectedIntent: parsed, confidence: parsed.confidence };
@@ -131,7 +133,7 @@ function shouldClassify(state) {
 
 function shouldMatch(state) {
   if (!state.detectedIntent?.hasShareIntent) return "done";
-  if (state.confidence < 0.6) return "done"; // too uncertain
+  if (state.confidence < 0.7) return "done";
   return "match";
 }
 
@@ -176,7 +178,7 @@ export async function detectShareIntent(transcript, recentFiles = []) {
   const result = await intentDetectionGraph.invoke({ transcript, recentFiles });
 
   return {
-    shouldShare: result.detectedIntent?.hasShareIntent === true && result.confidence >= 0.6,
+    shouldShare: result.detectedIntent?.hasShareIntent === true && result.confidence >= 0.7,
     file:        result.matchedFile ?? null,
     confidence:  result.confidence ?? 0,
   };
