@@ -58,6 +58,25 @@ export interface ErrorResolution {
   severity:     "blocking" | "warning" | "info";
 }
 
+export interface WebRtcOfferPayload {
+  sdp: RTCSessionDescriptionInit;
+  targetStudentId?: string;
+}
+
+export interface WebRtcAnswerPayload {
+  sdp: RTCSessionDescriptionInit;
+  studentId: string;
+}
+
+export interface WebRtcIceCandidatePayload {
+  candidate: RTCIceCandidateInit;
+  studentId?: string;
+}
+
+export interface WebRtcSessionResetPayload {
+  reason?: string;
+}
+
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 export type WsEventType =
   | "session-state"
@@ -72,6 +91,10 @@ export type WsEventType =
   | "student-message"
   | "instructor-reply"
   | "ai-reply"
+  | "webrtc-offer"
+  | "webrtc-answer"
+  | "webrtc-ice-candidate"
+  | "webrtc-session-reset"
   | "session-ended"
   | "error";
 

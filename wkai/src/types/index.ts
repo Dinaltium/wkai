@@ -74,6 +74,7 @@ export interface CaptureConfig {
   captureAudio: boolean;
   sessionId: string;
   streamToStudents?: boolean;
+  backendUrl?: string;
 }
 
 export interface CaptureState {
@@ -81,6 +82,25 @@ export interface CaptureState {
   lastFrameAt: string | null;
   framesSent: number;
   aiProcessing: boolean;
+}
+
+export interface WebRtcOfferPayload {
+  sdp: RTCSessionDescriptionInit;
+  targetStudentId?: string;
+}
+
+export interface WebRtcAnswerPayload {
+  sdp: RTCSessionDescriptionInit;
+  studentId: string;
+}
+
+export interface WebRtcIceCandidatePayload {
+  candidate: RTCIceCandidateInit;
+  studentId?: string;
+}
+
+export interface WebRtcSessionResetPayload {
+  reason?: string;
 }
 
 // ─── Debug Logs ───────────────────────────────────────────────────────────────
@@ -106,7 +126,11 @@ export type WsEventType =
   | "session-ended"
   | "student-message"
   | "instructor-reply"
-  | "ai-reply";
+  | "ai-reply"
+  | "webrtc-offer"
+  | "webrtc-answer"
+  | "webrtc-ice-candidate"
+  | "webrtc-session-reset";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
