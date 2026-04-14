@@ -68,10 +68,27 @@ const DEFAULT_SETTINGS: AppSettings = {
   captureAudio:    true,
 };
 
+const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";
+
+function readStoredSettings(): AppSettings {
+  const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+  if (!raw) return { ...DEFAULT_SETTINGS };
+  try {
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
 export const useAppStore = create<AppStore>((set) => ({
-  settings: { ...DEFAULT_SETTINGS },
+  settings: readStoredSettings(),
   updateSettings: (partial) =>
-    set((s) => ({ settings: { ...s.settings, ...partial } })),
+    set((s) => {
+      const next = { ...s.settings, ...partial };
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+      return { settings: next };
+    }),
 
   session: null,
   setSession: (session) => set({ session }),
