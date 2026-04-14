@@ -6,13 +6,12 @@ import { RoomHeader } from "../components/shared/RoomHeader";
 import { TabBar } from "../components/shared/TabBar";
 import { GuideFeed } from "../components/guide/GuideFeed";
 import { FilesPanel } from "../components/files/FilesPanel";
-import { ErrorHelper } from "../components/error/ErrorHelper";
-import { CodeEditor } from "../components/shared/CodeEditor";
 import { SessionEndedModal } from "../components/shared/SessionEndedModal";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
 import { ScreenPreview } from "../components/guide/ScreenPreview";
 import { MessagePanel } from "../components/messages/MessagePanel";
 import { StudentDebugPanel } from "../components/shared/StudentDebugPanel";
+import { AIHelperPanel } from "../components/ai/AIHelperPanel";
 import { joinRoom } from "../lib/api";
 
 export function RoomPage() {
@@ -85,8 +84,7 @@ export function RoomPage() {
       <div className="flex-1 overflow-hidden">
         {activeTab === "guide"  && <GuideFeed />}
         {activeTab === "files"  && <FilesPanel />}
-        {activeTab === "editor" && <CodeEditor />}
-        {activeTab === "error"  && <ErrorHelper send={send} />}
+        {activeTab === "ai-helper" && <AIHelperPanel send={send} />}
         {activeTab === "live" && <ScreenPreview send={send} />}
         {activeTab === "messages" && <MessagePanel send={send} />}
       </div>

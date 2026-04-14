@@ -1,13 +1,12 @@
 import { useStore } from "../../store";
 import type { RoomTab } from "../../types";
-import { BookOpen, FolderOpen, Code2, Bug, Monitor, MessageSquare } from "lucide-react";
+import { BookOpen, FolderOpen, Bot, Monitor, MessageSquare } from "lucide-react";
 import { clsx } from "clsx";
 
 const TABS: { id: RoomTab; label: string; icon: React.ReactNode }[] = [
   { id: "guide",  label: "Guide",   icon: <BookOpen size={14} /> },
   { id: "files",  label: "Files",   icon: <FolderOpen size={14} /> },
-  { id: "editor", label: "Editor",  icon: <Code2 size={14} /> },
-  { id: "error",  label: "Errors",  icon: <Bug size={14} /> },
+  { id: "ai-helper", label: "AI Helper", icon: <Bot size={14} /> },
   { id: "live",   label: "Live",    icon: <Monitor size={14} /> },
   { id: "messages", label: "Q&A",   icon: <MessageSquare size={14} /> },
 ];
