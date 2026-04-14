@@ -175,6 +175,20 @@ export function initWebSocketServer(httpServer) {
           if (ws.role !== "instructor") break;
           handleInstructorReply(ws, msg.payload);
           break;
+        case "webrtc-offer":
+          if (ws.role !== "instructor") break;
+          handleWebRtcOffer(ws, msg.payload);
+          break;
+        case "webrtc-answer":
+          handleWebRtcAnswer(ws, msg.payload);
+          break;
+        case "webrtc-ice-candidate":
+          handleWebRtcIceCandidate(ws, msg.payload);
+          break;
+        case "webrtc-session-reset":
+          if (ws.role !== "instructor") break;
+          handleWebRtcSessionReset(ws, msg.payload);
+          break;
         default:
           console.log(`[WS] unhandled message type: ${msgType}`);
           break;
@@ -223,11 +237,11 @@ export function initWebSocketServer(httpServer) {
 
 // ─── Message Handlers ─────────────────────────────────────────────────────────
 
-async function handleScreenFrame(ws, payload) {
-  const { sessionId } = ws;
-  const { frameB64 } = payload;
+export async function ingestScreenFrame(sessionId, payload, source = "ws") {
+  const { frameB64 } = payload ?? {};
   debugLog("WS", "handleScreenFrame start", {
     sessionId,
+    source,
     hasFrame: !!frameB64,
     frameLen: frameB64 ? String(frameB64).length : 0,
     stream: !!payload?.streamToStudents,
@@ -290,6 +304,10 @@ async function handleScreenFrame(ws, payload) {
     console.error("[WS] Screen frame pipeline error:", err.message);
     debugError("WS", "handleScreenFrame failed", err);
   }
+}
+
+async function handleScreenFrame(ws, payload) {
+  return ingestScreenFrame(ws.sessionId, payload, "ws");
 }
 
 async function handleAudioTranscript(ws, payload) {
@@ -462,6 +480,166 @@ function handleInstructorReply(ws, payload) {
       })
     );
   }
+}
+
+function getInstructorSocket(sessionId) {
+  return rooms.get(sessionId)?.get("instructor") ?? null;
+}
+
+function getStudentSocket(sessionId, studentId) {
+  if (!studentId) return null;
+  return rooms.get(sessionId)?.get(`student:${studentId}`) ?? null;
+}
+
+function handleWebRtcOffer(ws, payload) {
+  const { sessionId } = ws;
+  const targetStudentId = payload?.targetStudentId;
+  if (!payload?.sdp || !targetStudentId) {
+    debugLog("WS", "webrtc-offer dropped invalid payload", {
+      sessionId,
+      targetStudentId,
+      hasSdp: !!payload?.sdp,
+    });
+    return;
+  }
+
+  const studentWs = getStudentSocket(sessionId, targetStudentId);
+  if (studentWs?.readyState !== WebSocket.OPEN) {
+    debugLog("WS", "webrtc-offer target unavailable", {
+      sessionId,
+      targetStudentId,
+      room: roomSnapshot(sessionId),
+    });
+    return;
+  }
+
+  studentWs.send(
+    JSON.stringify({
+      type: "webrtc-offer",
+      payload: {
+        sdp: payload.sdp,
+        studentId: targetStudentId,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  );
+  debugLog("WS", "webrtc-offer relayed", { sessionId, targetStudentId });
+}
+
+function handleWebRtcAnswer(ws, payload) {
+  const { sessionId } = ws;
+  const senderStudentId = ws.studentId;
+  const sourceRole = ws.role;
+  const targetStudentId = payload?.studentId ?? senderStudentId;
+
+  if (!payload?.sdp || !targetStudentId) {
+    debugLog("WS", "webrtc-answer dropped invalid payload", {
+      sessionId,
+      sourceRole,
+      targetStudentId,
+      hasSdp: !!payload?.sdp,
+    });
+    return;
+  }
+
+  const instructorWs = getInstructorSocket(sessionId);
+  if (instructorWs?.readyState !== WebSocket.OPEN) {
+    debugLog("WS", "webrtc-answer instructor unavailable", {
+      sessionId,
+      sourceRole,
+      targetStudentId,
+    });
+    return;
+  }
+
+  instructorWs.send(
+    JSON.stringify({
+      type: "webrtc-answer",
+      payload: {
+        sdp: payload.sdp,
+        studentId: targetStudentId,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  );
+  debugLog("WS", "webrtc-answer relayed", { sessionId, targetStudentId, sourceRole });
+}
+
+function handleWebRtcIceCandidate(ws, payload) {
+  const { sessionId } = ws;
+  if (!payload?.candidate) {
+    debugLog("WS", "webrtc-ice dropped invalid payload", {
+      sessionId,
+      role: ws.role,
+    });
+    return;
+  }
+
+  if (ws.role === "student") {
+    const instructorWs = getInstructorSocket(sessionId);
+    if (instructorWs?.readyState !== WebSocket.OPEN) {
+      debugLog("WS", "webrtc-ice student->instructor target unavailable", {
+        sessionId,
+        studentId: ws.studentId,
+      });
+      return;
+    }
+    instructorWs.send(
+      JSON.stringify({
+        type: "webrtc-ice-candidate",
+        payload: {
+          candidate: payload.candidate,
+          studentId: ws.studentId,
+        },
+        timestamp: new Date().toISOString(),
+      })
+    );
+    debugLog("WS", "webrtc-ice relayed student->instructor", {
+      sessionId,
+      studentId: ws.studentId,
+    });
+    return;
+  }
+
+  const targetStudentId = payload?.studentId;
+  if (!targetStudentId) {
+    debugLog("WS", "webrtc-ice instructor payload missing studentId", {
+      sessionId,
+    });
+    return;
+  }
+
+  const studentWs = getStudentSocket(sessionId, targetStudentId);
+  if (studentWs?.readyState !== WebSocket.OPEN) {
+    debugLog("WS", "webrtc-ice instructor->student target unavailable", {
+      sessionId,
+      targetStudentId,
+    });
+    return;
+  }
+
+  studentWs.send(
+    JSON.stringify({
+      type: "webrtc-ice-candidate",
+      payload: {
+        candidate: payload.candidate,
+        studentId: targetStudentId,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  );
+  debugLog("WS", "webrtc-ice relayed instructor->student", { sessionId, targetStudentId });
+}
+
+function handleWebRtcSessionReset(ws, payload) {
+  const { sessionId } = ws;
+  const reason = payload?.reason ?? "instructor-reset";
+  broadcastToStudents(sessionId, {
+    type: "webrtc-session-reset",
+    payload: { reason },
+    timestamp: new Date().toISOString(),
+  });
+  debugLog("WS", "webrtc-session-reset broadcast", { sessionId, reason });
 }
 
 // ─── Session cleanup ──────────────────────────────────────────────────────────
