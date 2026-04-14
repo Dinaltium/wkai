@@ -12,14 +12,16 @@ interface UseWsOptions {
 export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
-  const { setStudentCount, addGuideBlock, addSharedFile } = useAppStore();
+  const { setStudentCount, addGuideBlock, addSharedFile, addDebugLog } = useAppStore();
 
   const connect = useCallback(() => {
     if (!sessionId) return;
     const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?session=${sessionId}&role=instructor`;
     ws.current = new WebSocket(wsUrl);
 
-    ws.current.onopen = () => console.log("[WKAI WS] Connected to", wsUrl);
+    ws.current.onopen = () => {
+      addDebugLog("WebSocket connected to backend", "success");
+    };
 
     ws.current.onmessage = (event) => {
       try {
@@ -29,28 +31,39 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
         switch (msg.type) {
           case "guide-block":
             addGuideBlock(msg.payload as never);
+            addDebugLog("WS received: guide-block", "info");
             break;
           case "file-shared":
             addSharedFile(msg.payload as never);
+            addDebugLog("WS received: file-shared", "info");
             break;
           case "student-joined":
             setStudentCount((msg.payload as { count: number }).count);
+            addDebugLog("WS received: student-joined", "info");
             break;
           case "student-left":
             setStudentCount((msg.payload as { count: number }).count);
+            addDebugLog("WS received: student-left", "info");
             break;
           case "share-intent-detected":
             // LangGraph intent agent detected "share this file" in audio
             window.dispatchEvent(new CustomEvent("wkai:shareIntent", { detail: msg.payload }));
+            addDebugLog("WS received: share-intent-detected", "success");
             break;
         }
       } catch (err) {
         console.error("[WKAI WS] Parse error", err);
+        addDebugLog("WebSocket message parse error", "warn");
       }
     };
 
-    ws.current.onclose = () => setTimeout(connect, 3000);
-    ws.current.onerror = (err) => console.error("[WKAI WS] Error", err);
+    ws.current.onclose = () => {
+      addDebugLog("WebSocket disconnected, retrying in 3s", "warn");
+      setTimeout(connect, 3000);
+    };
+    ws.current.onerror = () => {
+      addDebugLog("WebSocket error", "warn");
+    };
   }, [sessionId, backendUrl]);
 
   useEffect(() => {

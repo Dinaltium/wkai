@@ -1,13 +1,14 @@
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Settings, Radio } from "lucide-react";
+import { LayoutDashboard, Settings, Radio, Bug } from "lucide-react";
 import { useTauriEvents } from "../../hooks/useTauriEvents";
 import { useAppStore } from "../../store";
 import { clsx } from "clsx";
+import { DebugPanel } from "../instructor/DebugPanel";
 
 export function AppShell() {
   useTauriEvents(); // wire up all Tauri event listeners
 
-  const { session, capture, studentCount } = useAppStore();
+  const { session, capture, studentCount, debugPanelOpen } = useAppStore();
   const location = useLocation();
   const inSession = !!session;
 
@@ -25,6 +26,22 @@ export function AppShell() {
           <NavItem to="/session" icon={<Radio size={18} />} label="Session" />
         )}
         <div className="flex-1" />
+        <button
+          title="Debug Console"
+          onClick={() =>
+            useAppStore.getState().setDebugPanelOpen(
+              !useAppStore.getState().debugPanelOpen
+            )
+          }
+          className={clsx(
+            "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+            debugPanelOpen
+              ? "bg-amber-500/20 text-amber-400"
+              : "text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text"
+          )}
+        >
+          <Bug size={18} />
+        </button>
         <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" />
       </aside>
 
@@ -68,6 +85,8 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {debugPanelOpen && <DebugPanel />}
     </div>
   );
 }

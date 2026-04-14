@@ -6,6 +6,8 @@ import type {
   SharedFile,
   WatchedFile,
   AppSettings,
+  DebugLogEntry,
+  DebugLogLevel,
 } from "../types";
 
 interface AppStore {
@@ -39,6 +41,13 @@ interface AppStore {
   setStudentCount: (n: number) => void;
   streamingToStudents: boolean;
   setStreamingToStudents: (v: boolean) => void;
+
+  // ─── Debug Console ─────────────────────────────────────────────────────────
+  debugLogs: DebugLogEntry[];
+  addDebugLog: (message: string, level?: DebugLogLevel) => void;
+  clearDebugLogs: () => void;
+  debugPanelOpen: boolean;
+  setDebugPanelOpen: (v: boolean) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -83,4 +92,21 @@ export const useAppStore = create<AppStore>((set) => ({
   setStudentCount: (n) => set({ studentCount: n }),
   streamingToStudents: true,
   setStreamingToStudents: (streamingToStudents) => set({ streamingToStudents }),
+
+  debugLogs: [],
+  addDebugLog: (message, level = "info") =>
+    set((s) => ({
+      debugLogs: [
+        ...s.debugLogs.slice(-49),
+        {
+          id: Math.random().toString(36).slice(2),
+          timestamp: new Date().toLocaleTimeString(),
+          message,
+          level,
+        },
+      ],
+    })),
+  clearDebugLogs: () => set({ debugLogs: [] }),
+  debugPanelOpen: false,
+  setDebugPanelOpen: (debugPanelOpen) => set({ debugPanelOpen }),
 }));

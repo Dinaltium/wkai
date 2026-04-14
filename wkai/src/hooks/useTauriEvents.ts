@@ -10,12 +10,7 @@ import { useAppStore } from "../store";
  * - file-changed  → logs file watcher events
  */
 export function useTauriEvents() {
-  const { setCapture, settings } = useAppStore();
-
-  // Temporary until F4 debug panel is implemented
-  function addDebugLog(msg: string, level?: string) {
-    console.log(`[WKAI Debug] [${level ?? "info"}] ${msg}`);
-  }
+  const { setCapture, settings, addDebugLog } = useAppStore();
 
   useEffect(() => {
     // ── Screen frame captured ─────────────────────────────────────────────────
@@ -35,18 +30,22 @@ export function useTauriEvents() {
       });
       setTimeout(() => setCapture({ aiProcessing: false }), 3000);
 
+      addDebugLog(`Frame captured ${event.payload.width}x${event.payload.height}`, "info");
       window.dispatchEvent(new CustomEvent("wkai:screen-frame", { detail: event.payload }));
     });
 
     const unlistenStatus = listen<{ running: boolean }>("capture-status", (event) => {
       setCapture({ isCapturing: event.payload.running });
-      addDebugLog(event.payload.running ? "Screen capture started" : "Screen capture stopped");
+      addDebugLog(
+        event.payload.running ? "Screen capture started" : "Screen capture stopped",
+        event.payload.running ? "success" : "warn"
+      );
     });
 
     const unlistenError = listen<{ message: string; timestamp: string }>(
       "capture-error",
       (event) => {
-        addDebugLog(`[ERROR] Capture: ${event.payload.message}`, "error");
+        addDebugLog(`Capture error: ${event.payload.message}`, "error");
       }
     );
 
@@ -65,6 +64,9 @@ export function useTauriEvents() {
         const { transcript } = await whisperRes.json();
         if (!transcript?.trim()) return;
 
+        addDebugLog("Audio chunk received, transcribing...", "info");
+        addDebugLog(`Transcript: "${String(transcript).slice(0, 60)}..."`, "success");
+
         // 2. Send transcript to WS server — used for:
         //    a) Enriching the next screen-frame AI pipeline call
         //    b) Running the LangGraph intent detection agent
@@ -78,6 +80,7 @@ export function useTauriEvents() {
         }));
       } catch (err) {
         console.warn("[Audio] Transcription failed:", err);
+        addDebugLog("Audio transcription failed", "warn");
       }
     });
 

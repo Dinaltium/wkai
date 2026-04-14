@@ -68,6 +68,17 @@ export interface CaptureState {
   aiProcessing: boolean;
 }
 
+// ─── Debug Logs ───────────────────────────────────────────────────────────────
+
+export type DebugLogLevel = "info" | "warn" | "error" | "success";
+
+export interface DebugLogEntry {
+  id: string;
+  timestamp: string;
+  message: string;
+  level: DebugLogLevel;
+}
+
 // ─── WebSocket Events ─────────────────────────────────────────────────────────
 
 export type WsEventType =
