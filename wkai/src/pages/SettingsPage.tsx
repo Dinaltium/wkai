@@ -1,6 +1,8 @@
 import { useAppStore } from "../store";
 import { Save, Network } from "lucide-react";
 import { useEffect, useState } from "react";
+import { MicTest } from "../components/instructor/MicTest";
+import { AITest } from "../components/instructor/AITest";
 
 export function SettingsPage() {
   const { settings, updateSettings } = useAppStore();
@@ -138,6 +140,16 @@ export function SettingsPage() {
               </span>
             </label>
           </Field>
+        </section>
+
+        <section className="card space-y-5 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+            Testing
+          </h2>
+          <MicTest />
+          <div className="border-t border-wkai-border pt-4">
+            <AITest />
+          </div>
         </section>
 
         <button className="btn-primary" onClick={handleSave}>
