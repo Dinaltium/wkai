@@ -104,6 +104,11 @@ export function initWebSocketServer(httpServer) {
       switch (msg.type) {
         case "screen-frame":
           if (ws.role !== "instructor") break;
+          if (msg.payload?.frameB64) {
+            console.log(`[WS] screen-frame received (b64_len=${String(msg.payload.frameB64).length}, stream=${!!msg.payload.streamToStudents})`);
+          } else {
+            console.log("[WS] screen-frame received (missing frameB64)");
+          }
           handleScreenFrame(ws, msg.payload);
           break;
         case "audio-transcript":
