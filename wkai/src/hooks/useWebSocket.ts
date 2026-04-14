@@ -12,6 +12,8 @@ interface UseWsOptions {
 export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
+  const reconnectTimeout = useRef<number | null>(null);
+  const shouldReconnect = useRef(true);
   const {
     setStudentCount,
     addGuideBlock,
@@ -25,6 +27,21 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
 
   const connect = useCallback(() => {
     if (!sessionId) return;
+    if (reconnectTimeout.current) {
+      window.clearTimeout(reconnectTimeout.current);
+      reconnectTimeout.current = null;
+    }
+
+    // Close any previous socket to avoid duplicates
+    if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
+      try {
+        ws.current.onclose = null;
+        ws.current.close();
+      } catch {
+        // ignore
+      }
+    }
+
     const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?session=${sessionId}&role=instructor`;
     ws.current = new WebSocket(wsUrl);
 
@@ -100,8 +117,11 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     };
 
     ws.current.onclose = () => {
+      if (!shouldReconnect.current) return;
       addDebugLog("WebSocket disconnected, retrying in 3s", "warn");
-      setTimeout(connect, 3000);
+      reconnectTimeout.current = window.setTimeout(() => {
+        connect();
+      }, 3000);
     };
     ws.current.onerror = () => {
       addDebugLog("WebSocket error", "warn");
@@ -109,6 +129,7 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
   }, [sessionId, backendUrl]);
 
   useEffect(() => {
+    shouldReconnect.current = true;
     connect();
 
     // Forward audio transcripts to WS server for:
@@ -142,7 +163,16 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     window.addEventListener("wkai:screen-frame", handleScreenFrame);
 
     return () => {
-      ws.current?.close();
+      shouldReconnect.current = false;
+      if (reconnectTimeout.current) {
+        window.clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = null;
+      }
+      try {
+        ws.current?.close();
+      } catch {
+        // ignore
+      }
       window.removeEventListener("wkai:transcript", handleTranscript);
       window.removeEventListener("wkai:screen-frame", handleScreenFrame);
     };

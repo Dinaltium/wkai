@@ -68,7 +68,11 @@ async function diagnoseNode(state) {
 
     return { rawDiagnosis: response.content };
   } catch (err) {
-    return { parseError: err.message, rawDiagnosis: null };
+    return {
+      parseError: err.message,
+      rawDiagnosis: null,
+      retryCount: (state.retryCount ?? 0) + 1,
+    };
   }
 }
 
@@ -79,6 +83,7 @@ async function parseDiagnosisNode(state) {
     return {
       resolution: fallbackResolution(),
       isResolved: false,
+      retryCount: (state.retryCount ?? 0) + 1,
     };
   }
 
