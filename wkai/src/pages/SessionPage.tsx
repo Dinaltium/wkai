@@ -12,13 +12,16 @@ import { InboxPanel } from "../components/instructor/InboxPanel";
 import { RoomInfo } from "../components/instructor/RoomInfo";
 import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
+import { RecordingPanel } from "../components/instructor/RecordingPanel";
+import { useWebRtcPublisher } from "../hooks/useWebRtcPublisher";
 
 export function SessionPage() {
   const { session, settings, studentCount } = useAppStore();
-  const { send } = useWebSocket({
+  const { send, on, off } = useWebSocket({
     sessionId: session?.id ?? null,
     backendUrl: settings.backendUrl,
   });
+  useWebRtcPublisher(session?.id ?? null, send, on, off);
 
   const [leftTab, setLeftTab] = useState<"files" | "students" | "inbox">("files");
 
@@ -33,7 +36,7 @@ export function SessionPage() {
   return (
     <div className="relative flex h-full gap-0">
       {/* ─── Left column: status + files ──────────────────────────── */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-wkai-border">
+      <div className="flex w-64 shrink-0 flex-col border-r border-wkai-border min-h-0 overflow-y-auto">
         <div className="border-b border-wkai-border p-4">
           <RoomInfo session={session} />
         </div>
@@ -42,6 +45,9 @@ export function SessionPage() {
         </div>
         <div className="border-b border-wkai-border p-4">
           <ShareToggle />
+        </div>
+        <div className="border-b border-wkai-border p-4">
+          <RecordingPanel roomCode={session.roomCode} />
         </div>
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex border-b border-wkai-border">
