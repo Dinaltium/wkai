@@ -103,3 +103,40 @@ This document summarizes all changes implemented in this session across `wkai`, 
 - `feat(settings): microphone level test and AI connectivity test`
 - `perf(ai): reduce token usage and add Groq rate-limit retries`
 - `style(ui): remove emojis, professional tone, consistent labels`
+
+## Phase 1 WebRTC + Stability (Current Session)
+
+- Added shared signaling event contracts for `webrtc-offer`, `webrtc-answer`, `webrtc-ice-candidate`, and `webrtc-session-reset` in both apps.
+- Added backend signaling relay in `wkai-backend/src/ws/server.js` with targeted student routing and diagnostics for offer/answer/ICE/reset events.
+- Added instructor publisher flow:
+  - new `wkai/src/hooks/useWebRtcPublisher.ts`
+  - integrated with `useWebSocket` handler registry and `SessionPage`
+  - per-student peer lifecycle and cleanup on disconnect/reset.
+- Added student receiver flow:
+  - new `wkai-student/src/hooks/useWebRtcReceiver.ts`
+  - signaling bridge in `wkai-student/src/hooks/useRoomSocket.ts`
+  - live `<video>` rendering in `wkai-student/src/components/guide/ScreenPreview.tsx` with screenshot fallback.
+- Fixed recording stop reliability:
+  - force-stop event from `EndSessionButton`
+  - hardened cleanup/track release and stop-state handling in `RecordingPanel`.
+- Set default student tab to `Live` in store boot and join/room bootstrap flows.
+- Kept screenshot AI path active with backend ingest relay and tuned capture cadence defaults for smoother behavior.
+
+### Phase 1 Validation
+
+- `npx tsc --noEmit` passed in `wkai/`.
+- `npx tsc --noEmit` passed in `wkai-student/`.
+- `cargo check` passed in `wkai/src-tauri/`.
+- `npm run build` passed in `wkai/`.
+- `npm run build` passed in `wkai-student/`.
+- `node --check src/ws/server.js` passed in `wkai-backend/`.
+
+### Phase 1 Commit Trail
+
+- `add shared webrtc signaling event contracts`
+- `add backend webrtc signaling relay handlers`
+- `add instructor webrtc publisher and peer management`
+- `add student webrtc receiver and live video rendering`
+- `fix recording stop behavior and end-session shutdown`
+- `set student live tab as default on join`
+- `separate screenshot ingest path and tune ai cadence defaults`
