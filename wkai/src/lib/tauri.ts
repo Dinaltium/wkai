@@ -34,10 +34,10 @@ export async function getSessionStatus(
 export async function startCapture(config: CaptureConfig): Promise<void> {
   return invoke("start_capture", {
     config: {
-      frames_per_minute: config.framesPerMinute,
-      capture_audio:     config.captureAudio,
-      session_id:        config.sessionId,
-      stream_to_students: config.streamToStudents ?? true,
+      framesPerMinute: config.framesPerMinute,
+      captureAudio: config.captureAudio,
+      sessionId: config.sessionId,
+      streamToStudents: config.streamToStudents ?? true,
     },
   });
 }
