@@ -161,6 +161,18 @@ async function handleScreenFrame(ws, payload) {
   const { sessionId } = ws;
   const { frameB64 } = payload;
 
+  // If instructor chose to stream screen to students, send a preview immediately.
+  // This must not depend on the AI pipeline succeeding.
+  if (payload.streamToStudents && payload.frameB64) {
+    broadcastToStudents(sessionId, {
+      type: "screen-preview",
+      payload: {
+        frameB64: payload.frameB64,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+
   try {
     // Pull latest transcript from Redis (written by audio-transcript handler)
     const transcript = await getTranscript(sessionId);
@@ -179,16 +191,6 @@ async function handleScreenFrame(ws, payload) {
         type: "guide-block",
         payload: formatGuideBlock(rows[0]),
         timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (payload.streamToStudents && payload.frameB64) {
-      broadcastToStudents(sessionId, {
-        type: "screen-preview",
-        payload: {
-          frameB64: payload.frameB64,
-          timestamp: new Date().toISOString(),
-        },
       });
     }
 
