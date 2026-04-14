@@ -53,63 +53,67 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
 
     let session_id = config.session_id.clone();
     let interval_secs = (60u64 / config.frames_per_minute.max(1) as u64).max(5);
+    tauri::async_runtime::spawn(async move {
+        let _ = app.emit("capture-status", serde_json::json!({ "running": true }));
+        let mut frame_count: u64 = 0;
 
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create Tokio runtime");
-
-        rt.block_on(async move {
-            let _ = app.emit("capture-status", serde_json::json!({ "running": true }));
-            let mut frame_count: u64 = 0;
-
-            loop {
-                if !CAPTURING.load(Ordering::SeqCst) {
-                    break;
-                }
-
-                match capture_frame_jpeg() {
-                    Ok((frame_b64, w, h)) => {
-                        frame_count += 1;
-                        log::debug!(
-                            "[Capture] Frame #{} captured ({}x{} -> base64 len={})",
-                            frame_count,
-                            w,
-                            h,
-                            frame_b64.len()
-                        );
-
-                        let _ = app.emit(
-                            "screen-frame",
-                            ScreenFramePayload {
-                                session_id: session_id.clone(),
-                                frame_b64,
-                                timestamp: chrono::Utc::now().to_rfc3339(),
-                                width: w,
-                                height: h,
-                                stream_to_students: config.stream_to_students,
-                            },
-                        );
-                    }
-                    Err(e) => {
-                        log::error!("[Capture] Frame capture failed: {}", e);
-                        let _ = app.emit(
-                            "capture-error",
-                            CaptureError {
-                                message: e.clone(),
-                                timestamp: chrono::Utc::now().to_rfc3339(),
-                            },
-                        );
-                    }
-                }
-
-                tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
+        loop {
+            if !CAPTURING.load(Ordering::SeqCst) {
+                break;
             }
 
-            let _ = app.emit("capture-status", serde_json::json!({ "running": false }));
-            log::info!("[Capture] Loop exited for session={}", session_id);
-        });
+            let result = tokio::task::spawn_blocking(|| capture_frame_jpeg()).await;
+            match result {
+                Ok(Ok((frame_b64, w, h))) => {
+                    frame_count += 1;
+                    log::debug!(
+                        "[Capture] Frame #{} captured ({}x{} -> base64 len={})",
+                        frame_count,
+                        w,
+                        h,
+                        frame_b64.len()
+                    );
+
+                    let _ = app.emit(
+                        "screen-frame",
+                        ScreenFramePayload {
+                            session_id: session_id.clone(),
+                            frame_b64,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            width: w,
+                            height: h,
+                            stream_to_students: config.stream_to_students,
+                        },
+                    );
+                }
+                Ok(Err(e)) => {
+                    log::error!("[Capture] Frame capture failed: {}", e);
+                    let _ = app.emit(
+                        "capture-error",
+                        CaptureError {
+                            message: e.clone(),
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
+                }
+                Err(e) => {
+                    let msg = format!("Capture task join failed: {e}");
+                    log::error!("[Capture] {}", msg);
+                    let _ = app.emit(
+                        "capture-error",
+                        CaptureError {
+                            message: msg,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
+        }
+
+        let _ = app.emit("capture-status", serde_json::json!({ "running": false }));
+        log::info!("[Capture] Loop exited for session={}", session_id);
     });
 
     Ok(())
