@@ -6,7 +6,7 @@ import { createSession, startCapture, watchFolder, listWatchedFiles } from "../l
 
 export function SetupPage() {
   const navigate = useNavigate();
-  const { settings, updateSettings, setSession, setCapture, setWatchedFiles } = useAppStore();
+  const { settings, updateSettings, setSession, setCapture, setWatchedFiles, addDebugLog } = useAppStore();
 
   const [workshopTitle, setWorkshopTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,12 +35,17 @@ export function SetupPage() {
       setSession(session);
 
       // 2. Start screen capture loop
+      addDebugLog(
+        `Starting capture (${settings.framesPerMinute}/min, audio=${settings.captureAudio ? "on" : "off"})`,
+        "info"
+      );
       await startCapture({
         framesPerMinute: settings.framesPerMinute,
         captureAudio:    settings.captureAudio,
         sessionId:       session.id,
       });
       setCapture({ isCapturing: true });
+      addDebugLog("Capture start requested", "success");
 
       // 3. Watch folder and pre-load file list (if configured)
       if (settings.watchFolder) {

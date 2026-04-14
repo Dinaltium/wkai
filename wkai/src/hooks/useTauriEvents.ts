@@ -13,6 +13,31 @@ export function useTauriEvents() {
   const { setCapture, settings, addDebugLog } = useAppStore();
 
   useEffect(() => {
+    const unlistenCaptureDebug = listen<{
+      stage: string;
+      frameCount?: number;
+      elapsedMs?: number;
+      w?: number;
+      h?: number;
+      error?: string;
+      ts?: string;
+    }>("capture-debug", (event) => {
+      const p = event.payload;
+      if (p.stage === "attempt") {
+        addDebugLog(`Capture attempt #${(p.frameCount ?? 0) + 1}`, "info");
+      } else if (p.stage === "captured") {
+        addDebugLog(
+          `Capture ok (${p.w}x${p.h}, ${p.elapsedMs ?? "?"}ms)`,
+          "success"
+        );
+      } else if (p.stage === "failed") {
+        addDebugLog(
+          `Capture failed (${p.elapsedMs ?? "?"}ms): ${p.error ?? "unknown"}`,
+          "error"
+        );
+      }
+    });
+
     // ── Screen frame captured ─────────────────────────────────────────────────
     const unlistenFrame = listen<{
       session_id: string;
@@ -91,6 +116,7 @@ export function useTauriEvents() {
     );
 
     return () => {
+      unlistenCaptureDebug.then((fn) => fn());
       unlistenFrame.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
       unlistenError.then((fn) => fn());

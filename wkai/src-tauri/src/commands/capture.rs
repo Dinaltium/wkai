@@ -5,6 +5,7 @@ use screenshots::Screen;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter};
+use std::time::Instant;
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
 
@@ -62,9 +63,42 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
                 break;
             }
 
-            let result = tokio::task::spawn_blocking(|| capture_frame_jpeg()).await;
+            let attempt_started = Instant::now();
+            let _ = app.emit(
+                "capture-debug",
+                serde_json::json!({ "stage": "attempt", "frameCount": frame_count, "ts": chrono::Utc::now().to_rfc3339() }),
+            );
+
+            let result = tokio::time::timeout(
+                tokio::time::Duration::from_secs(10),
+                tokio::task::spawn_blocking(|| capture_frame_jpeg()),
+            )
+            .await;
+
             match result {
-                Ok(Ok((frame_b64, w, h))) => {
+                Err(_) => {
+                    let msg = "Screen capture timed out after 10s".to_string();
+                    log::error!("[Capture] {}", msg);
+                    let _ = app.emit(
+                        "capture-error",
+                        CaptureError {
+                            message: msg,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
+                }
+                Ok(Err(join_err)) => {
+                    let msg = format!("Capture task join failed: {join_err}");
+                    log::error!("[Capture] {}", msg);
+                    let _ = app.emit(
+                        "capture-error",
+                        CaptureError {
+                            message: msg,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
+                }
+                Ok(Ok(Ok((frame_b64, w, h)))) => {
                     frame_count += 1;
                     log::debug!(
                         "[Capture] Frame #{} captured ({}x{} -> base64 len={})",
@@ -72,6 +106,11 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
                         w,
                         h,
                         frame_b64.len()
+                    );
+                    let elapsed_ms = attempt_started.elapsed().as_millis();
+                    let _ = app.emit(
+                        "capture-debug",
+                        serde_json::json!({ "stage": "captured", "frameCount": frame_count, "elapsedMs": elapsed_ms, "w": w, "h": h }),
                     );
 
                     let _ = app.emit(
@@ -86,23 +125,17 @@ pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), 
                         },
                     );
                 }
-                Ok(Err(e)) => {
+                Ok(Ok(Err(e))) => {
                     log::error!("[Capture] Frame capture failed: {}", e);
+                    let elapsed_ms = attempt_started.elapsed().as_millis();
                     let _ = app.emit(
-                        "capture-error",
-                        CaptureError {
-                            message: e.clone(),
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                        },
+                        "capture-debug",
+                        serde_json::json!({ "stage": "failed", "frameCount": frame_count, "elapsedMs": elapsed_ms, "error": e }),
                     );
-                }
-                Err(e) => {
-                    let msg = format!("Capture task join failed: {e}");
-                    log::error!("[Capture] {}", msg);
                     let _ = app.emit(
                         "capture-error",
                         CaptureError {
-                            message: msg,
+                            message: e,
                             timestamp: chrono::Utc::now().to_rfc3339(),
                         },
                     );
