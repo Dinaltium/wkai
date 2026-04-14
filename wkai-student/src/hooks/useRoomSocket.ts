@@ -33,7 +33,8 @@ export function useRoomSocket(roomCode: string) {
     const studentName = encodeURIComponent(
       sessionStorage.getItem("wkai_student_name") ?? "Student"
     );
-    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}&studentName=${studentName}`;
+    const joinToken = encodeURIComponent(sessionStorage.getItem("wkai_join_token") ?? "");
+    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}&studentName=${studentName}&joinToken=${joinToken}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
@@ -96,12 +97,6 @@ export function useRoomSocket(roomCode: string) {
       case "file-shared":
         useStore.getState().addSharedFile(msg.payload as SharedFile);
         break;
-      case "screen-preview": {
-        const p = msg.payload as { frameB64: string; timestamp: string };
-        useStore.getState().addDebugLog("Screen preview frame received", "info");
-        useStore.getState().setScreenPreview(p.frameB64, p.timestamp);
-        break;
-      }
       case "live-explanation": {
         const p = msg.payload as { transcript: string; explanation: string; timestamp: string };
         useStore.getState().setLatestLiveExplanation(p);

@@ -8,7 +8,7 @@ interface ScreenPreviewProps {
 }
 
 export function ScreenPreview({ send }: ScreenPreviewProps) {
-  const { screenPreview, screenPreviewTs, session, latestLiveExplanation } = useStore();
+  const { session, latestLiveExplanation } = useStore();
   const { remoteStream } = useWebRtcReceiver(send);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -17,7 +17,7 @@ export function ScreenPreview({ send }: ScreenPreviewProps) {
     videoRef.current.srcObject = remoteStream;
   }, [remoteStream]);
 
-  if (!screenPreview && !remoteStream) {
+  if (!remoteStream) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-wkai-text-dim">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-wkai-border bg-wkai-surface">
@@ -28,7 +28,7 @@ export function ScreenPreview({ send }: ScreenPreviewProps) {
           <p className="text-xs text-wkai-text-dim max-w-xs text-center">
             {session?.status === "ended"
               ? "The session has ended. Guide blocks and files remain available."
-              : "Live stream starts when the instructor enables sharing. Screenshot fallback appears if WebRTC is unavailable."}
+              : "Live stream starts when the instructor enables WebRTC sharing."}
           </p>
         </div>
       </div>
@@ -42,28 +42,18 @@ export function ScreenPreview({ send }: ScreenPreviewProps) {
           <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
           <p className="text-xs font-medium text-wkai-text">Live Screen</p>
         </div>
-        {screenPreviewTs && (
-          <p className="text-xs text-wkai-text-dim">
-            {new Date(screenPreviewTs).toLocaleTimeString()}
-          </p>
-        )}
+        <p className="text-xs text-wkai-text-dim">
+          WebRTC live
+        </p>
       </div>
-      <div className="flex-1 overflow-auto flex items-start justify-center p-3">
-        {remoteStream ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="rounded-lg border border-wkai-border max-w-full h-auto shadow-lg"
-          />
-        ) : (
-          <img
-            src={`data:image/jpeg;base64,${screenPreview}`}
-            alt="Instructor screen"
-            className="rounded-lg border border-wkai-border max-w-full h-auto shadow-lg"
-          />
-        )}
+      <div className="flex-1 min-h-0 overflow-hidden p-3">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-full w-full rounded-lg border border-wkai-border object-contain shadow-lg"
+        />
       </div>
       {latestLiveExplanation && (
         <div className="border-t border-wkai-border px-4 py-3 space-y-1 bg-wkai-surface">

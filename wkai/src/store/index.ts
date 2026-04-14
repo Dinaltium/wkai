@@ -60,12 +60,10 @@ interface AppStore {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  instructorName:  "",
-  watchFolder:     "",
-  backendUrl:      "http://localhost:4000",
-  groqApiKey:      "",
-  framesPerMinute: 30,
-  captureAudio:    true,
+  instructorName: "",
+  watchFolder:    "",
+  backendUrl:     "http://localhost:4000",
+  groqApiKey:     "",
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";

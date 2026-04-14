@@ -105,45 +105,6 @@ export function SettingsPage() {
           </Field>
         </section>
 
-        {/* Capture */}
-        <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
-            Capture
-          </h2>
-          <Field
-            label="Frames per minute"
-            hint="Higher = smoother live preview and more AI context (also more API usage)"
-          >
-            <select
-              className="input"
-              value={settings.framesPerMinute}
-              onChange={(e) =>
-                updateSettings({ framesPerMinute: Number(e.target.value) })
-              }
-            >
-              <option value={2}>2 (every 30s)</option>
-              <option value={4}>4 (every 15s)</option>
-              <option value={6}>6 (every 10s)</option>
-              <option value={12}>12 (every 5s)</option>
-              <option value={30}>30 (every 2s) — live preview recommended</option>
-              <option value={60}>60 (every 1s) — smoother, higher usage</option>
-            </select>
-          </Field>
-          <Field label="Audio capture">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.captureAudio}
-                onChange={(e) => updateSettings({ captureAudio: e.target.checked })}
-                className="accent-indigo-500"
-              />
-              <span className="text-sm text-wkai-text">
-                Capture microphone audio for Whisper transcription
-              </span>
-            </label>
-          </Field>
-        </section>
-
         <section className="card space-y-5 p-4">
           <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
             Testing

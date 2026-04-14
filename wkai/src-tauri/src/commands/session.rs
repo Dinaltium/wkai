@@ -29,6 +29,7 @@ pub async fn create_session(
     instructor_name: String,
     workshop_title: String,
     backend_url: String,
+    session_password: Option<String>,
 ) -> Result<SessionInfo, String> {
     let session_id = Uuid::new_v4().to_string();
     // Room code: first 6 chars of UUID, uppercased, dashes replaced
@@ -54,6 +55,7 @@ pub async fn create_session(
             "instructorName": instructor_name,
             "workshopTitle":  workshop_title,
             "roomCode":       room_code,
+            "sessionPassword": session_password,
         }))
         .send()
         .await

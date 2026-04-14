@@ -84,7 +84,6 @@ export type WsEventType =
   | "comprehension-question"
   | "comprehension-result"
   | "file-shared"
-  | "screen-preview"
   | "live-explanation"
   | "student-joined"
   | "student-left"

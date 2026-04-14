@@ -20,44 +20,25 @@ management, output parsing, memory) and **LangGraph** (multi-step agent workflow
 
 ```
 src/ai/
+├── Agents/                Centralized AI agent layer
+│   ├── BaseAgent.js       name/version/invoke/healthCheck contract + metrics
+│   ├── AgentRegistry.js   Agent registry + health/metrics reporting
+│   ├── AgentOrchestrator.js Multi-agent workflows
+│   ├── VoiceAgent.js
+│   ├── QuizAgent.js
+│   ├── DebugAgent.js
+│   ├── IntentAgent.js
+│   └── MessageAgent.js
 ├── groqClient.js          LangChain ChatGroq instances + raw Groq SDK for Whisper
 ├── memory.js              Redis-backed LangChain chat history per session
 ├── prompts.js             ChatPromptTemplates + Zod-based StructuredOutputParsers
-├── pipeline.js            Thin shim → graphs/screenPipeline.js
 ├── errorDiagnosis.js      Thin shim → graphs/errorAgent.js
 ├── whisper.js             Groq Whisper-large-v3 audio transcription
 └── graphs/
-    ├── screenPipeline.js  LangGraph: screen analysis workflow (5 nodes)
     ├── errorAgent.js      LangGraph: error diagnosis agent (retry loop)
+    ├── transcriptExplainerAgent.js
+    ├── comprehensionCoachAgent.js
     └── intentAgent.js     LangGraph: file share intent detection
-```
-
-### LangGraph: Screen Analysis Pipeline
-
-```
-START
-  │
-  ▼
-[load_context]          Load last 8 messages from Redis session memory
-  │
-  ├── no frame → END
-  │
-  ▼
-[vision_analysis]       Groq Llama-4 Scout Vision
-  │                     screenAnalysisPrompt + frameB64 + transcript
-  ▼
-[parse_output]          StructuredOutputParser (Zod schema)
-  │                     Self-healing: OutputFixingParser on parse failure
-  │
-  ├── idle screen → END
-  │
-  ▼
-[refine_question]       Groq Llama3-70b
-  │                     Improves comprehension question quality
-  ▼
-[persist_context]       Append session summary to Redis memory
-  │
-  └── END
 ```
 
 ### LangGraph: Error Diagnosis Agent
@@ -106,6 +87,46 @@ Each session has a `RedisSessionMemory` instance (extends `BaseListChatMessageHi
 - 24-hour TTL — matches session lifetime
 - Screen analysis injects session context into every vision prompt
 - Cleared automatically when session ends
+
+---
+
+## Centralized Agents
+
+All backend AI task execution now goes through `src/ai/Agents/` for a uniform lifecycle.
+
+### BaseAgent contract
+
+Each agent follows:
+- `name`
+- `version`
+- `invoke(input)`
+- `healthCheck()`
+
+### Feature flags
+
+Use env flags to safely enable/disable agents:
+
+- `AI_AGENT_VOICE_AGENT_ENABLED`
+- `AI_AGENT_QUIZ_AGENT_ENABLED`
+- `AI_AGENT_DEBUG_AGENT_ENABLED`
+- `AI_AGENT_INTENT_AGENT_ENABLED`
+- `AI_AGENT_MESSAGE_AGENT_ENABLED`
+
+### Metrics and observability
+
+Per-agent tracking includes:
+- calls
+- latency (last/avg/total)
+- errors + error rate
+- token-cost estimate (when usage metadata is available)
+
+### Agent health/metrics API
+
+`GET /api/ai/agents`
+
+Returns:
+- agent health status
+- metrics snapshot
 
 ---
 
@@ -162,7 +183,27 @@ npm run dev
 | CLOUDINARY_CLOUD_NAME | Yes | cloudinary.com → Dashboard |
 | CLOUDINARY_API_KEY | Yes | cloudinary.com → Dashboard |
 | CLOUDINARY_API_SECRET | Yes | cloudinary.com → Dashboard |
-| JWT_SECRET | No | Any long random string |
+| CORS_ALLOWED_ORIGINS | Yes (prod) | Comma-separated allowed frontend origins |
+| STUDENT_JOIN_TOKEN_SECRET | Yes (prod) | Random signing secret for join tokens |
+| STUDENT_JOIN_TOKEN_TTL_SECONDS | No | Join token TTL, default 3600 |
+
+---
+
+## Render Deployment
+
+`render.yaml` at repo root configures the backend web service.
+
+1. Create a new Render service from this repository.
+2. Use the generated `wkai-backend` service config from `render.yaml`.
+3. Set secrets and connection URLs:
+   - `DATABASE_URL`
+   - `REDIS_URL`
+   - `GROQ_API_KEY`
+   - `STUDENT_JOIN_TOKEN_SECRET`
+   - `CORS_ALLOWED_ORIGINS`
+4. Deploy and verify:
+   - `GET /health`
+   - WebSocket handshake on `/ws`
 
 ---
 
@@ -171,13 +212,15 @@ npm run dev
 | Method | Path | Description |
 |---|---|---|
 | POST | /api/sessions | Create session + Redis cache |
-| GET | /api/sessions/:roomCode | Join validation + full initial state |
+| POST | /api/sessions/:roomCode/join | Password validation + issue signed join token |
+| GET | /api/sessions/:roomCode | Fetch room state using join token |
 | PATCH | /api/sessions/:id/end | End session + cleanup memory + WS notify |
 | GET | /api/sessions/:id/guide | Fetch all guide blocks |
 | GET | /api/sessions/:id/memory | Debug: inspect LangChain session memory |
 | POST | /api/ai/transcribe | Groq Whisper audio → text |
 | POST | /api/ai/diagnose | LangGraph error agent |
 | POST | /api/ai/intent | LangGraph intent detection |
+| GET  | /api/ai/agents | Agent health + metrics snapshot |
 | POST | /api/files/upload | Upload to Cloudinary |
 | POST | /api/run | Sandboxed code execution (python3/node/bash) |
 
@@ -185,11 +228,10 @@ npm run dev
 
 ## WebSocket — ws://localhost:4000/ws
 
-Connect with: `?session=ROOMCODE&role=instructor|student&studentId=OPTIONAL`
+Connect with: `?session=ROOMCODE&role=instructor|student&studentId=OPTIONAL&joinToken=...`
 
 | Message Type | Direction | Description |
 |---|---|---|
-| screen-frame | instructor → server | Base64 PNG → LangGraph vision pipeline |
 | audio-transcript | instructor → server | Whisper text → Redis + intent agent |
 | guide-block | server → students | AI-generated guide card |
 | comprehension-question | server → students | Comprehension gate question |
@@ -213,3 +255,16 @@ Connect with: `?session=ROOMCODE&role=instructor|student&studentId=OPTIONAL`
 | Screen frame vision | meta-llama/llama-4-scout-17b-16e-instruct |
 | Text / error diagnosis | llama3-70b-8192 |
 | Audio transcription | whisper-large-v3 |
+
+---
+
+## Agent Contract Tests
+
+```bash
+npm run test:agents
+```
+
+This verifies:
+- agent registry integrity
+- BaseAgent contract compliance
+- feature-flag disable behavior

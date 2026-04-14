@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { StopCircle, Loader2 } from "lucide-react";
 import { useAppStore } from "../../store";
-import { endSession, stopCapture } from "../../lib/tauri";
+import { endSession } from "../../lib/tauri";
 
 export function EndSessionButton({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(false);
@@ -20,7 +20,6 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
     setLoading(true);
     try {
       window.dispatchEvent(new Event("wkai:force-stop-recording"));
-      await stopCapture();
       const { settings } = useAppStore.getState();
       await endSession(sessionId, settings.backendUrl);
       setSession(null);

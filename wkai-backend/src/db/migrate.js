@@ -17,6 +17,7 @@ const MIGRATIONS = [
 
   `CREATE INDEX IF NOT EXISTS sessions_room_code_idx ON sessions (room_code)`,
   `CREATE INDEX IF NOT EXISTS sessions_status_idx ON sessions (status)`,
+  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_password_hash TEXT`,
 
   // ─── Guide Blocks ──────────────────────────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS guide_blocks (

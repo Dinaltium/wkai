@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Zap, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useAppStore } from "../../store";
-import { captureTestFrame } from "../../lib/tauri";
 
 export function AITest() {
   const { settings, addDebugLog } = useAppStore();
@@ -16,11 +15,7 @@ export function AITest() {
     addDebugLog("AI test started...", "info");
 
     try {
-      addDebugLog("Capturing test frame from screen...", "info");
-      const frameB64 = await captureTestFrame();
-      addDebugLog(`Test frame captured (base64 length: ${frameB64.length})`, "success");
-
-      addDebugLog("Sending test to AI pipeline...", "info");
+      addDebugLog("Sending test prompt to AI pipeline...", "info");
       const res = await fetch(`${settings.backendUrl}/api/ai/diagnose`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,7 +76,7 @@ export function AITest() {
       )}
 
       <p className="text-xs text-wkai-text-dim">
-        Captures a test frame and calls the AI pipeline. Check the debug console for details.
+        Calls the AI pipeline directly. Check the debug console for details.
       </p>
     </div>
   );

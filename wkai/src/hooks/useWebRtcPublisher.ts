@@ -22,6 +22,7 @@ export function useWebRtcPublisher(
   const addDebugLog = useAppStore((s) => s.addDebugLog);
   const streamingToStudents = useAppStore((s) => s.streamingToStudents);
   const students = useAppStore((s) => s.students);
+  const createPeerRef = useRef<(studentId: string) => Promise<void>>(async () => {});
 
   const ensureStream = async () => {
     if (streamRef.current) return streamRef.current;
@@ -81,6 +82,7 @@ export function useWebRtcPublisher(
     send("webrtc-offer", { sdp: offer, targetStudentId: studentId });
     addDebugLog(`WebRTC offer sent to ${studentId}`, "success");
   };
+  createPeerRef.current = createPeerForStudent;
 
   useEffect(() => {
     if (!sessionId || !streamingToStudents) return;
@@ -98,6 +100,19 @@ export function useWebRtcPublisher(
       if (!activeIds.has(studentId)) closePeer(studentId);
     });
   }, [sessionId, streamingToStudents, students]);
+
+  useEffect(() => {
+    const handleStudentJoined = (event: Event) => {
+      const detail = (event as CustomEvent<{ studentId?: string }>).detail;
+      const sid = detail?.studentId;
+      if (!sid || !sessionId || !streamingToStudents) return;
+      void createPeerRef.current(sid);
+    };
+    window.addEventListener("wkai:student-joined", handleStudentJoined);
+    return () => {
+      window.removeEventListener("wkai:student-joined", handleStudentJoined);
+    };
+  }, [sessionId, streamingToStudents]);
 
   useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {

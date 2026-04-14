@@ -5,6 +5,12 @@ import { setSessionData, deleteSessionData, clearStudentConnections } from "../d
 import { broadcast, cleanupSession } from "../ws/server.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { debugLog, debugError } from "../utils/debug.js";
+import {
+  hashSessionPassword,
+  verifySessionPassword,
+  issueStudentJoinToken,
+  verifyStudentJoinToken,
+} from "../auth/sessionAccess.js";
 
 export const sessionRouter = Router();
 
@@ -14,6 +20,7 @@ const CreateSessionSchema = z.object({
   instructorName: z.string().min(1).max(100),
   workshopTitle:  z.string().min(1).max(200),
   roomCode:       z.string().length(6).toUpperCase(),
+  sessionPassword: z.string().min(4).max(128).optional(),
 });
 
 sessionRouter.post("/", async (req, res, next) => {
@@ -25,10 +32,13 @@ sessionRouter.post("/", async (req, res, next) => {
     });
     const body = CreateSessionSchema.parse(req.body);
 
+    const passwordHash = body.sessionPassword?.trim()
+      ? hashSessionPassword(body.sessionPassword.trim())
+      : null;
     const { rows } = await query(
-      `INSERT INTO sessions (room_code, instructor_name, workshop_title)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [body.roomCode, body.instructorName, body.workshopTitle]
+      `INSERT INTO sessions (room_code, instructor_name, workshop_title, session_password_hash)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [body.roomCode, body.instructorName, body.workshopTitle, passwordHash]
     );
 
     const session = rows[0];
@@ -54,11 +64,18 @@ sessionRouter.post("/", async (req, res, next) => {
   }
 });
 
-// ─── GET /api/sessions/:roomCode — Join validation + full state ───────────────
+// ─── POST /api/sessions/:roomCode/join — authenticated student join ───────────
 
-sessionRouter.get("/:roomCode", async (req, res, next) => {
+const JoinSessionSchema = z.object({
+  studentId: z.string().min(3).max(64),
+  studentName: z.string().min(1).max(40),
+  sessionPassword: z.string().max(128).optional(),
+});
+
+sessionRouter.post("/:roomCode/join", async (req, res, next) => {
   try {
     const roomCode = req.params.roomCode.toUpperCase();
+    const body = JoinSessionSchema.parse(req.body);
     debugLog("SESSION", "join lookup", { roomCode });
     const { rows } = await query(
       "SELECT * FROM sessions WHERE room_code = $1",
@@ -68,10 +85,21 @@ sessionRouter.get("/:roomCode", async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: "Session not found" });
 
     const session = rows[0];
+    const providedPassword = body.sessionPassword?.trim();
+    const passwordOk = verifySessionPassword(providedPassword, session.session_password_hash);
+    if (!passwordOk) {
+      return res.status(401).json({ error: "Invalid session password" });
+    }
     const [blocks, files] = await Promise.all([
       query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC",  [session.id]),
       query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [session.id]),
     ]);
+    const joinToken = issueStudentJoinToken({
+      sessionId: session.id,
+      roomCode: session.room_code,
+      studentId: body.studentId,
+      studentName: body.studentName,
+    });
     debugLog("SESSION", "join success", {
       roomCode,
       sessionId: session.id,
@@ -84,9 +112,42 @@ sessionRouter.get("/:roomCode", async (req, res, next) => {
       session:     formatSession(session),
       guideBlocks: blocks.rows.map(formatGuideBlock),
       sharedFiles: files.rows.map(formatSharedFile),
+      joinToken,
     });
   } catch (err) {
     debugError("SESSION", "join failed", err);
+    next(err);
+  }
+});
+
+// ─── GET /api/sessions/:roomCode — refresh session with join token ───────────
+
+sessionRouter.get("/:roomCode", async (req, res, next) => {
+  try {
+    const roomCode = req.params.roomCode.toUpperCase();
+    const joinToken = String(req.query.joinToken ?? "");
+    const { rows } = await query(
+      "SELECT * FROM sessions WHERE room_code = $1",
+      [roomCode]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Session not found" });
+    const session = rows[0];
+    if (session.session_password_hash) {
+      const tokenCheck = verifyStudentJoinToken(joinToken);
+      if (!tokenCheck.valid || tokenCheck.payload?.sessionId !== session.id) {
+        return res.status(401).json({ error: "Join token required" });
+      }
+    }
+    const [blocks, files] = await Promise.all([
+      query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC", [session.id]),
+      query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [session.id]),
+    ]);
+    res.json({
+      session: formatSession(session),
+      guideBlocks: blocks.rows.map(formatGuideBlock),
+      sharedFiles: files.rows.map(formatSharedFile),
+    });
+  } catch (err) {
     next(err);
   }
 });

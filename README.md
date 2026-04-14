@@ -27,7 +27,7 @@
 
 WKAI (Workshop AI) addresses a core problem in live technical workshops: students struggle to keep pace with instructors, miss steps, and cannot get immediate help when they encounter errors. Traditional approaches — manual note-taking, static slides, human teaching assistants — do not scale.
 
-WKAI is a three-component system. The instructor runs a lightweight desktop application (built with Tauri and Rust) that captures their screen every ten seconds and records microphone audio in thirty-second chunks. A Node.js backend, powered by a multi-agent pipeline using LangChain and LangGraph orchestrating Groq's inference APIs (Llama-4 Scout for vision, Llama-3 70B for text, Whisper Large v3 for audio), processes each frame and produces structured guide blocks — step-by-step explanations, code snippets, tips, and comprehension checks. These blocks are broadcast in real time via WebSocket to a student-facing React web application. Students receive a live, auto-generated guide of everything being taught, can paste terminal errors for instant AI diagnosis, run code in a sandboxed editor, and download shared files — all without interrupting the instructor.
+WKAI is a three-component system. The instructor runs a lightweight desktop application (built with Tauri and Rust) that publishes low-latency WebRTC live video to students. A Node.js backend, powered by LangChain + LangGraph over Groq models (Llama-3 70B for text, Whisper Large v3 for audio), generates transcript-based explanations, quizzes, and coding assistance. These updates are delivered in real time via WebSocket to the student-facing React app. Students receive live instructor video, AI-generated learning guidance, error diagnosis support, and file sharing — without interrupting the instructor.
 
 ---
 
@@ -71,19 +71,13 @@ WKAI is a three-component system. The instructor runs a lightweight desktop appl
 
 ## AI Agent Pipeline
 
-WKAI uses three LangGraph agents, each implemented as a directed state machine with conditional routing and automatic retry:
+WKAI uses LangGraph-based task agents and a centralized backend `Agents` layer (`VoiceAgent`, `QuizAgent`, `DebugAgent`, `IntentAgent`, `MessageAgent`) with per-agent feature flags, health checks, and metrics.
 
-### Screen Analysis Pipeline (5 nodes)
-```
-load_context → vision_analysis → parse_output → refine_question → persist_context
-```
-Every ten seconds, a PNG screenshot is sent to Groq Llama-4 Scout (vision model) along with the Whisper audio transcript and the session's rolling memory context. The output — structured guide blocks and comprehension questions — is validated with Zod schemas and broadcast to students.
-
-### Error Diagnosis Agent (4 nodes with retry loop)
+### Error Diagnosis Agent (LangGraph with retry loop)
 ```
 classify → diagnose → parse → (retry up to 2x) → fallback
 ```
-Student-pasted terminal errors are classified heuristically, then diagnosed by Llama-3 70B. The structured output includes a plain-English diagnosis, a fix command, and step-by-step resolution instructions.
+Student-pasted terminal errors are diagnosed by Llama-3 70B with structured parsing and retry. If AI is unavailable (quota/API issues), explicit availability status is returned.
 
 ### Intent Detection Agent (3 nodes)
 ```
@@ -103,7 +97,6 @@ Each audio transcript is scanned for file-sharing intent ("share this file", "se
 | AI inference | Groq (300+ tok/s) | Realtime generation practical at workshop scale |
 | LLM orchestration | LangChain + LangGraph | Retry loops, structured parsing, session memory |
 | Audio transcription | Whisper Large v3 via Groq | 180× realtime; 30s chunk transcribed in under 200ms |
-| Vision | Llama-4 Scout 17B | Multimodal, fast, free tier sufficient |
 | Text / diagnosis | Llama-3 70B | Reasoning quality for error diagnosis |
 | Session memory | Redis (LangChain history) | Rolling 20-message context survives restarts |
 | Persistent storage | PostgreSQL | Guide blocks, files, error logs |
@@ -128,10 +121,12 @@ wkai-student/         Student web app           React + TypeScript + Vite
 - **Zero-effort guide generation** — instructor teaches normally; WKAI watches and generates
 - **Comprehension gating** — students must answer a question correctly before content unlocks
 - **Error diagnosis** — paste any terminal error; get a diagnosis and fix command in seconds
+- **WebRTC live delivery** — low-latency instructor-to-student video stream with adaptive browser quality
 - **Sandboxed code execution** — run Python, JavaScript, TypeScript, Bash directly in the browser
 - **File sharing** — instructor shares files with one tap; students download instantly
 - **Intent-aware audio** — AI detects "share this file" in speech and prompts the instructor
 - **Session memory** — AI remembers what was taught earlier in the workshop
+- **Centralized AI agents** — uniform agent lifecycle (`name/version/invoke/healthCheck`) for easier future updates
 - **System tray** — instructor app runs silently; does not interrupt the teaching flow
 
 ---
@@ -211,6 +206,44 @@ cd wkai && npm run tauri:dev
 | `CLOUDINARY_CLOUD_NAME` | Yes | cloudinary.com dashboard |
 | `CLOUDINARY_API_KEY` | Yes | cloudinary.com dashboard |
 | `CLOUDINARY_API_SECRET` | Yes | cloudinary.com dashboard |
+| `AI_AGENT_VOICE_AGENT_ENABLED` | No | Agent feature flag (`true`/`false`) |
+| `AI_AGENT_QUIZ_AGENT_ENABLED` | No | Agent feature flag (`true`/`false`) |
+| `AI_AGENT_DEBUG_AGENT_ENABLED` | No | Agent feature flag (`true`/`false`) |
+| `AI_AGENT_INTENT_AGENT_ENABLED` | No | Agent feature flag (`true`/`false`) |
+| `AI_AGENT_MESSAGE_AGENT_ENABLED` | No | Agent feature flag (`true`/`false`) |
+| `STUDENT_JOIN_TOKEN_SECRET` | Yes (prod) | Random secret for signed student join tokens |
+| `CORS_ALLOWED_ORIGINS` | Yes (prod) | Comma-separated allowed origins (landing/student domains) |
+
+---
+
+## Additional Docs
+
+- Full implementation history: `changelog.md`
+- Backend architecture and API details: `wkai-backend/README.md`
+- Render deployment spec: `render.yaml`
+
+---
+
+## Deployment Runbook
+
+### Backend on Render
+1. Create a Render service from this repo using `render.yaml`.
+2. Configure required variables: `DATABASE_URL`, `REDIS_URL`, `GROQ_API_KEY`, `STUDENT_JOIN_TOKEN_SECRET`, `CORS_ALLOWED_ORIGINS`.
+3. Ensure `CORS_ALLOWED_ORIGINS` includes your Vercel domains.
+4. Verify service health at `GET /health`.
+
+### Landing + Student Web on Vercel
+1. Deploy `wkai-student` to Vercel (SPA rewrite is in `wkai-student/vercel.json`).
+2. Set `VITE_BACKEND_URL`, `VITE_GITHUB_REPO_OWNER`, `VITE_GITHUB_REPO_NAME`.
+3. Validate routes:
+   - `/` landing
+   - `/download` release downloader
+   - `/join` student join form
+
+### CI/CD Version Bump
+1. Push changes to `main`.
+2. `Bump And Tag Release` auto-increments patch version and creates a new `vX.Y.Z` tag.
+3. `Release` workflow builds and publishes desktop artifacts for the new tag.
 
 ---
 

@@ -6,7 +6,7 @@ import { useStore } from "../store";
 
 export function JoinPage() {
   const navigate = useNavigate();
-  const { setSession, setGuideBlocks, setSharedFiles, setSessionEnded, setConnected, setActiveTab } = useStore();
+  const { studentId, setSession, setGuideBlocks, setSharedFiles, setSessionEnded, setConnected, setActiveTab } = useStore();
 
   const [studentName, setStudentName] = useState(
     sessionStorage.getItem("wkai_student_name") ?? ""
@@ -17,6 +17,7 @@ export function JoinPage() {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionPassword, setSessionPassword] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [backendUrl, setBackendUrl] = useState(
     sessionStorage.getItem('wkai_backend_url') ?? ''
@@ -69,10 +70,13 @@ export function JoinPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await joinRoom(roomCode);
+      const data = await joinRoom(roomCode, studentId, studentName.trim(), sessionPassword.trim() || undefined);
       if (data.session.status === "ended") {
         setError("This session has already ended.");
         return;
+      }
+      if (data.joinToken) {
+        sessionStorage.setItem("wkai_join_token", data.joinToken);
       }
       // Reset stale state from any previous ended/disconnected room before entering a new one.
       setSessionEnded(false);
@@ -82,8 +86,15 @@ export function JoinPage() {
       setGuideBlocks(data.guideBlocks);
       setSharedFiles(data.sharedFiles);
       navigate(`/room/${roomCode}`, { replace: true });
-    } catch {
-      setError("Room not found. Check the code and try again.");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { data?: { error?: string } } }).response?.data?.error === "string"
+          ? (err as { response: { data: { error: string } } }).response.data.error
+          : "Room not found. Check the code and try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -109,6 +120,14 @@ export function JoinPage() {
           value={studentName}
           onChange={(e) => setStudentName(e.target.value)}
           maxLength={40}
+        />
+        <input
+          className="input mt-3 text-center"
+          type="password"
+          placeholder="Session password (if required)"
+          value={sessionPassword}
+          onChange={(e) => setSessionPassword(e.target.value)}
+          maxLength={128}
         />
       </div>
 

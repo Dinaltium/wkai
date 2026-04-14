@@ -68,9 +68,23 @@ async function diagnoseNode(state) {
 
     return { rawDiagnosis: response.content };
   } catch (err) {
+    console.error("[ErrorAgent] diagnoseNode failed:", err.message);
+    const lower = String(err?.message ?? "").toLowerCase();
+    const isRateLimit = err?.status === 429 || lower.includes("rate limit") || lower.includes("quota");
+    const isApiUnavailable =
+      lower.includes("api key") ||
+      lower.includes("unauthorized") ||
+      lower.includes("forbidden") ||
+      lower.includes("service unavailable") ||
+      lower.includes("timeout");
     return {
       parseError: err.message,
       rawDiagnosis: null,
+      resolution: isRateLimit
+        ? usageLimitResolution()
+        : isApiUnavailable
+        ? aiUnavailableResolution()
+        : null,
       retryCount: (state.retryCount ?? 0) + 1,
     };
   }
@@ -81,7 +95,7 @@ async function diagnoseNode(state) {
 async function parseDiagnosisNode(state) {
   if (!state.rawDiagnosis) {
     return {
-      resolution: fallbackResolution(),
+      resolution: state.resolution ?? fallbackResolution(),
       isResolved: false,
       retryCount: (state.retryCount ?? 0) + 1,
     };
@@ -114,6 +128,7 @@ async function parseDiagnosisNode(state) {
         isResolved: true,
       };
     } catch {
+      console.warn("[ErrorAgent] parse failed, retrying with fallback path");
       return {
         parseError: parseErr.message,
         isResolved: false,
@@ -178,10 +193,41 @@ export async function runErrorDiagnosis(errorMessage) {
 
 function fallbackResolution() {
   return {
-    diagnosis:    "Could not automatically diagnose this error. Please share your screen with the instructor.",
+    diagnosis: "AI diagnosis is currently not available.",
     fixCommand:   null,
-    fixSteps:     null,
+    fixSteps: [
+      "Ask the instructor to verify the Groq API key is valid and active.",
+      "If usage limits are reached, wait for quota reset or use a different API key.",
+      "Try diagnosis again after API availability is restored.",
+    ],
     isSetupError: false,
     severity:     "blocking",
+  };
+}
+
+function usageLimitResolution() {
+  return {
+    diagnosis: "AI diagnosis not available: Groq usage limit reached.",
+    fixCommand: null,
+    fixSteps: [
+      "Wait for API quota reset, then retry.",
+      "Or switch to another Groq API key with available credits/limits.",
+    ],
+    isSetupError: false,
+    severity: "warning",
+  };
+}
+
+function aiUnavailableResolution() {
+  return {
+    diagnosis: "AI diagnosis not available: Groq API is unreachable or not authorized.",
+    fixCommand: null,
+    fixSteps: [
+      "Confirm instructor Groq API key is configured correctly.",
+      "Check backend network connectivity and API availability.",
+      "Retry after restoring API access.",
+    ],
+    isSetupError: false,
+    severity: "blocking",
   };
 }

@@ -1,5 +1,5 @@
 // ─── errorDiagnosis.js ───────────────────────────────────────────────────────
-// Public re-export — callers import diagnoseError from here.
-// Internally delegates to the LangGraph error diagnosis agent.
+// Public entrypoint for diagnosing student errors.
+// Delegates to centralized Agents layer.
 
-export { runErrorDiagnosis as diagnoseError } from "./graphs/errorAgent.js";
+export { diagnoseStudentError as diagnoseError } from "./Agents/index.js";

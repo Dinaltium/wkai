@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, AlertCircle } from "lucide-react";
 import { useAppStore } from "../store";
-import { createSession, startCapture, watchFolder, listWatchedFiles } from "../lib/tauri";
+import { createSession, watchFolder, listWatchedFiles } from "../lib/tauri";
 
 export function SetupPage() {
   const navigate = useNavigate();
-  const { settings, updateSettings, setSession, setCapture, setWatchedFiles, addDebugLog } = useAppStore();
+  const { settings, updateSettings, setSession, setWatchedFiles } = useAppStore();
 
   const [workshopTitle, setWorkshopTitle] = useState("");
+  const [sessionPassword, setSessionPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,25 +31,12 @@ export function SetupPage() {
       const session = await createSession(
         settings.instructorName,
         workshopTitle,
-        settings.backendUrl
+        settings.backendUrl,
+        sessionPassword.trim() || undefined
       );
       setSession(session);
 
-      // 2. Start screen capture loop
-      addDebugLog(
-        `Starting capture (${settings.framesPerMinute}/min, audio=${settings.captureAudio ? "on" : "off"})`,
-        "info"
-      );
-      await startCapture({
-        framesPerMinute: settings.framesPerMinute,
-        captureAudio:    settings.captureAudio,
-        sessionId:       session.id,
-        backendUrl:      settings.backendUrl,
-      });
-      setCapture({ isCapturing: true });
-      addDebugLog("Capture start requested", "success");
-
-      // 3. Watch folder and pre-load file list (if configured)
+      // 2. Watch folder and pre-load file list (if configured)
       if (settings.watchFolder) {
         await watchFolder(settings.watchFolder).catch(() => {
           // Non-fatal — folder watch is optional
@@ -119,6 +107,19 @@ export function SetupPage() {
             <p className="text-xs text-wkai-text-dim">
               WKAI watches this folder and lets you share files with one click.
             </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+              Session Password <span className="normal-case text-wkai-text-dim/60">(optional)</span>
+            </label>
+            <input
+              className="input"
+              type="password"
+              placeholder="Protect student join with a password"
+              value={sessionPassword}
+              onChange={(e) => setSessionPassword(e.target.value)}
+              maxLength={128}
+            />
           </div>
         </div>
 

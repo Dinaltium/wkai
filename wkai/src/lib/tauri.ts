@@ -1,17 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Session, CaptureConfig, WatchedFile } from "../types";
+import type { Session, WatchedFile } from "../types";
 
 // ─── Session Commands ─────────────────────────────────────────────────────────
 
 export async function createSession(
   instructorName: string,
   workshopTitle: string,
-  backendUrl: string
+  backendUrl: string,
+  sessionPassword?: string
 ): Promise<Session> {
   return invoke<Session>("create_session", {
     instructorName,
     workshopTitle,
     backendUrl,
+    sessionPassword,
   });
 }
 
@@ -27,28 +29,6 @@ export async function getSessionStatus(
   backendUrl: string
 ): Promise<string> {
   return invoke("get_session_status", { sessionId, backendUrl });
-}
-
-// ─── Capture Commands ─────────────────────────────────────────────────────────
-
-export async function startCapture(config: CaptureConfig): Promise<void> {
-  return invoke("start_capture", {
-    config: {
-      framesPerMinute: config.framesPerMinute,
-      captureAudio: config.captureAudio,
-      sessionId: config.sessionId,
-      streamToStudents: config.streamToStudents ?? true,
-      backendUrl: config.backendUrl,
-    },
-  });
-}
-
-export async function stopCapture(): Promise<void> {
-  return invoke("stop_capture");
-}
-
-export async function captureTestFrame(): Promise<string> {
-  return invoke<string>("capture_test_frame");
 }
 
 // ─── File Commands ────────────────────────────────────────────────────────────

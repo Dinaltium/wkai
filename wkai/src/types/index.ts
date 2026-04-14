@@ -67,16 +67,6 @@ export interface InstructorMessage {
   replied: boolean;
 }
 
-// ─── Capture ─────────────────────────────────────────────────────────────────
-
-export interface CaptureConfig {
-  framesPerMinute: number;
-  captureAudio: boolean;
-  sessionId: string;
-  streamToStudents?: boolean;
-  backendUrl?: string;
-}
-
 export interface CaptureState {
   isCapturing: boolean;
   lastFrameAt: string | null;
@@ -146,6 +136,4 @@ export interface AppSettings {
   watchFolder: string;
   backendUrl: string;
   groqApiKey: string;
-  framesPerMinute: number;
-  captureAudio: boolean;
 }

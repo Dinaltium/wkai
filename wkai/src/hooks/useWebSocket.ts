@@ -163,9 +163,7 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     shouldReconnect.current = true;
     connect();
 
-    // Forward audio transcripts to WS server for:
-    //   a) enriching the next screen-frame AI pipeline call (context)
-    //   b) running the LangGraph intent detection agent
+    // Forward audio transcripts to WS server for intent/explanation pipelines.
     const handleTranscript = (e: Event) => {
       const { transcript, sessionId: sid } = (e as CustomEvent).detail;
       // Include current watchedFiles so the intent agent can match file names
@@ -177,40 +175,6 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
       });
     };
     window.addEventListener("wkai:transcript", handleTranscript);
-
-    const handleScreenFrame = (e: Event) => {
-      const payload = (e as CustomEvent).detail as {
-        frameB64?: string;
-        frame_b64?: string;
-        timestamp: string;
-        streamToStudents?: boolean;
-        stream_to_students?: boolean;
-      };
-      const { streamingToStudents } = useAppStore.getState();
-      const frameB64 = payload.frameB64 ?? payload.frame_b64 ?? "";
-      if (!frameB64) {
-        addDebugLog("Skipping frame send: missing frameB64 payload", "warn");
-        return;
-      }
-      const socketState = ws.current?.readyState;
-      if (socketState !== WebSocket.OPEN) {
-        addDebugLog(`Skipping frame send: WS not open (state=${String(socketState)})`, "warn");
-        return;
-      }
-      send("screen-frame", {
-        frameB64,
-        timestamp: payload.timestamp,
-        streamToStudents: streamingToStudents,
-      });
-      console.log(
-        `[WKAI WS OUT] screen-frame sent session=${sessionId ?? "none"} b64_len=${frameB64.length} stream=${streamingToStudents}`
-      );
-      addDebugLog(
-        `WS sent screen-frame (b64=${frameB64.length}, stream=${streamingToStudents ? "on" : "off"})`,
-        "info"
-      );
-    };
-    window.addEventListener("wkai:screen-frame", handleScreenFrame);
 
     return () => {
       shouldReconnect.current = false;
@@ -225,7 +189,6 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
         // ignore
       }
       window.removeEventListener("wkai:transcript", handleTranscript);
-      window.removeEventListener("wkai:screen-frame", handleScreenFrame);
     };
   }, [connect]);
 

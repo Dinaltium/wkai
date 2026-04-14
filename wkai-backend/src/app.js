@@ -11,6 +11,10 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { debugLog, debugEnabled } from "./utils/debug.js";
 
 export const app = express();
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((v) => v.trim())
+  .filter(Boolean);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
@@ -21,7 +25,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
     const isLan = /^https?:\/\/(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(origin);
-    if (isLocalhost || isLan) return callback(null, true);
+    const isAllowedProdOrigin = allowedOrigins.includes(origin);
+    if (isLocalhost || isLan || isAllowedProdOrigin) return callback(null, true);
     callback(new Error('CORS: origin not allowed'));
   },
   credentials: true,

@@ -7,7 +7,8 @@
   "scripts": {
     "dev":        "node --watch src/index.js",
     "start":      "node src/index.js",
-    "db:migrate": "node src/db/migrate.js"
+    "db:migrate": "node src/db/migrate.js",
+    "test:agents": "node -r dotenv/config --test tests/agents.contract.test.js"
   },
   "dependencies": {
     "@langchain/community":    "^0.3.0",

@@ -7,19 +7,21 @@ import {
   decrementStudentCount,
   clearStudentConnections,
   getStudentCount,
-  setTranscript,
-  getTranscript,
   addStudentToList,
   removeStudentFromList,
   getStudentList,
 } from "../db/redis.js";
 import { query } from "../db/client.js";
-import { processScreenFrame } from "../ai/pipeline.js";
 import { clearSessionMemory } from "../ai/memory.js";
-import { detectShareIntent } from "../ai/graphs/intentAgent.js";
-import { expandTranscriptForStudents } from "../ai/graphs/transcriptExplainerAgent.js";
-import { generateTranscriptComprehension } from "../ai/graphs/comprehensionCoachAgent.js";
+import {
+  detectShareIntentForFiles,
+  expandInstructorTranscript,
+  buildTranscriptQuiz,
+  diagnoseStudentError,
+  replyToStudentMessage,
+} from "../ai/Agents/index.js";
 import { debugLog, debugError } from "../utils/debug.js";
+import { verifyStudentJoinToken } from "../auth/sessionAccess.js";
 
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
@@ -48,6 +50,7 @@ export function initWebSocketServer(httpServer) {
       typeof qs.studentName === "string" && qs.studentName.length > 0
         ? decodeURIComponent(qs.studentName).slice(0, 40)
         : "Student";
+    const joinToken = typeof qs.joinToken === "string" ? qs.joinToken : "";
 
     const isInstructor = role === "instructor";
     const lookupQuery = isInstructor
@@ -72,6 +75,19 @@ export function initWebSocketServer(httpServer) {
       ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found or ended" } }));
       ws.close();
       return;
+    }
+    if (!isInstructor && rows[0].session_password_hash) {
+      const tokenCheck = verifyStudentJoinToken(joinToken);
+      if (!tokenCheck.valid || tokenCheck.payload?.sessionId !== rows[0].id) {
+        ws.send(JSON.stringify({ type: "error", payload: { message: "Invalid or expired join token" } }));
+        ws.close();
+        return;
+      }
+      if (tokenCheck.payload?.studentId && tokenCheck.payload.studentId !== studentId) {
+        ws.send(JSON.stringify({ type: "error", payload: { message: "Join token student mismatch" } }));
+        ws.close();
+        return;
+      }
     }
 
     const sessionId = rows[0].id;
@@ -149,15 +165,6 @@ export function initWebSocketServer(httpServer) {
       });
 
       switch (msg.type) {
-        case "screen-frame":
-          if (ws.role !== "instructor") break;
-          if (msg.payload?.frameB64) {
-            console.log(`[WS] screen-frame received (b64_len=${String(msg.payload.frameB64).length}, stream=${!!msg.payload.streamToStudents})`);
-          } else {
-            console.log("[WS] screen-frame received (missing frameB64)");
-          }
-          handleScreenFrame(ws, msg.payload);
-          break;
         case "audio-transcript":
           if (ws.role !== "instructor") break;
           handleAudioTranscript(ws, msg.payload);
@@ -241,79 +248,6 @@ export function initWebSocketServer(httpServer) {
 
 // ─── Message Handlers ─────────────────────────────────────────────────────────
 
-export async function ingestScreenFrame(sessionId, payload, source = "ws") {
-  const { frameB64 } = payload ?? {};
-  debugLog("WS", "handleScreenFrame start", {
-    sessionId,
-    source,
-    hasFrame: !!frameB64,
-    frameLen: frameB64 ? String(frameB64).length : 0,
-    stream: !!payload?.streamToStudents,
-    room: roomSnapshot(sessionId),
-  });
-
-  // If instructor chose to stream screen to students, send a preview immediately.
-  // This must not depend on the AI pipeline succeeding.
-  if (payload.streamToStudents && payload.frameB64) {
-    debugLog("WS", "broadcasting screen-preview", {
-      sessionId,
-      frameLen: String(payload.frameB64).length,
-      room: roomSnapshot(sessionId),
-    });
-    broadcastToStudents(sessionId, {
-      type: "screen-preview",
-      payload: {
-        frameB64: payload.frameB64,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
-
-  try {
-    // Pull latest transcript from Redis (written by audio-transcript handler)
-    const transcript = await getTranscript(sessionId);
-
-    // Run the full LangGraph screen analysis pipeline
-    const result = await processScreenFrame(sessionId, frameB64, transcript ?? "");
-    debugLog("WS", "screen pipeline completed", {
-      sessionId,
-      guideBlocks: result?.guideBlocks?.length ?? 0,
-      hasQuestion: !!result?.comprehensionQuestion,
-    });
-
-    for (const block of result.guideBlocks ?? []) {
-      const { rows } = await query(
-        `INSERT INTO guide_blocks (session_id, type, title, content, code, language, locked)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [sessionId, block.type, block.title ?? null, block.content,
-         block.code ?? null, block.language ?? null, block.locked ?? false]
-      );
-      broadcast(sessionId, {
-        type: "guide-block",
-        payload: formatGuideBlock(rows[0]),
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (result.comprehensionQuestion) {
-      const q = result.comprehensionQuestion;
-      const { rows } = await query(
-        `INSERT INTO comprehension_questions (session_id, question, options, correct_index, explanation)
-         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-        [sessionId, q.question, JSON.stringify(q.options), q.correctIndex, q.explanation]
-      );
-      broadcast(sessionId, { type: "comprehension-question", payload: rows[0] });
-    }
-  } catch (err) {
-    console.error("[WS] Screen frame pipeline error:", err.message);
-    debugError("WS", "handleScreenFrame failed", err);
-  }
-}
-
-async function handleScreenFrame(ws, payload) {
-  return ingestScreenFrame(ws.sessionId, payload, "ws");
-}
-
 async function handleAudioTranscript(ws, payload) {
   const { sessionId } = ws;
   const { transcript, recentFiles = [] } = payload;
@@ -323,12 +257,9 @@ async function handleAudioTranscript(ws, payload) {
     recentFileCount: Array.isArray(recentFiles) ? recentFiles.length : 0,
   });
 
-  // Store latest transcript in Redis for next screen frame to pick up
-  await setTranscript(sessionId, transcript);
-
   // Run the LangGraph intent detection agent
   try {
-    const intent = await detectShareIntent(transcript, recentFiles);
+    const intent = await detectShareIntentForFiles(transcript, recentFiles);
     if (intent.shouldShare && intent.file) {
       console.log(`[IntentAgent] Share intent detected (${(intent.confidence * 100).toFixed(0)}%) → ${intent.file.name}`);
       // Emit back to instructor for confirmation before sharing
@@ -351,7 +282,7 @@ async function handleAudioTranscript(ws, payload) {
     const lastAt = lastTranscriptExplanationAt.get(sessionId) ?? 0;
     if (now - lastAt >= 8_000 && transcript?.trim()) {
       lastTranscriptExplanationAt.set(sessionId, now);
-      const explanation = await expandTranscriptForStudents(sessionId, transcript);
+      const explanation = await expandInstructorTranscript(sessionId, transcript);
       if (explanation) {
         broadcastToStudents(sessionId, {
           type: "live-explanation",
@@ -373,7 +304,7 @@ async function handleAudioTranscript(ws, payload) {
     const now = Date.now();
     const lastAt = lastTranscriptQuizAt.get(sessionId) ?? 0;
     if (now - lastAt >= 45_000 && transcript?.trim()) {
-      const question = await generateTranscriptComprehension(sessionId, transcript);
+      const question = await buildTranscriptQuiz(sessionId, transcript);
       if (question) {
         lastTranscriptQuizAt.set(sessionId, now);
         const { rows } = await query(
@@ -418,8 +349,7 @@ async function handleStudentError(ws, payload) {
     messageLen: String(errorMessage ?? "").length,
   });
   try {
-    const { diagnoseError } = await import("../ai/errorDiagnosis.js");
-    const result = await diagnoseError(errorMessage);
+    const result = await diagnoseStudentError(errorMessage);
     await query(
       `INSERT INTO error_resolutions (session_id, student_id, error_message, diagnosis, fix_command)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -486,8 +416,7 @@ async function handleStudentMessage(ws, payload) {
     if (!pendingStudentMessages.has(messageId)) return;
     pendingStudentMessages.delete(messageId);
     try {
-      const { generateMessageResponse } = await import("../ai/graphs/messageAgent.js");
-      const response = await generateMessageResponse(sessionId, studentName ?? "Student", message);
+      const response = await replyToStudentMessage(sessionId, studentName ?? "Student", message);
       ws.send(
         JSON.stringify({
           type: "ai-reply",

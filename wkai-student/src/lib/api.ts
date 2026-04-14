@@ -15,12 +15,27 @@ export interface JoinRoomResponse {
   session: Session;
   guideBlocks: GuideBlock[];
   sharedFiles: SharedFile[];
+  joinToken?: string;
 }
 
 /** Validate a room code and fetch its current state. */
-export async function joinRoom(roomCode: string): Promise<JoinRoomResponse> {
+export async function joinRoom(
+  roomCode: string,
+  studentId: string,
+  studentName: string,
+  sessionPassword?: string
+): Promise<JoinRoomResponse> {
+  const { data } = await api.post<JoinRoomResponse>(
+    `/api/sessions/${roomCode.toUpperCase()}/join`,
+    { studentId, studentName, sessionPassword }
+  );
+  return data;
+}
+
+export async function getRoomState(roomCode: string, joinToken?: string): Promise<JoinRoomResponse> {
   const { data } = await api.get<JoinRoomResponse>(
-    `/api/sessions/${roomCode.toUpperCase()}`
+    `/api/sessions/${roomCode.toUpperCase()}`,
+    { params: joinToken ? { joinToken } : undefined }
   );
   return data;
 }

@@ -12,7 +12,7 @@ import { ScreenPreview } from "../components/guide/ScreenPreview";
 import { MessagePanel } from "../components/messages/MessagePanel";
 import { StudentDebugPanel } from "../components/shared/StudentDebugPanel";
 import { AIHelperPanel } from "../components/ai/AIHelperPanel";
-import { joinRoom } from "../lib/api";
+import { getRoomState } from "../lib/api";
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
@@ -39,12 +39,13 @@ export function RoomPage() {
 
       bootstrappingRef.current = true;
       try {
-        const data = await joinRoom(code);
+        const joinToken = sessionStorage.getItem("wkai_join_token") ?? undefined;
+        const data = await getRoomState(code, joinToken);
         if (cancelled) return;
 
         if (data.session.status === "ended") {
           setSession(null);
-          navigate("/");
+          navigate("/join");
           return;
         }
 
@@ -55,7 +56,7 @@ export function RoomPage() {
         setGuideBlocks(data.guideBlocks);
         setSharedFiles(data.sharedFiles);
       } catch {
-        if (!cancelled) navigate("/");
+        if (!cancelled) navigate("/join");
       } finally {
         if (!cancelled) bootstrappingRef.current = false;
       }

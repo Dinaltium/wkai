@@ -23,7 +23,6 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [lastName, setLastName] = useState<string | null>(null);
   const [lastMime, setLastMime] = useState<string | null>(null);
-  const autoStartedRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -34,7 +33,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
     streamRef.current = null;
   }
 
-  async function startRecording(auto = false) {
+  async function startRecording() {
     if (isRecording || starting) return;
     setStarting(true);
     try {
@@ -70,9 +69,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       addDebugLog(
-        auto
-          ? `Auto recording started (${mimeType || "default"})`
-          : `Recording started (${mimeType || "default"})`,
+        `Recording started (${mimeType || "default"})`,
         "success"
       );
     } catch (err) {
@@ -98,12 +95,6 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
     rec.stop();
     addDebugLog("Recording stop requested", "warn");
   }
-
-  useEffect(() => {
-    if (autoStartedRef.current) return;
-    autoStartedRef.current = true;
-    void startRecording(true);
-  }, []);
 
   useEffect(() => {
     const handleForceStop = () => {
@@ -133,7 +124,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       <div className="flex gap-2">
         <button
           className="btn-primary flex-1 justify-center"
-          onClick={() => void startRecording(false)}
+          onClick={() => void startRecording()}
           disabled={isRecording || starting}
         >
           {starting ? <Loader2 size={14} className="animate-spin" /> : <Circle size={14} />}
