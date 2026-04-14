@@ -19,6 +19,7 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
 
     setLoading(true);
     try {
+      window.dispatchEvent(new Event("wkai:force-stop-recording"));
       await stopCapture();
       const { settings } = useAppStore.getState();
       await endSession(sessionId, settings.backendUrl);
