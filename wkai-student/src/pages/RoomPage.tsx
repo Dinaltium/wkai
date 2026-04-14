@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { useRoomSocket } from "../hooks/useRoomSocket";
@@ -8,8 +8,10 @@ import { GuideFeed } from "../components/guide/GuideFeed";
 import { FilesPanel } from "../components/files/FilesPanel";
 import { ErrorHelper } from "../components/error/ErrorHelper";
 import { CodeEditor } from "../components/shared/CodeEditor";
-import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
+import { SessionEndedModal } from "../components/shared/SessionEndedModal";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
+import { ScreenPreview } from "../components/guide/ScreenPreview";
+import { MessagePanel } from "../components/messages/MessagePanel";
 import { joinRoom } from "../lib/api";
 
 export function RoomPage() {
@@ -18,6 +20,7 @@ export function RoomPage() {
   const { session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
   const bootstrappingRef = useRef(!session && !sessionEnded);
+  const [endedModalDismissed, setEndedModalDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +66,6 @@ export function RoomPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-wkai-bg">
       <RoomHeader />
-      {sessionEnded && <SessionEndedBanner />}
       <TabBar />
 
       <div className="flex-1 overflow-hidden">
@@ -71,10 +73,15 @@ export function RoomPage() {
         {activeTab === "files"  && <FilesPanel />}
         {activeTab === "editor" && <CodeEditor />}
         {activeTab === "error"  && <ErrorHelper send={send} />}
+        {activeTab === "live" && <ScreenPreview />}
+        {activeTab === "messages" && <MessagePanel send={send} />}
       </div>
 
       {/* Comprehension gate — modal overlay */}
       {pendingQuestion && <ComprehensionModal send={send} />}
+      {sessionEnded && !endedModalDismissed && (
+        <SessionEndedModal onDismiss={() => setEndedModalDismissed(true)} />
+      )}
     </div>
   );
 }

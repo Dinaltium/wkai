@@ -20,6 +20,7 @@ import { detectShareIntent } from "../ai/graphs/intentAgent.js";
 
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
+const pendingStudentMessages = new Map();
 
 export function initWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -118,6 +119,13 @@ export function initWebSocketServer(httpServer) {
           break;
         case "comprehension-answer":
           handleComprehensionAnswer(ws, msg.payload);
+          break;
+        case "student-message":
+          await handleStudentMessage(ws, msg.payload);
+          break;
+        case "instructor-reply":
+          if (ws.role !== "instructor") break;
+          handleInstructorReply(ws, msg.payload);
           break;
       }
     });
@@ -275,6 +283,69 @@ async function handleComprehensionAnswer(ws, payload) {
       explanation: rows[0].explanation,
     },
   }));
+}
+
+async function handleStudentMessage(ws, payload) {
+  const { sessionId, studentId, studentName } = ws;
+  const { message, messageId } = payload;
+
+  if (!message?.trim() || !messageId) return;
+
+  const instructorWs = rooms.get(sessionId)?.get("instructor");
+  if (instructorWs?.readyState === WebSocket.OPEN) {
+    instructorWs.send(
+      JSON.stringify({
+        type: "student-message",
+        payload: {
+          messageId,
+          studentId,
+          studentName,
+          message,
+          timestamp: new Date().toISOString(),
+        },
+      })
+    );
+  }
+
+  const timer = setTimeout(async () => {
+    if (!pendingStudentMessages.has(messageId)) return;
+    pendingStudentMessages.delete(messageId);
+    try {
+      const { generateMessageResponse } = await import("../ai/graphs/messageAgent.js");
+      const response = await generateMessageResponse(sessionId, studentName ?? "Student", message);
+      ws.send(
+        JSON.stringify({
+          type: "ai-reply",
+          payload: { messageId, response, timestamp: new Date().toISOString() },
+        })
+      );
+    } catch (err) {
+      console.error("[MessageAgent] Fallback failed:", err.message);
+    }
+  }, 45_000);
+
+  pendingStudentMessages.set(messageId, { timer, studentClientKey: ws.clientKey });
+}
+
+function handleInstructorReply(ws, payload) {
+  const { sessionId } = ws;
+  const { messageId, reply, studentId } = payload;
+
+  const pending = pendingStudentMessages.get(messageId);
+  if (pending) {
+    clearTimeout(pending.timer);
+    pendingStudentMessages.delete(messageId);
+  }
+
+  const studentWs = rooms.get(sessionId)?.get(`student:${studentId}`);
+  if (studentWs?.readyState === WebSocket.OPEN) {
+    studentWs.send(
+      JSON.stringify({
+        type: "instructor-reply",
+        payload: { messageId, reply, timestamp: new Date().toISOString() },
+      })
+    );
+  }
 }
 
 // ─── Session cleanup ──────────────────────────────────────────────────────────

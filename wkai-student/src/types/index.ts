@@ -65,9 +65,13 @@ export type WsEventType =
   | "comprehension-question"
   | "comprehension-result"
   | "file-shared"
+  | "screen-preview"
   | "student-joined"
   | "student-left"
   | "error-resolved"
+  | "student-message"
+  | "instructor-reply"
+  | "ai-reply"
   | "session-ended"
   | "error";
 
@@ -78,4 +82,12 @@ export interface WsMessage<T = unknown> {
 }
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
-export type RoomTab = "guide" | "files" | "editor" | "error";
+export type RoomTab = "guide" | "files" | "editor" | "error" | "live" | "messages";
+
+export interface ChatMessage {
+  id: string;
+  role: "student" | "instructor" | "ai";
+  text: string;
+  timestamp: string;
+  pending?: boolean;
+}

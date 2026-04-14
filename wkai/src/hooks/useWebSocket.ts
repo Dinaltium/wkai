@@ -20,6 +20,7 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     setStudents,
     addStudent,
     removeStudent,
+    addInboxMessage,
   } = useAppStore();
 
   const connect = useCallback(() => {
@@ -78,6 +79,19 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
             window.dispatchEvent(new CustomEvent("wkai:shareIntent", { detail: msg.payload }));
             addDebugLog("WS received: share-intent-detected", "success");
             break;
+          case "student-message": {
+            const p = msg.payload as {
+              messageId: string;
+              studentId: string;
+              studentName: string;
+              message: string;
+              timestamp: string;
+            };
+            addInboxMessage({ ...p, replied: false });
+            addDebugLog(`Message from ${p.studentName}: ${p.message.slice(0, 60)}`, "info");
+            window.dispatchEvent(new CustomEvent("wkai:student-message", { detail: p }));
+            break;
+          }
         }
       } catch (err) {
         console.error("[WKAI WS] Parse error", err);

@@ -59,6 +59,11 @@ export function useRoomSocket(roomCode: string) {
       case "file-shared":
         useStore.getState().addSharedFile(msg.payload as SharedFile);
         break;
+      case "screen-preview": {
+        const p = msg.payload as { frameB64: string; timestamp: string };
+        useStore.getState().setScreenPreview(p.frameB64, p.timestamp);
+        break;
+      }
       case "student-joined":
       case "student-left":
         useStore.getState().setStudentCount((msg.payload as { count: number }).count);
@@ -66,6 +71,19 @@ export function useRoomSocket(roomCode: string) {
       case "error-resolved":
         useStore.getState().setResolution(msg.payload as ErrorResolution);
         break;
+      case "instructor-reply":
+      case "ai-reply": {
+        const p = msg.payload as { messageId: string; reply?: string; response?: string; timestamp: string };
+        const text = p.reply ?? p.response ?? "";
+        useStore.getState().updateChatMessage(p.messageId, { pending: false });
+        useStore.getState().addChatMessage({
+          id: `${p.messageId}-reply`,
+          role: msg.type === "ai-reply" ? "ai" : "instructor",
+          text,
+          timestamp: p.timestamp,
+        });
+        break;
+      }
       case "session-ended":
         useStore.getState().setSessionEnded(true);
         useStore.getState().setConnected(false);

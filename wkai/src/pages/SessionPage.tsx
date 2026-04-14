@@ -8,6 +8,7 @@ import { CaptureStatus } from "../components/instructor/CaptureStatus";
 import { ShareToggle } from "../components/instructor/ShareToggle";
 import { StudentPanel } from "../components/instructor/StudentPanel";
 import { StudentJoinToast } from "../components/instructor/StudentJoinToast";
+import { InboxPanel } from "../components/instructor/InboxPanel";
 import { RoomInfo } from "../components/instructor/RoomInfo";
 import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
@@ -19,7 +20,7 @@ export function SessionPage() {
     backendUrl: settings.backendUrl,
   });
 
-  const [leftTab, setLeftTab] = useState<"files" | "students">("files");
+  const [leftTab, setLeftTab] = useState<"files" | "students" | "inbox">("files");
 
   if (!session) {
     return (
@@ -44,7 +45,7 @@ export function SessionPage() {
         </div>
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex border-b border-wkai-border">
-            {(["files", "students"] as const).map((tab) => (
+            {(["files", "students", "inbox"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setLeftTab(tab)}
@@ -55,13 +56,14 @@ export function SessionPage() {
                     : "text-wkai-text-dim hover:text-wkai-text"
                 )}
               >
-                {tab === "students" ? `Students (${studentCount})` : "Files"}
+                {tab === "students" ? `Students (${studentCount})` : tab === "inbox" ? "Q&A" : "Files"}
               </button>
             ))}
           </div>
           <div className="flex-1 overflow-hidden">
             {leftTab === "files" && <FileSharePanel sessionId={session.id} send={send} />}
             {leftTab === "students" && <StudentPanel />}
+            {leftTab === "inbox" && <InboxPanel send={send} />}
           </div>
         </div>
         <div className="border-t border-wkai-border p-4">

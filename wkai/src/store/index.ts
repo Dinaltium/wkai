@@ -9,6 +9,7 @@ import type {
   DebugLogEntry,
   DebugLogLevel,
   StudentInfo,
+  InstructorMessage,
 } from "../types";
 
 interface AppStore {
@@ -53,6 +54,9 @@ interface AppStore {
   clearDebugLogs: () => void;
   debugPanelOpen: boolean;
   setDebugPanelOpen: (v: boolean) => void;
+  inboxMessages: InstructorMessage[];
+  addInboxMessage: (m: InstructorMessage) => void;
+  markInboxReplied: (messageId: string) => void;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -124,4 +128,15 @@ export const useAppStore = create<AppStore>((set) => ({
   clearDebugLogs: () => set({ debugLogs: [] }),
   debugPanelOpen: false,
   setDebugPanelOpen: (debugPanelOpen) => set({ debugPanelOpen }),
+  inboxMessages: [],
+  addInboxMessage: (m) =>
+    set((s) => ({
+      inboxMessages: [...s.inboxMessages.filter((x) => x.messageId !== m.messageId), m],
+    })),
+  markInboxReplied: (messageId) =>
+    set((s) => ({
+      inboxMessages: s.inboxMessages.map((m) =>
+        m.messageId === messageId ? { ...m, replied: true } : m
+      ),
+    })),
 }));

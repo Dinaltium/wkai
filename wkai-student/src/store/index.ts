@@ -6,6 +6,7 @@ import type {
   SharedFile,
   ErrorResolution,
   RoomTab,
+  ChatMessage,
 } from "../types";
 
 interface StudentStore {
@@ -23,6 +24,9 @@ interface StudentStore {
   setConnected: (v: boolean) => void;
   studentCount: number;
   setStudentCount: (n: number) => void;
+  screenPreview: string | null;
+  screenPreviewTs: string | null;
+  setScreenPreview: (b64: string, ts: string) => void;
 
   // ─── Guide ─────────────────────────────────────────────────────────────────
   guideBlocks: GuideBlock[];
@@ -47,6 +51,9 @@ interface StudentStore {
   setResolution: (r: ErrorResolution | null) => void;
   errorDiagnosing: boolean;
   setErrorDiagnosing: (v: boolean) => void;
+  chatMessages: ChatMessage[];
+  addChatMessage: (m: ChatMessage) => void;
+  updateChatMessage: (id: string, update: Partial<ChatMessage>) => void;
 
   // ─── UI ────────────────────────────────────────────────────────────────────
   activeTab: RoomTab;
@@ -95,6 +102,9 @@ export const useStore = create<StudentStore>((set) => ({
   setConnected: (connected) => set({ connected }),
   studentCount: 0,
   setStudentCount: (studentCount) => set({ studentCount }),
+  screenPreview: null,
+  screenPreviewTs: null,
+  setScreenPreview: (screenPreview, screenPreviewTs) => set({ screenPreview, screenPreviewTs }),
 
   guideBlocks: [],
   addGuideBlock: (b) => set((s) => ({ guideBlocks: [...s.guideBlocks, b] })),
@@ -120,6 +130,12 @@ export const useStore = create<StudentStore>((set) => ({
   setResolution: (resolution) => set({ resolution }),
   errorDiagnosing: false,
   setErrorDiagnosing: (errorDiagnosing) => set({ errorDiagnosing }),
+  chatMessages: [],
+  addChatMessage: (m) => set((s) => ({ chatMessages: [...s.chatMessages, m] })),
+  updateChatMessage: (id, update) =>
+    set((s) => ({
+      chatMessages: s.chatMessages.map((m) => (m.id === id ? { ...m, ...update } : m)),
+    })),
 
   activeTab: "guide",
   setActiveTab: (activeTab) => {

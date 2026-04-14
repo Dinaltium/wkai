@@ -58,6 +58,15 @@ export interface StudentInfo {
   joinedAt: string;
 }
 
+export interface InstructorMessage {
+  messageId: string;
+  studentId: string;
+  studentName: string;
+  message: string;
+  timestamp: string;
+  replied: boolean;
+}
+
 // ─── Capture ─────────────────────────────────────────────────────────────────
 
 export interface CaptureConfig {
@@ -94,7 +103,10 @@ export type WsEventType =
   | "student-joined"
   | "student-left"
   | "error-resolved"
-  | "session-ended";
+  | "session-ended"
+  | "student-message"
+  | "instructor-reply"
+  | "ai-reply";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
