@@ -152,6 +152,16 @@ async function handleScreenFrame(ws, payload) {
       });
     }
 
+    if (payload.streamToStudents && payload.frameB64) {
+      broadcastToStudents(sessionId, {
+        type: "screen-preview",
+        payload: {
+          frameB64: payload.frameB64,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
     if (result.comprehensionQuestion) {
       const q = result.comprehensionQuestion;
       const { rows } = await query(

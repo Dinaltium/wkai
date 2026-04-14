@@ -30,6 +30,7 @@ pub fn run() {
             commands::session::get_session_status,
             commands::capture::start_capture,
             commands::capture::stop_capture,
+            commands::capture::capture_test_frame,
             commands::files::watch_folder,
             commands::files::share_file,
             commands::files::list_watched_files,

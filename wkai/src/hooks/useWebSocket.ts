@@ -71,9 +71,24 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     };
     window.addEventListener("wkai:transcript", handleTranscript);
 
+    const handleScreenFrame = (e: Event) => {
+      const payload = (e as CustomEvent).detail as {
+        frame_b64: string;
+        timestamp: string;
+        stream_to_students: boolean;
+      };
+      send("screen-frame", {
+        frameB64: payload.frame_b64,
+        timestamp: payload.timestamp,
+        streamToStudents: payload.stream_to_students,
+      });
+    };
+    window.addEventListener("wkai:screen-frame", handleScreenFrame);
+
     return () => {
       ws.current?.close();
       window.removeEventListener("wkai:transcript", handleTranscript);
+      window.removeEventListener("wkai:screen-frame", handleScreenFrame);
     };
   }, [connect]);
 

@@ -7287,7 +7287,7 @@ dependencies = [
 
 [[package]]
 name = "wkai-instructor"
-version = "0.1.1"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

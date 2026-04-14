@@ -37,12 +37,17 @@ export async function startCapture(config: CaptureConfig): Promise<void> {
       frames_per_minute: config.framesPerMinute,
       capture_audio:     config.captureAudio,
       session_id:        config.sessionId,
+      stream_to_students: config.streamToStudents ?? true,
     },
   });
 }
 
 export async function stopCapture(): Promise<void> {
   return invoke("stop_capture");
+}
+
+export async function captureTestFrame(): Promise<string> {
+  return invoke<string>("capture_test_frame");
 }
 
 // ─── File Commands ────────────────────────────────────────────────────────────

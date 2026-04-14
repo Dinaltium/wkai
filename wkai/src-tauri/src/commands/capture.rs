@@ -1,106 +1,180 @@
 use base64::{engine::general_purpose, Engine as _};
-use image::ImageEncoder;
-use image::codecs::png::PngEncoder;
+use image::codecs::jpeg::JpegEncoder;
+use image::DynamicImage;
 use screenshots::Screen;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
 static CAPTURING: AtomicBool = AtomicBool::new(false);
 
-#[derive(Debug, Serialize, Deserialize)]
+const MAX_FRAME_WIDTH: u32 = 1024;
+const AI_FRAME_QUALITY: u8 = 75;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureConfig {
-    /// How many frames per minute to capture (default: 6 = every 10 seconds)
     pub frames_per_minute: u32,
-    /// Whether to also capture audio
     pub capture_audio: bool,
-    /// The session ID this capture is tied to
     pub session_id: String,
+    pub stream_to_students: bool,
 }
 
-/// Starts the background screen + audio capture loop.
-/// Frames are captured, base64 encoded, and sent to the AI pipeline.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenFramePayload {
+    pub session_id: String,
+    pub frame_b64: String,
+    pub timestamp: String,
+    pub width: u32,
+    pub height: u32,
+    pub stream_to_students: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureError {
+    pub message: String,
+    pub timestamp: String,
+}
+
 #[tauri::command]
-pub async fn start_capture(
-    app: AppHandle,
-    config: CaptureConfig,
-) -> Result<(), String> {
-    if CAPTURING.load(Ordering::SeqCst) {
+pub async fn start_capture(app: AppHandle, config: CaptureConfig) -> Result<(), String> {
+    if CAPTURING.swap(true, Ordering::SeqCst) {
         return Err("Capture already running".to_string());
     }
 
-    CAPTURING.store(true, Ordering::SeqCst);
     log::info!(
-        "Starting capture for session {} at {} fps/min",
+        "[Capture] Starting for session={} fps_per_min={} stream={}",
         config.session_id,
-        config.frames_per_minute
+        config.frames_per_minute,
+        config.stream_to_students
     );
 
     let session_id = config.session_id.clone();
-    let interval_secs = 60 / config.frames_per_minute.max(1);
+    let interval_secs = (60u64 / config.frames_per_minute.max(1) as u64).max(5);
 
-    // Spawn the capture loop in a background thread
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create Tokio runtime");
+
         rt.block_on(async move {
-            while CAPTURING.load(Ordering::SeqCst) {
-                match capture_screen_frame() {
-                    Ok(frame_b64) => {
-                        // Emit the frame to the frontend so it can forward to the AI pipeline
-                        let _ = app.emit("screen-frame", ScreenFramePayload {
-                            session_id: session_id.clone(),
-                            frame_b64,
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                        });
+            let _ = app.emit("capture-status", serde_json::json!({ "running": true }));
+            let mut frame_count: u64 = 0;
+
+            loop {
+                if !CAPTURING.load(Ordering::SeqCst) {
+                    break;
+                }
+
+                match capture_frame_jpeg() {
+                    Ok((frame_b64, w, h)) => {
+                        frame_count += 1;
+                        log::debug!(
+                            "[Capture] Frame #{} captured ({}x{} -> base64 len={})",
+                            frame_count,
+                            w,
+                            h,
+                            frame_b64.len()
+                        );
+
+                        let _ = app.emit(
+                            "screen-frame",
+                            ScreenFramePayload {
+                                session_id: session_id.clone(),
+                                frame_b64,
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                width: w,
+                                height: h,
+                                stream_to_students: config.stream_to_students,
+                            },
+                        );
                     }
                     Err(e) => {
-                        log::error!("Screen capture failed: {}", e);
+                        log::error!("[Capture] Frame capture failed: {}", e);
+                        let _ = app.emit(
+                            "capture-error",
+                            CaptureError {
+                                message: e.clone(),
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                            },
+                        );
                     }
                 }
 
-                tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs as u64)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
             }
 
-            log::info!("Capture loop exited for session {}", session_id);
+            let _ = app.emit("capture-status", serde_json::json!({ "running": false }));
+            log::info!("[Capture] Loop exited for session={}", session_id);
         });
     });
 
     Ok(())
 }
 
-/// Stops the screen + audio capture loop.
 #[tauri::command]
-pub async fn stop_capture() -> Result<(), String> {
+pub async fn stop_capture(app: AppHandle) -> Result<(), String> {
     CAPTURING.store(false, Ordering::SeqCst);
-    log::info!("Capture stopped");
+    let _ = app.emit("capture-status", serde_json::json!({ "running": false }));
+    log::info!("[Capture] Stop requested");
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ScreenFramePayload {
-    pub session_id: String,
-    pub frame_b64: String,
-    pub timestamp: String,
+#[tauri::command]
+pub async fn capture_test_frame() -> Result<String, String> {
+    let (frame_b64, w, h) = capture_frame_jpeg()?;
+    log::info!(
+        "[Capture] Test frame captured: {}x{} base64_len={}",
+        w,
+        h,
+        frame_b64.len()
+    );
+    Ok(frame_b64)
 }
 
-/// Captures the primary screen and returns a base64-encoded PNG.
-fn capture_screen_frame() -> Result<String, String> {
-    let screens = Screen::all().map_err(|e| e.to_string())?;
-    let primary = screens.into_iter().next().ok_or("No screen found")?;
-    let image = primary.capture().map_err(|e| e.to_string())?;
+fn capture_frame_jpeg() -> Result<(String, u32, u32), String> {
+    let screens = Screen::all().map_err(|e| format!("Screen::all() failed: {e}"))?;
+    if screens.is_empty() {
+        return Err("No screens found".to_string());
+    }
 
-    let mut png_bytes = Vec::new();
-    let encoder = PngEncoder::new(&mut png_bytes);
+    let screen = screens
+        .into_iter()
+        .max_by_key(|s| {
+            let info = s.display_info;
+            info.width * info.height
+        })
+        .ok_or("Could not select a screen")?;
+
+    let raw_image = screen
+        .capture()
+        .map_err(|e| format!("Screen::capture() failed: {e}"))?;
+
+    let img = DynamicImage::ImageRgba8(
+        image::RgbaImage::from_raw(raw_image.width(), raw_image.height(), raw_image.into_raw())
+            .ok_or("Failed to create RgbaImage from raw bytes")?,
+    );
+
+    let (orig_w, orig_h) = (img.width(), img.height());
+    let img = if orig_w > MAX_FRAME_WIDTH {
+        let scale = MAX_FRAME_WIDTH as f32 / orig_w as f32;
+        let new_h = (orig_h as f32 * scale) as u32;
+        img.resize(MAX_FRAME_WIDTH, new_h, image::imageops::FilterType::Lanczos3)
+    } else {
+        img
+    };
+
+    let (w, h) = (img.width(), img.height());
+    let rgb = img.to_rgb8();
+    let mut jpeg_bytes: Vec<u8> = Vec::new();
+    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, AI_FRAME_QUALITY);
     encoder
-        .write_image(
-            image.as_raw(),
-            image.width(),
-            image.height(),
-            image::ColorType::Rgba8.into(),
-        )
-        .map_err(|e| e.to_string())?;
+        .encode(&rgb, w, h, image::ExtendedColorType::Rgb8)
+        .map_err(|e| format!("JPEG encode failed: {e}"))?;
 
-    let encoded = general_purpose::STANDARD.encode(&png_bytes);
-    Ok(encoded)
+    let b64 = general_purpose::STANDARD.encode(&jpeg_bytes);
+    Ok((b64, w, h))
 }

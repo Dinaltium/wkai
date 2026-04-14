@@ -58,6 +58,7 @@ export interface CaptureConfig {
   framesPerMinute: number;
   captureAudio: boolean;
   sessionId: string;
+  streamToStudents?: boolean;
 }
 
 export interface CaptureState {

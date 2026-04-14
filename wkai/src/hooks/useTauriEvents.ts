@@ -12,12 +12,43 @@ import { useAppStore } from "../store";
 export function useTauriEvents() {
   const { setCapture, settings } = useAppStore();
 
+  // Temporary until F4 debug panel is implemented
+  function addDebugLog(msg: string, level?: string) {
+    console.log(`[WKAI Debug] [${level ?? "info"}] ${msg}`);
+  }
+
   useEffect(() => {
     // ── Screen frame captured ─────────────────────────────────────────────────
-    const unlistenFrame = listen<{ timestamp: string }>("screen-frame", (event) => {
-      setCapture({ lastFrameAt: event.payload.timestamp, aiProcessing: true });
-      setTimeout(() => setCapture({ aiProcessing: false }), 2000);
+    const unlistenFrame = listen<{
+      session_id: string;
+      frame_b64: string;
+      timestamp: string;
+      width: number;
+      height: number;
+      stream_to_students: boolean;
+    }>("screen-frame", (event) => {
+      const previous = useAppStore.getState().capture.framesSent ?? 0;
+      setCapture({
+        lastFrameAt: event.payload.timestamp,
+        aiProcessing: true,
+        framesSent: previous + 1,
+      });
+      setTimeout(() => setCapture({ aiProcessing: false }), 3000);
+
+      window.dispatchEvent(new CustomEvent("wkai:screen-frame", { detail: event.payload }));
     });
+
+    const unlistenStatus = listen<{ running: boolean }>("capture-status", (event) => {
+      setCapture({ isCapturing: event.payload.running });
+      addDebugLog(event.payload.running ? "Screen capture started" : "Screen capture stopped");
+    });
+
+    const unlistenError = listen<{ message: string; timestamp: string }>(
+      "capture-error",
+      (event) => {
+        addDebugLog(`[ERROR] Capture: ${event.payload.message}`, "error");
+      }
+    );
 
     // ── Audio chunk → Whisper → send transcript to WS for context + intent ────
     const unlistenAudio = listen<{
@@ -58,6 +89,8 @@ export function useTauriEvents() {
 
     return () => {
       unlistenFrame.then((fn) => fn());
+      unlistenStatus.then((fn) => fn());
+      unlistenError.then((fn) => fn());
       unlistenAudio.then((fn) => fn());
       unlistenFile.then((fn) => fn());
     };
