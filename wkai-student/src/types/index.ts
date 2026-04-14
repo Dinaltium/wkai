@@ -85,6 +85,7 @@ export type WsEventType =
   | "comprehension-result"
   | "file-shared"
   | "screen-preview"
+  | "live-explanation"
   | "student-joined"
   | "student-left"
   | "error-resolved"
@@ -105,7 +106,13 @@ export interface WsMessage<T = unknown> {
 }
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
-export type RoomTab = "guide" | "files" | "editor" | "error" | "live" | "messages";
+export type RoomTab = "guide" | "files" | "editor" | "error" | "ai-helper" | "live" | "messages";
+
+export interface LiveExplanation {
+  transcript: string;
+  explanation: string;
+  timestamp: string;
+}
 
 export interface ChatMessage {
   id: string;

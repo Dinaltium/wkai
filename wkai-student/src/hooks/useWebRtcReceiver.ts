@@ -12,6 +12,7 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
   const queuedIceRef = useRef<RTCIceCandidateInit[]>([]);
   const addDebugLog = useStore((s) => s.addDebugLog);
   const studentId = useStore((s) => s.studentId);
+  const backgroundLiveEnabled = useStore((s) => s.backgroundLiveEnabled);
 
   const closePeer = () => {
     if (!peerRef.current) return;
@@ -99,6 +100,28 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
       closePeer();
     };
   }, [addDebugLog, send, studentId]);
+
+  useEffect(() => {
+    const applyVisibilityPolicy = () => {
+      const hidden = document.visibilityState === "hidden";
+      if (!remoteStream) return;
+      for (const track of remoteStream.getVideoTracks()) {
+        track.enabled = backgroundLiveEnabled || !hidden;
+      }
+      if (hidden && !backgroundLiveEnabled) {
+        addDebugLog("Live video paused while tab hidden", "info");
+      }
+      if (!hidden) {
+        addDebugLog("Live video resumed", "info");
+      }
+    };
+
+    document.addEventListener("visibilitychange", applyVisibilityPolicy);
+    applyVisibilityPolicy();
+    return () => {
+      document.removeEventListener("visibilitychange", applyVisibilityPolicy);
+    };
+  }, [remoteStream, backgroundLiveEnabled, addDebugLog]);
 
   return { remoteStream };
 }

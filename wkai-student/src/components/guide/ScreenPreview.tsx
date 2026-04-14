@@ -8,7 +8,7 @@ interface ScreenPreviewProps {
 }
 
 export function ScreenPreview({ send }: ScreenPreviewProps) {
-  const { screenPreview, screenPreviewTs, session } = useStore();
+  const { screenPreview, screenPreviewTs, session, latestLiveExplanation } = useStore();
   const { remoteStream } = useWebRtcReceiver(send);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -65,6 +65,15 @@ export function ScreenPreview({ send }: ScreenPreviewProps) {
           />
         )}
       </div>
+      {latestLiveExplanation && (
+        <div className="border-t border-wkai-border px-4 py-3 space-y-1 bg-wkai-surface">
+          <p className="text-[11px] uppercase tracking-wider text-indigo-400 font-semibold">AI Live Notes</p>
+          <p className="text-xs text-wkai-text-dim">
+            Heard: "{latestLiveExplanation.transcript}"
+          </p>
+          <p className="text-sm text-wkai-text">{latestLiveExplanation.explanation}</p>
+        </div>
+      )}
     </div>
   );
 }

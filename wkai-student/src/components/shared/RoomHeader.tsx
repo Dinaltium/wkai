@@ -4,7 +4,7 @@ import { Users, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export function RoomHeader() {
-  const { session, connected, studentCount } = useStore();
+  const { session, connected, studentCount, backgroundLiveEnabled, setBackgroundLiveEnabled } = useStore();
   const navigate = useNavigate();
 
   return (
@@ -49,6 +49,15 @@ export function RoomHeader() {
           />
           {connected ? "Live" : "Reconnecting…"}
         </span>
+        <label className="hidden md:flex items-center gap-1.5 text-[11px] text-wkai-text-dim">
+          <input
+            type="checkbox"
+            checked={backgroundLiveEnabled}
+            onChange={(e) => setBackgroundLiveEnabled(e.target.checked)}
+            className="accent-indigo-500"
+          />
+          Bg Live
+        </label>
         <button
           onClick={() => navigate("/")}
           className="flex items-center gap-1.5 text-xs text-wkai-text-dim hover:text-red-400 transition-colors"

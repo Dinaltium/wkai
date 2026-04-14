@@ -102,6 +102,12 @@ export function useRoomSocket(roomCode: string) {
         useStore.getState().setScreenPreview(p.frameB64, p.timestamp);
         break;
       }
+      case "live-explanation": {
+        const p = msg.payload as { transcript: string; explanation: string; timestamp: string };
+        useStore.getState().setLatestLiveExplanation(p);
+        useStore.getState().addDebugLog("Live transcript explanation received", "success");
+        break;
+      }
       case "student-joined":
       case "student-left":
         useStore.getState().setStudentCount((msg.payload as { count: number }).count);

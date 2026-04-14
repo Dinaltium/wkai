@@ -9,6 +9,7 @@ import type {
   ChatMessage,
   DebugLogEntry,
   DebugLogLevel,
+  LiveExplanation,
 } from "../types";
 
 interface StudentStore {
@@ -29,6 +30,10 @@ interface StudentStore {
   screenPreview: string | null;
   screenPreviewTs: string | null;
   setScreenPreview: (b64: string, ts: string) => void;
+  latestLiveExplanation: LiveExplanation | null;
+  setLatestLiveExplanation: (v: LiveExplanation | null) => void;
+  backgroundLiveEnabled: boolean;
+  setBackgroundLiveEnabled: (v: boolean) => void;
 
   // ─── Guide ─────────────────────────────────────────────────────────────────
   guideBlocks: GuideBlock[];
@@ -75,6 +80,7 @@ const STUDENT_ID =
   })();
 
 const SESSION_STORAGE_KEY = "wkai_student_session";
+const BG_LIVE_STORAGE_KEY = "wkai_student_background_live";
 
 function readStoredSession(): Session | null {
   const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -110,6 +116,13 @@ export const useStore = create<StudentStore>((set) => ({
   screenPreview: null,
   screenPreviewTs: null,
   setScreenPreview: (screenPreview, screenPreviewTs) => set({ screenPreview, screenPreviewTs }),
+  latestLiveExplanation: null,
+  setLatestLiveExplanation: (latestLiveExplanation) => set({ latestLiveExplanation }),
+  backgroundLiveEnabled: localStorage.getItem(BG_LIVE_STORAGE_KEY) === "1",
+  setBackgroundLiveEnabled: (backgroundLiveEnabled) => {
+    localStorage.setItem(BG_LIVE_STORAGE_KEY, backgroundLiveEnabled ? "1" : "0");
+    set({ backgroundLiveEnabled });
+  },
 
   guideBlocks: [],
   addGuideBlock: (b) => set((s) => ({ guideBlocks: [...s.guideBlocks, b] })),
