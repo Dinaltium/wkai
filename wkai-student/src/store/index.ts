@@ -76,7 +76,7 @@ function readStoredSession(): Session | null {
   }
 }
 
-export const useStore = create<StudentStore>((set, get) => ({
+export const useStore = create<StudentStore>((set) => ({
   studentId: STUDENT_ID,
 
   session: readStoredSession(),

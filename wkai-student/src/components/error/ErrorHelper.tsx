@@ -11,7 +11,6 @@ import {
   Check,
   RotateCcw,
 } from "lucide-react";
-import { clsx } from "clsx";
 import type { ErrorResolution } from "../../types";
 
 interface Props {

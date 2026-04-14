@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../../store";
-import { HelpCircle, CheckCircle, XCircle, Lock } from "lucide-react";
+import { CheckCircle, XCircle, Lock } from "lucide-react";
 import { clsx } from "clsx";
 
 interface Props {
