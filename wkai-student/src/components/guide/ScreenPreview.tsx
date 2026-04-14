@@ -1,10 +1,23 @@
+import { useEffect, useRef } from "react";
 import { useStore } from "../../store";
 import { Monitor } from "lucide-react";
+import { useWebRtcReceiver } from "../../hooks/useWebRtcReceiver";
 
-export function ScreenPreview() {
+interface ScreenPreviewProps {
+  send: <T>(type: string, payload: T) => void;
+}
+
+export function ScreenPreview({ send }: ScreenPreviewProps) {
   const { screenPreview, screenPreviewTs, session } = useStore();
+  const { remoteStream } = useWebRtcReceiver(send);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  if (!screenPreview) {
+  useEffect(() => {
+    if (!videoRef.current) return;
+    videoRef.current.srcObject = remoteStream;
+  }, [remoteStream]);
+
+  if (!screenPreview && !remoteStream) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-wkai-text-dim">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-wkai-border bg-wkai-surface">
@@ -15,7 +28,7 @@ export function ScreenPreview() {
           <p className="text-xs text-wkai-text-dim max-w-xs text-center">
             {session?.status === "ended"
               ? "The session has ended. Guide blocks and files remain available."
-              : "Screen sharing will be enabled in a future update. Guide blocks and AI assistance work normally."}
+              : "Live stream starts when the instructor enables sharing. Screenshot fallback appears if WebRTC is unavailable."}
           </p>
         </div>
       </div>
@@ -36,11 +49,21 @@ export function ScreenPreview() {
         )}
       </div>
       <div className="flex-1 overflow-auto flex items-start justify-center p-3">
-        <img
-          src={`data:image/jpeg;base64,${screenPreview}`}
-          alt="Instructor screen"
-          className="rounded-lg border border-wkai-border max-w-full h-auto shadow-lg"
-        />
+        {remoteStream ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="rounded-lg border border-wkai-border max-w-full h-auto shadow-lg"
+          />
+        ) : (
+          <img
+            src={`data:image/jpeg;base64,${screenPreview}`}
+            alt="Instructor screen"
+            className="rounded-lg border border-wkai-border max-w-full h-auto shadow-lg"
+          />
+        )}
       </div>
     </div>
   );

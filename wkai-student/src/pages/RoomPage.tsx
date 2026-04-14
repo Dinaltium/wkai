@@ -86,7 +86,7 @@ export function RoomPage() {
         {activeTab === "files"  && <FilesPanel />}
         {activeTab === "editor" && <CodeEditor />}
         {activeTab === "error"  && <ErrorHelper send={send} />}
-        {activeTab === "live" && <ScreenPreview />}
+        {activeTab === "live" && <ScreenPreview send={send} />}
         {activeTab === "messages" && <MessagePanel send={send} />}
       </div>
 

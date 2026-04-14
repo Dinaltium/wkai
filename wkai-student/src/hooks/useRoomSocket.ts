@@ -129,6 +129,16 @@ export function useRoomSocket(roomCode: string) {
         useStore.getState().setConnected(false);
         ws.current?.close();
         break;
+      case "webrtc-offer":
+      case "webrtc-ice-candidate":
+      case "webrtc-session-reset":
+        window.dispatchEvent(
+          new CustomEvent(`wkai:${msg.type}`, {
+            detail: msg.payload,
+          })
+        );
+        useStore.getState().addDebugLog(`WS received: ${msg.type}`, "info");
+        break;
       case "error":
         console.error("[WS] Server error:", (msg.payload as { message: string }).message);
         break;
