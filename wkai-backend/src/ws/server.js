@@ -201,6 +201,10 @@ export function initWebSocketServer(httpServer) {
           if (ws.role !== "instructor") break;
           handleWebRtcSessionReset(ws, msg.payload);
           break;
+        case "webrtc-request-offer":
+          if (ws.role !== "student") break;
+          handleWebRtcRequestOffer(ws, msg.payload);
+          break;
         case "colab-assist-request":
           if (ws.role !== "student") break;
           await handleColabAssistRequest(ws, msg.payload);
@@ -621,6 +625,34 @@ function handleWebRtcSessionReset(ws, payload) {
     timestamp: new Date().toISOString(),
   });
   debugLog("WS", "webrtc-session-reset broadcast", { sessionId, reason });
+}
+
+function handleWebRtcRequestOffer(ws, payload) {
+  const { sessionId, studentId } = ws;
+  const instructorWs = getInstructorSocket(sessionId);
+  if (instructorWs?.readyState !== WebSocket.OPEN) {
+    debugLog("WS", "webrtc-request-offer instructor unavailable", {
+      sessionId,
+      studentId,
+    });
+    return;
+  }
+
+  instructorWs.send(
+    JSON.stringify({
+      type: "webrtc-request-offer",
+      payload: {
+        studentId,
+        reason: payload?.reason ?? "student-request",
+      },
+      timestamp: new Date().toISOString(),
+    })
+  );
+  debugLog("WS", "webrtc-request-offer relayed", {
+    sessionId,
+    studentId,
+    reason: payload?.reason ?? "student-request",
+  });
 }
 
 async function handleColabAssistRequest(ws, payload) {

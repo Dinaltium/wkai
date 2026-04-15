@@ -13,12 +13,14 @@ import { MessagePanel } from "../components/messages/MessagePanel";
 import { StudentDebugPanel } from "../components/shared/StudentDebugPanel";
 import { AIHelperPanel } from "../components/ai/AIHelperPanel";
 import { getRoomState } from "../lib/api";
+import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const { session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
+  const { remoteStream } = useWebRtcReceiver(send);
   const bootstrappingRef = useRef(!session && !sessionEnded);
   const [endedModalDismissed, setEndedModalDismissed] = useState(false);
 
@@ -86,7 +88,7 @@ export function RoomPage() {
         {activeTab === "guide"  && <GuideFeed />}
         {activeTab === "files"  && <FilesPanel />}
         {activeTab === "ai-helper" && <AIHelperPanel send={send} />}
-        {activeTab === "live" && <ScreenPreview send={send} />}
+        {activeTab === "live" && <ScreenPreview remoteStream={remoteStream} />}
         {activeTab === "messages" && <MessagePanel send={send} />}
       </div>
 

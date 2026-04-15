@@ -1,15 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "../../store";
 import { Monitor } from "lucide-react";
-import { useWebRtcReceiver } from "../../hooks/useWebRtcReceiver";
 
 interface ScreenPreviewProps {
-  send: <T>(type: string, payload: T) => void;
+  remoteStream: MediaStream | null;
 }
 
-export function ScreenPreview({ send }: ScreenPreviewProps) {
+export function ScreenPreview({ remoteStream }: ScreenPreviewProps) {
   const { session, latestLiveExplanation } = useStore();
-  const { remoteStream } = useWebRtcReceiver(send);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {

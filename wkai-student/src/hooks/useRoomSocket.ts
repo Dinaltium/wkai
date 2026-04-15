@@ -46,6 +46,7 @@ export function useRoomSocket(roomCode: string) {
       }
       useStore.getState().setConnected(true);
       useStore.getState().addDebugLog("Connected to room", "success");
+      window.dispatchEvent(new Event("wkai:socket-open"));
       console.log("[WS] Connected to room", roomCode);
     };
 

@@ -1,6 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useAppStore } from "../store";
-import type { WebRtcAnswerPayload, WebRtcIceCandidatePayload, WsEventType } from "../types";
+import type {
+  WebRtcAnswerPayload,
+  WebRtcIceCandidatePayload,
+  WebRtcRequestOfferPayload,
+  WsEventType,
+} from "../types";
 
 type WsSend = <T>(type: WsEventType | string, payload: T) => void;
 type WsOn = <T>(type: WsEventType, handler: (payload: T) => void) => void;
@@ -24,7 +29,7 @@ export function useWebRtcPublisher(
   const students = useAppStore((s) => s.students);
   const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
-  const createPeerRef = useRef<(studentId: string) => Promise<void>>(async () => {});
+  const createPeerRef = useRef<(studentId: string, forceRestart?: boolean) => Promise<void>>(async () => {});
 
   const ensureStream = async () => {
     if (streamRef.current) return streamRef.current;
@@ -73,8 +78,11 @@ export function useWebRtcPublisher(
     peersRef.current.delete(studentId);
   };
 
-  const createPeerForStudent = async (studentId: string) => {
+  const createPeerForStudent = async (studentId: string, forceRestart = false) => {
     if (!sessionId || !streamingToStudents) return;
+    if (forceRestart) {
+      closePeer(studentId);
+    }
     if (peersRef.current.has(studentId)) return;
 
     const stream = await ensureStream();
@@ -92,8 +100,15 @@ export function useWebRtcPublisher(
     };
     peer.onconnectionstatechange = () => {
       addDebugLog(`WebRTC[${studentId}] ${peer.connectionState}`, "info");
-      if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+      if (
+        peer.connectionState === "failed" ||
+        peer.connectionState === "closed" ||
+        peer.connectionState === "disconnected"
+      ) {
         closePeer(studentId);
+        window.setTimeout(() => {
+          void createPeerRef.current(studentId, true);
+        }, 750);
       }
     };
 
@@ -149,11 +164,20 @@ export function useWebRtcPublisher(
       }
     };
 
+    const handleRequestOffer = async (payload: WebRtcRequestOfferPayload) => {
+      const studentId = payload?.studentId;
+      if (!studentId) return;
+      addDebugLog(`WebRTC re-offer requested by ${studentId}`, "info");
+      await createPeerRef.current(studentId, true);
+    };
+
     on("webrtc-answer", handleAnswer);
     on("webrtc-ice-candidate", handleIce);
+    on("webrtc-request-offer", handleRequestOffer);
     return () => {
       off("webrtc-answer");
       off("webrtc-ice-candidate");
+      off("webrtc-request-offer");
     };
   }, [on, off, addDebugLog]);
 

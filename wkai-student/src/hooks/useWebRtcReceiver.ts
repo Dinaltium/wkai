@@ -14,6 +14,11 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
   const studentId = useStore((s) => s.studentId);
   const backgroundLiveEnabled = useStore((s) => s.backgroundLiveEnabled);
 
+  const requestOffer = (reason: string) => {
+    send("webrtc-request-offer", { reason, studentId });
+    addDebugLog(`Requested WebRTC offer (${reason})`, "info");
+  };
+
   const closePeer = () => {
     if (!peerRef.current) return;
     try {
@@ -93,6 +98,7 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
     window.addEventListener("wkai:webrtc-offer", handleOffer);
     window.addEventListener("wkai:webrtc-ice-candidate", handleIce);
     window.addEventListener("wkai:webrtc-session-reset", handleReset);
+    requestOffer("receiver-mounted");
     return () => {
       window.removeEventListener("wkai:webrtc-offer", handleOffer);
       window.removeEventListener("wkai:webrtc-ice-candidate", handleIce);
@@ -102,6 +108,13 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
   }, [addDebugLog, send, studentId]);
 
   useEffect(() => {
+    const hasLiveTrack = () => {
+      if (!remoteStream) return false;
+      const [videoTrack] = remoteStream.getVideoTracks();
+      if (!videoTrack) return false;
+      return videoTrack.readyState === "live";
+    };
+
     const applyVisibilityPolicy = () => {
       const hidden = document.visibilityState === "hidden";
       if (!remoteStream) return;
@@ -113,15 +126,26 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
       }
       if (!hidden) {
         addDebugLog("Live video resumed", "info");
+        if (!hasLiveTrack()) {
+          requestOffer("tab-visible");
+        }
+      }
+    };
+
+    const handleSocketOpen = () => {
+      if (!hasLiveTrack()) {
+        requestOffer("socket-open");
       }
     };
 
     document.addEventListener("visibilitychange", applyVisibilityPolicy);
+    window.addEventListener("wkai:socket-open", handleSocketOpen);
     applyVisibilityPolicy();
     return () => {
       document.removeEventListener("visibilitychange", applyVisibilityPolicy);
+      window.removeEventListener("wkai:socket-open", handleSocketOpen);
     };
-  }, [remoteStream, backgroundLiveEnabled, addDebugLog]);
+  }, [remoteStream, backgroundLiveEnabled, addDebugLog, send, studentId]);
 
   return { remoteStream };
 }
