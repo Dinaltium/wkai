@@ -2,6 +2,32 @@
 
 Consolidated release notes for implementation and platform work across `wkai`, `wkai-student`, `wkai-backend`, CI, and deployment.
 
+## 2026-04 - Instructor Explorer + URL Diagnostics
+
+### Instructor app (`wkai`)
+- Moved session password field above file share folder in setup flow.
+- Reworked live session layout into three panes:
+  - left: room/capture/share/status controls + students/Q&A
+  - center: live guide
+  - right: IDE-style file explorer
+- Replaced old file tab with a right-side explorer supporting 3 input modes:
+  - `Folder path`
+  - `File upload`
+  - `URL upload`
+- Added nested folder/file tree rendering in explorer and share action directly from local folder files.
+- Added URL import feedback modal for inaccessible/unsupported links.
+- Upgraded watched folder indexing to recursive scan so nested files appear in the explorer tree.
+
+### Backend (`wkai-backend`)
+- Added `UrlAccessAgent` under `src/ai/Agents` for URL accessibility diagnostics and human-readable failure reasons.
+- Added `POST /api/files/import-url` endpoint:
+  - validates URL
+  - fetches URL and inspects accessibility
+  - detects direct file URLs
+  - extracts file-like links from HTML pages
+  - returns URL-derived entries as ghost files when full content should not be pulled
+- Exported URL diagnostics agent through the shared AI agents index.
+
 ## 2026-04 - Release Pipeline + Deployment Reliability
 
 ### CI/CD and versioning
