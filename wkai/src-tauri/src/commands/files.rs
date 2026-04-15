@@ -33,7 +33,7 @@ pub async fn watch_folder(app: AppHandle, folder_path: String) -> Result<(), Str
     std::thread::spawn(move || {
         let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
         let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
-        watcher.watch(&path, RecursiveMode::NonRecursive).unwrap();
+        watcher.watch(&path, RecursiveMode::Recursive).unwrap();
 
         for res in rx {
             match res {
@@ -139,19 +139,30 @@ pub async fn list_watched_files(folder_path: String) -> Result<Vec<WatchedFile>,
         return Err(format!("Folder does not exist: {}", folder_path));
     }
 
-    let entries = std::fs::read_dir(&path).map_err(|e| e.to_string())?;
     let mut files = Vec::new();
-
-    for entry in entries.flatten() {
-        if let Some(file) = read_file_meta(&entry.path()) {
-            files.push(file);
-        }
-    }
+    collect_files_recursive(&path, &mut files);
 
     // Most recently modified first
     files.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
 
     Ok(files)
+}
+
+fn collect_files_recursive(dir: &PathBuf, files: &mut Vec<WatchedFile>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        if entry_path.is_dir() {
+            collect_files_recursive(&entry_path, files);
+            continue;
+        }
+        if let Some(file) = read_file_meta(&entry_path) {
+            files.push(file);
+        }
+    }
 }
 
 fn read_file_meta(path: &PathBuf) -> Option<WatchedFile> {

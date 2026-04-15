@@ -44,6 +44,17 @@ export interface WatchedFile {
   modifiedAt: string;
 }
 
+export type ExplorerSource = "folder" | "upload" | "url";
+
+export interface ExplorerFileEntry {
+  name: string;
+  path: string;
+  sizeBytes: number | null;
+  source: ExplorerSource;
+  ghost?: boolean;
+  url?: string;
+}
+
 export interface SharedFile {
   id: string;
   name: string;
@@ -94,6 +105,11 @@ export interface WebRtcSessionResetPayload {
   reason?: string;
 }
 
+export interface WebRtcRequestOfferPayload {
+  studentId: string;
+  reason?: string;
+}
+
 // ─── Debug Logs ───────────────────────────────────────────────────────────────
 
 export type DebugLogLevel = "info" | "warn" | "error" | "success";
@@ -121,7 +137,8 @@ export type WsEventType =
   | "webrtc-offer"
   | "webrtc-answer"
   | "webrtc-ice-candidate"
-  | "webrtc-session-reset";
+  | "webrtc-session-reset"
+  | "webrtc-request-offer";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;

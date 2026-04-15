@@ -4,6 +4,7 @@ import path from "path";
 import { v2 as cloudinary } from "cloudinary";
 import { query } from "../db/client.js";
 import { broadcast } from "../ws/server.js";
+import { inspectUrlAccess } from "../ai/Agents/index.js";
 
 export const filesRouter = Router();
 
@@ -90,6 +91,155 @@ filesRouter.post("/upload-session-material", upload.single("file"), async (req, 
     return res.json(payload);
   } catch (err) {
     return next(err);
+  }
+});
+
+filesRouter.post("/import-url", async (req, res, next) => {
+  try {
+    const rawUrl = String(req.body?.url ?? "").trim();
+    if (!rawUrl) return res.status(400).json({ error: "url required" });
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(rawUrl);
+    } catch {
+      const diagnosis = await inspectUrlAccess({
+        url: rawUrl,
+        errorMessage: "Invalid URL format",
+      });
+      return res.status(400).json({
+        accessible: false,
+        files: [],
+        diagnosis,
+      });
+    }
+
+    const timeout = AbortSignal.timeout(10_000);
+    let response;
+    try {
+      response = await fetch(parsedUrl.toString(), {
+        method: "GET",
+        redirect: "follow",
+        signal: timeout,
+      });
+    } catch (err) {
+      const diagnosis = await inspectUrlAccess({
+        url: parsedUrl.toString(),
+        errorMessage: String(err?.message ?? err),
+      });
+      return res.status(502).json({
+        accessible: false,
+        files: [],
+        diagnosis,
+      });
+    }
+
+    const contentType = String(response.headers.get("content-type") ?? "").toLowerCase();
+    const contentLengthRaw = response.headers.get("content-length");
+    const contentLength = contentLengthRaw ? Number(contentLengthRaw) : null;
+    const MAX_INLINE_BYTES = 8 * 1024 * 1024;
+    const fileEntries = [];
+
+    if (!response.ok) {
+      const bodySnippet = await response.text().then((text) => text.slice(0, 300)).catch(() => "");
+      const diagnosis = await inspectUrlAccess({
+        url: parsedUrl.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        bodySnippet,
+      });
+      return res.status(response.status).json({
+        accessible: false,
+        files: [],
+        diagnosis,
+      });
+    }
+
+    const pathName = parsedUrl.pathname || "/";
+    const maybeName = decodeURIComponent(path.basename(pathName) || "remote-file");
+    const isHtml = contentType.includes("text/html");
+
+    if (!isHtml) {
+      fileEntries.push({
+        name: maybeName || "remote-file",
+        path: `${parsedUrl.hostname}${pathName}`,
+        source: "url",
+        ghost: contentLength !== null ? contentLength > MAX_INLINE_BYTES : true,
+        sizeBytes: Number.isFinite(contentLength) ? contentLength : null,
+        url: parsedUrl.toString(),
+      });
+      return res.json({
+        accessible: true,
+        files: fileEntries,
+        diagnosis: {
+          accessible: true,
+          reason: "Direct file URL detected.",
+          technical: `${contentType || "unknown content-type"}`,
+        },
+      });
+    }
+
+    const html = await response.text();
+    const linkRegex = /href=["']([^"']+)["']/gi;
+    const fileLike = new Set();
+    const allowedExt = /\.(pdf|pptx|ppt|docx|txt|zip|py|js|ts|tsx|jsx|ipynb|csv|json|md)$/i;
+    let match;
+    while ((match = linkRegex.exec(html)) !== null && fileLike.size < 50) {
+      try {
+        const link = new URL(match[1], parsedUrl).toString();
+        const linkUrl = new URL(link);
+        const name = decodeURIComponent(path.basename(linkUrl.pathname));
+        if (allowedExt.test(name)) {
+          fileLike.add(
+            JSON.stringify({
+              name,
+              path: `${linkUrl.hostname}${linkUrl.pathname}`,
+              source: "url",
+              ghost: true,
+              sizeBytes: null,
+              url: linkUrl.toString(),
+            })
+          );
+        }
+      } catch {
+        // ignore malformed href entries
+      }
+    }
+
+    if (fileLike.size === 0) {
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const diagnosis = await inspectUrlAccess({
+        url: parsedUrl.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        bodySnippet: titleMatch?.[1] ?? html.slice(0, 220),
+      });
+      return res.json({
+        accessible: true,
+        files: [],
+        diagnosis: {
+          ...diagnosis,
+          reason:
+            "URL is accessible, but no directly fetchable workshop files were discovered on the page.",
+        },
+      });
+    }
+
+    for (const entry of fileLike) {
+      fileEntries.push(JSON.parse(entry));
+    }
+
+    return res.json({
+      accessible: true,
+      files: fileEntries,
+      diagnosis: {
+        accessible: true,
+        reason: "URL scanned successfully. File links added as ghost entries.",
+        technical: `Discovered ${fileEntries.length} file link(s).`,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 });
 

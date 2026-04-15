@@ -23,7 +23,7 @@ export function SessionPage() {
   });
   useWebRtcPublisher(session?.id ?? null, send, on, off);
 
-  const [leftTab, setLeftTab] = useState<"files" | "students" | "inbox">("files");
+  const [leftTab, setLeftTab] = useState<"students" | "inbox">("students");
 
   if (!session) {
     return (
@@ -35,7 +35,7 @@ export function SessionPage() {
 
   return (
     <div className="relative flex h-full gap-0">
-      {/* ─── Left column: status + files ──────────────────────────── */}
+      {/* ─── Left column: status + people ─────────────────────────── */}
       <div className="flex w-64 shrink-0 flex-col border-r border-wkai-border min-h-0 overflow-y-auto">
         <div className="border-b border-wkai-border p-4">
           <RoomInfo session={session} />
@@ -51,7 +51,7 @@ export function SessionPage() {
         </div>
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex border-b border-wkai-border">
-            {(["files", "students", "inbox"] as const).map((tab) => (
+            {(["students", "inbox"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setLeftTab(tab)}
@@ -62,12 +62,11 @@ export function SessionPage() {
                     : "text-wkai-text-dim hover:text-wkai-text"
                 )}
               >
-                {tab === "students" ? `Students (${studentCount})` : tab === "inbox" ? "Q&A" : "Files"}
+                {tab === "students" ? `Students (${studentCount})` : "Q&A"}
               </button>
             ))}
           </div>
           <div className="flex-1 overflow-hidden">
-            {leftTab === "files" && <FileSharePanel sessionId={session.id} send={send} />}
             {leftTab === "students" && <StudentPanel />}
             {leftTab === "inbox" && <InboxPanel send={send} />}
           </div>
@@ -77,9 +76,14 @@ export function SessionPage() {
         </div>
       </div>
 
-      {/* ─── Right column: live guide feed ────────────────────────── */}
-      <div className="flex-1 overflow-hidden">
+      {/* ─── Middle column: live guide feed ───────────────────────── */}
+      <div className="flex-1 min-w-0 overflow-hidden">
         <GuidePanel />
+      </div>
+
+      {/* ─── Right column: file explorer ──────────────────────────── */}
+      <div className="w-80 shrink-0 border-l border-wkai-border min-h-0">
+        <FileSharePanel sessionId={session.id} send={send} />
       </div>
 
       {/* ─── LangGraph intent detection toast ─────────────────────── */}

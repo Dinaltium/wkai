@@ -95,21 +95,6 @@ export function SetupPage() {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
-              File Share Folder{" "}
-              <span className="normal-case text-wkai-text-dim/60">(optional)</span>
-            </label>
-            <input
-              className="input font-mono text-xs"
-              placeholder="/home/rafan/workshop-files"
-              value={settings.watchFolder}
-              onChange={(e) => updateSettings({ watchFolder: e.target.value })}
-            />
-            <p className="text-xs text-wkai-text-dim">
-              WKAI watches this folder and lets you share files with one click.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
               Session Password <span className="normal-case text-wkai-text-dim/60">(optional)</span>
             </label>
             <input
@@ -120,6 +105,21 @@ export function SetupPage() {
               onChange={(e) => setSessionPassword(e.target.value)}
               maxLength={128}
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+              File Share Folder{" "}
+              <span className="normal-case text-wkai-text-dim/60">(optional)</span>
+            </label>
+            <input
+              className="input font-mono text-xs"
+              placeholder="/home/rafan/workshop-files"
+              value={settings.watchFolder}
+              onChange={(e) => updateSettings({ watchFolder: e.target.value })}
+            />
+            <p className="text-xs text-wkai-text-dim">
+              You can now manage folder path, file upload, and URL upload from the right-side explorer during live session.
+            </p>
           </div>
         </div>
 
