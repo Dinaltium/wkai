@@ -8,6 +8,7 @@ const EXPECTED_AGENTS = [
   "DebugAgent",
   "IntentAgent",
   "MessageAgent",
+  "ColabAgent",
 ];
 
 test("agent registry exposes expected agent names", () => {

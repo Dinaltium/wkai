@@ -17,7 +17,7 @@ function pickMimeType() {
 }
 
 export function RecordingPanel({ roomCode }: { roomCode: string }) {
-  const { addDebugLog } = useAppStore();
+  const { addDebugLog, sharedDisplayStream, setSharedDisplayStream } = useAppStore();
   const [isRecording, setIsRecording] = useState(false);
   const [starting, setStarting] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
@@ -28,8 +28,11 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
   const chunksRef = useRef<BlobPart[]>([]);
   const mimeType = useMemo(() => pickMimeType(), []);
 
-  function cleanupStream() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+  function cleanupStream(stopTracks = false) {
+    if (stopTracks) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      setSharedDisplayStream(null);
+    }
     streamRef.current = null;
   }
 
@@ -37,10 +40,22 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
     if (isRecording || starting) return;
     setStarting(true);
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false,
-      });
+      const display =
+        sharedDisplayStream ??
+        (await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: "monitor",
+          },
+          audio: false,
+          preferCurrentTab: false,
+          selfBrowserSurface: "exclude",
+        } as MediaStreamConstraints & {
+          preferCurrentTab?: boolean;
+          selfBrowserSurface?: "exclude";
+        }));
+      if (!sharedDisplayStream) {
+        setSharedDisplayStream(display);
+      }
       streamRef.current = display;
       const recorder = new MediaRecorder(
         display,
@@ -63,7 +78,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
         addDebugLog(`Recording saved (${ext.toUpperCase()}, ${Math.round(blob.size / 1024)} KB)`, "success");
         mediaRecorderRef.current = null;
         setIsRecording(false);
-        cleanupStream();
+        cleanupStream(false);
       };
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
@@ -82,12 +97,12 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
   function stopRecording() {
     const rec = mediaRecorderRef.current;
     if (!rec) {
-      cleanupStream();
+      cleanupStream(false);
       setIsRecording(false);
       return;
     }
     if (rec.state === "inactive") {
-      cleanupStream();
+      cleanupStream(false);
       mediaRecorderRef.current = null;
       setIsRecording(false);
       return;
@@ -106,10 +121,10 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
-      cleanupStream();
+      cleanupStream(false);
       if (lastUrl) URL.revokeObjectURL(lastUrl);
     };
-  }, [lastUrl]);
+  }, [lastUrl, setSharedDisplayStream]);
 
   return (
     <div className="space-y-3">

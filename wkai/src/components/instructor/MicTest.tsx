@@ -9,6 +9,7 @@ export function MicTest() {
   const streamRef = useRef<MediaStream | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const levelRef = useRef(0);
+  const lastCommitRef = useRef(0);
 
   async function startTest() {
     try {
@@ -22,27 +23,30 @@ export function MicTest() {
       }
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.2;
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
       source.connect(analyser);
       setTesting(true);
 
-      const data = new Uint8Array(analyser.fftSize);
+      const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
-        analyser.getByteTimeDomainData(data);
-        // RMS over time-domain samples (more reliable than frequency avg)
-        let sumSquares = 0;
-        for (let i = 0; i < data.length; i += 1) {
-          const v = (data[i] - 128) / 128;
-          sumSquares += v * v;
+        analyser.getByteFrequencyData(data);
+        const bins = Math.max(1, Math.floor(analyser.fftSize / 4));
+        let sum = 0;
+        for (let i = 0; i < bins; i += 1) {
+          sum += data[i];
         }
-        const rms = Math.sqrt(sumSquares / data.length); // ~0..1
-        const raw = Math.min(100, rms * 220);
+        const avg = sum / bins;
+        const raw = Math.min(100, (avg / 255) * 100 * 2.5);
         // Meter behavior: fast attack, slow decay
         const prev = levelRef.current;
         const next = raw > prev ? prev + (raw - prev) * 0.6 : prev * 0.92;
         levelRef.current = next < 0.5 ? 0 : next;
-        setLevel(levelRef.current);
+        const now = performance.now();
+        if (now - lastCommitRef.current >= 50) {
+          lastCommitRef.current = now;
+          setLevel(levelRef.current);
+        }
         animRef.current = requestAnimationFrame(tick);
       };
       tick();
@@ -56,15 +60,24 @@ export function MicTest() {
 
   function stopTest() {
     if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     ctxRef.current?.close();
     setTesting(false);
     setLevel(0);
     levelRef.current = 0;
+    lastCommitRef.current = 0;
     setError(null);
   }
 
-  useEffect(() => () => stopTest(), []);
+  useEffect(() => {
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      void ctxRef.current?.close();
+    };
+  }, []);
 
   return (
     <div className="space-y-3">

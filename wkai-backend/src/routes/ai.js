@@ -3,6 +3,7 @@ import {
   transcribeInstructorAudio,
   diagnoseStudentError,
   detectShareIntentForFiles,
+  analyzeColabContent,
   getAgentHealthReport,
   getAgentMetricsReport,
 } from "../ai/Agents/index.js";
@@ -63,6 +64,23 @@ aiRouter.get("/agents", async (_req, res, next) => {
     const health = await getAgentHealthReport();
     const metrics = getAgentMetricsReport();
     res.json({ health, metrics });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const ColabAssistSchema = z.object({
+  sessionId: z.string().min(1),
+  studentId: z.string().min(1),
+  colabContent: z.string().min(1).max(20_000),
+  contentType: z.enum(["url", "log", "code", "error"]),
+});
+
+aiRouter.post("/colab-assist", async (req, res, next) => {
+  try {
+    const { sessionId, studentId, colabContent, contentType } = ColabAssistSchema.parse(req.body);
+    const result = await analyzeColabContent(sessionId, studentId, colabContent, contentType);
+    res.json(result);
   } catch (err) {
     next(err);
   }

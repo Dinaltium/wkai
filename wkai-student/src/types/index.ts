@@ -47,6 +47,7 @@ export interface SharedFile {
   url: string;
   sizeBytes: number | null;
   sharedAt: string;
+  type?: "shared" | "material";
 }
 
 // ─── Error resolution ─────────────────────────────────────────────────────────
@@ -95,6 +96,8 @@ export type WsEventType =
   | "webrtc-answer"
   | "webrtc-ice-candidate"
   | "webrtc-session-reset"
+  | "colab-assist-request"
+  | "colab-assist-response"
   | "session-ended"
   | "error";
 

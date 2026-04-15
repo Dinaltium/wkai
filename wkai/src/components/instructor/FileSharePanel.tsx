@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Share2, File, Loader2, FolderOpen } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Share2, File, Loader2, FolderOpen, Upload } from "lucide-react";
 import { useAppStore } from "../../store";
 import { listWatchedFiles, shareFile } from "../../lib/tauri";
 import type { WatchedFile, WsEventType } from "../../types";
@@ -11,10 +11,13 @@ interface Props {
 }
 
 export function FileSharePanel({ sessionId, send }: Props) {
-  const { settings, sharedFiles } = useAppStore();
+  const { settings, sharedFiles, addDebugLog } = useAppStore();
   const [files, setFiles] = useState<WatchedFile[]>([]);
   const [sharing, setSharing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"folder" | "shared">("folder");
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!settings.watchFolder) return;
@@ -32,6 +35,49 @@ export function FileSharePanel({ sessionId, send }: Props) {
       console.error("Share failed", err);
     } finally {
       setSharing(null);
+    }
+  }
+
+  async function uploadSessionMaterial(file: File): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${settings.backendUrl}/api/files/upload-session-material`);
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        setUploadProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      xhr.onerror = () => reject(new Error("Upload failed"));
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Upload failed (${xhr.status})`));
+      };
+      const form = new FormData();
+      form.append("file", file);
+      form.append("sessionId", sessionId);
+      xhr.send(form);
+    });
+  }
+
+  async function handleUploadSelection(list: FileList | null) {
+    if (!list || list.length === 0 || uploading) return;
+    const selected = Array.from(list);
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      for (let i = 0; i < selected.length; i += 1) {
+        const progressStart = Math.round((i / selected.length) * 100);
+        setUploadProgress(progressStart);
+        await uploadSessionMaterial(selected[i]);
+      }
+      setUploadProgress(100);
+      addDebugLog(`Uploaded ${selected.length} session material file(s)`, "success");
+      setActiveTab("shared");
+    } catch (err) {
+      addDebugLog(`Session material upload failed: ${String(err)}`, "error");
+    } finally {
+      setTimeout(() => setUploadProgress(0), 600);
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -59,6 +105,33 @@ export function FileSharePanel({ sessionId, send }: Props) {
             {tab === "folder" ? "Files" : `Shared (${sharedFiles.length})`}
           </button>
         ))}
+      </div>
+      <div className="px-3 py-2 border-b border-wkai-border space-y-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          accept=".pdf,.pptx,.ppt,.docx,.txt,.zip,.py,.js,.ts"
+          onChange={(e) => void handleUploadSelection(e.target.files)}
+        />
+        <button
+          type="button"
+          className="btn-ghost w-full justify-center border border-wkai-border text-xs"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+        >
+          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+          {uploading ? "Uploading..." : "Upload Files"}
+        </button>
+        {uploading && (
+          <div className="h-1.5 rounded bg-wkai-border overflow-hidden">
+            <div
+              className="h-full bg-indigo-400 transition-all duration-150"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto p-3 space-y-1.5">

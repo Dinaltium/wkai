@@ -64,6 +64,10 @@ interface StudentStore {
   debugLogs: DebugLogEntry[];
   addDebugLog: (message: string, level?: DebugLogLevel) => void;
   clearDebugLogs: () => void;
+  colabAdvice: string | null;
+  setColabAdvice: (advice: string | null) => void;
+  colabFollowUps: string[];
+  setColabFollowUps: (questions: string[]) => void;
 
   // ─── UI ────────────────────────────────────────────────────────────────────
   activeTab: RoomTab;
@@ -168,6 +172,10 @@ export const useStore = create<StudentStore>((set) => ({
       ],
     })),
   clearDebugLogs: () => set({ debugLogs: [] }),
+  colabAdvice: null,
+  setColabAdvice: (colabAdvice) => set({ colabAdvice }),
+  colabFollowUps: [],
+  setColabFollowUps: (colabFollowUps) => set({ colabFollowUps }),
 
   activeTab: "live",
   setActiveTab: (activeTab) => {

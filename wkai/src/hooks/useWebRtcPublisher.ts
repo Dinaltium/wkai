@@ -18,21 +18,43 @@ export function useWebRtcPublisher(
 ) {
   const streamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const startedRef = useRef(false);
+  const hasRequestedStreamRef = useRef(false);
   const addDebugLog = useAppStore((s) => s.addDebugLog);
   const streamingToStudents = useAppStore((s) => s.streamingToStudents);
   const students = useAppStore((s) => s.students);
+  const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
+  const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
   const createPeerRef = useRef<(studentId: string) => Promise<void>>(async () => {});
 
   const ensureStream = async () => {
     if (streamRef.current) return streamRef.current;
+    if (sharedDisplayStream) {
+      streamRef.current = sharedDisplayStream;
+      return sharedDisplayStream;
+    }
+    if (hasRequestedStreamRef.current) return null;
+    hasRequestedStreamRef.current = true;
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 24, max: 30 } },
+      video: {
+        frameRate: { ideal: 24, max: 30 },
+        displaySurface: "monitor",
+      },
       audio: false,
+      preferCurrentTab: false,
+      selfBrowserSurface: "exclude",
+      // Browser-specific hints; ignored where unsupported.
+      // Cast is required because these properties are not in all TS lib DOM versions.
+    } as MediaStreamConstraints & {
+      preferCurrentTab?: boolean;
+      selfBrowserSurface?: "exclude";
     });
     streamRef.current = stream;
+    setSharedDisplayStream(stream);
     stream.getVideoTracks().forEach((track) => {
       track.onended = () => {
+        setSharedDisplayStream(null);
+        streamRef.current = null;
+        hasRequestedStreamRef.current = false;
         send("webrtc-session-reset", { reason: "display-track-ended" });
         addDebugLog("WebRTC stream ended by OS/user", "warn");
       };
@@ -56,6 +78,7 @@ export function useWebRtcPublisher(
     if (peersRef.current.has(studentId)) return;
 
     const stream = await ensureStream();
+    if (!stream) return;
     const peer = new RTCPeerConnection(RTC_CONFIG);
     peersRef.current.set(studentId, peer);
 
@@ -85,11 +108,12 @@ export function useWebRtcPublisher(
   createPeerRef.current = createPeerForStudent;
 
   useEffect(() => {
-    if (!sessionId || !streamingToStudents) return;
-    if (startedRef.current) return;
-    startedRef.current = true;
-    addDebugLog("WebRTC publisher armed", "info");
-  }, [sessionId, streamingToStudents, addDebugLog]);
+    const handleRequest = () => {
+      void ensureStream();
+    };
+    window.addEventListener("wkai:request-stream", handleRequest);
+    return () => window.removeEventListener("wkai:request-stream", handleRequest);
+  }, [sharedDisplayStream]);
 
   useEffect(() => {
     if (!sessionId || !streamingToStudents) return;
@@ -100,19 +124,6 @@ export function useWebRtcPublisher(
       if (!activeIds.has(studentId)) closePeer(studentId);
     });
   }, [sessionId, streamingToStudents, students]);
-
-  useEffect(() => {
-    const handleStudentJoined = (event: Event) => {
-      const detail = (event as CustomEvent<{ studentId?: string }>).detail;
-      const sid = detail?.studentId;
-      if (!sid || !sessionId || !streamingToStudents) return;
-      void createPeerRef.current(sid);
-    };
-    window.addEventListener("wkai:student-joined", handleStudentJoined);
-    return () => {
-      window.removeEventListener("wkai:student-joined", handleStudentJoined);
-    };
-  }, [sessionId, streamingToStudents]);
 
   useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {
@@ -150,13 +161,15 @@ export function useWebRtcPublisher(
     if (streamingToStudents) return;
     send("webrtc-session-reset", { reason: "stream-disabled" });
     [...peersRef.current.keys()].forEach(closePeer);
-  }, [streamingToStudents]);
+  }, [streamingToStudents, send]);
 
   useEffect(() => {
     return () => {
       [...peersRef.current.keys()].forEach(closePeer);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      setSharedDisplayStream(null);
+      hasRequestedStreamRef.current = false;
     };
-  }, []);
+  }, [setSharedDisplayStream]);
 }

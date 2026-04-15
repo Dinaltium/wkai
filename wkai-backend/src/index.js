@@ -6,6 +6,7 @@ import { initWebSocketServer } from "./ws/server.js";
 import { connectDb } from "./db/client.js";
 import { connectRedis } from "./db/redis.js";
 import { debugLog, debugEnabled } from "./utils/debug.js";
+import { startKeepAlive } from "./utils/keepAlive.js";
 
 const PORT = process.env.PORT ?? 4000;
 
@@ -46,6 +47,7 @@ async function main() {
     }
     console.log(`[WKAI] WebSocket:   ws://localhost:${PORT}/ws`);
     debugLog("BOOT", "server listening", { port: PORT, networkIp });
+    startKeepAlive();
   });
 }
 

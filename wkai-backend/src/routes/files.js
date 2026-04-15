@@ -2,6 +2,8 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import { v2 as cloudinary } from "cloudinary";
+import { query } from "../db/client.js";
+import { broadcast } from "../ws/server.js";
 
 export const filesRouter = Router();
 
@@ -17,7 +19,7 @@ cloudinary.config({
 // ─── Multer — keep file in memory before uploading to Cloudinary ──────────────
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB max
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB max
 });
 
 // ─── POST /api/files/upload ───────────────────────────────────────────────────
@@ -50,6 +52,47 @@ filesRouter.post("/upload", upload.single("file"), async (req, res, next) => {
   }
 });
 
+filesRouter.post("/upload-session-material", upload.single("file"), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+    const sessionId = String(req.body?.sessionId ?? "").trim();
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId required" });
+    }
+
+    const baseName = path.basename(req.file.originalname, path.extname(req.file.originalname));
+    const publicId = `wkai-materials/${sessionId}/${Date.now()}_${baseName}`;
+    const url = await uploadToCloudinary(req.file.buffer, publicId, req.file.mimetype, "auto");
+
+    const { rows } = await query(
+      `INSERT INTO shared_files (session_id, name, url, size_bytes)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [sessionId, req.file.originalname, url, req.file.size]
+    );
+    const row = rows[0];
+    const payload = {
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      sharedAt: row.shared_at,
+      sizeBytes: row.size_bytes,
+      type: "material",
+    };
+
+    broadcast(sessionId, {
+      type: "file-shared",
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+
+    return res.json(payload);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 // ─── Upload helper ────────────────────────────────────────────────────────────
 
 /**
@@ -63,11 +106,11 @@ filesRouter.post("/upload", upload.single("file"), async (req, res, next) => {
  * @param {string} mimeType    e.g. "application/pdf"
  * @returns {Promise<string>}  secure HTTPS download URL
  */
-function uploadToCloudinary(buffer, publicId, mimeType) {
+function uploadToCloudinary(buffer, publicId, mimeType, resourceType = "raw") {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        resource_type: "raw",   // handles PDFs, code files, zip, etc.
+        resource_type: resourceType, // "raw" for generic files, "auto" for mixed materials
         public_id:     publicId,
         overwrite:     false,
         // Makes the file directly downloadable rather than displayed inline

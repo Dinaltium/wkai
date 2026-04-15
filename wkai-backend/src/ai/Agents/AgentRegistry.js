@@ -3,6 +3,7 @@ import { QuizAgent } from "./QuizAgent.js";
 import { DebugAgent } from "./DebugAgent.js";
 import { IntentAgent } from "./IntentAgent.js";
 import { MessageAgent } from "./MessageAgent.js";
+import { ColabAgent } from "./ColabAgent.js";
 import { getAllAgentMetrics } from "./BaseAgent.js";
 
 export const Agents = {
@@ -11,6 +12,7 @@ export const Agents = {
   DebugAgent,
   IntentAgent,
   MessageAgent,
+  ColabAgent,
 };
 
 export function listAgentNames() {

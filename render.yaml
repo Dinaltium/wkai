@@ -8,6 +8,8 @@ services:
     buildCommand: npm install
     startCommand: npm run start
     healthCheckPath: /health
+    # Render automatically injects RENDER_EXTERNAL_URL at runtime.
+    # KeepAlive uses that value for self-ping in production.
     envVars:
       - key: NODE_VERSION
         value: 20

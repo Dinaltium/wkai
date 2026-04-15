@@ -1,98 +1,143 @@
 # WKAI Implementation Changes Summary
 
-This document summarizes all changes implemented in this session across `wkai`, `wkai-student`, and `wkai-backend`.
+This document summarizes all key work completed across `wkai`, `wkai-student`, `wkai-backend`, CI/CD workflows, and deployment setup.
 
 ## Completed Feature Areas
 
-- Network/LAN support (already present at session start, verified)
-- Capture pipeline hardening and compression
-- Instructor live share toggle
-- Instructor debug console panel
-- Student name flow + instructor student list and join toasts
-- Student session-ended modal + live preview + Q&A tab
-- Instructor inbox + backend AI fallback messaging
-- Instructor settings mic test + AI connectivity test
-- AI token/reliability optimizations
-- UI text polish and emoji cleanup
+- Capture pipeline hardening, compression, and diagnostics
+- Instructor live-share controls and recording reliability
+- Student join-name flow, student list, join toasts, and inbox messaging
+- Student session-ended modal, `Live` tab, and Q&A flow
+- Phase 1 WebRTC signaling + publisher/receiver implementation
+- AI reliability, token-usage optimization, and fallback behavior
+- Automatic hidden backend environment switching (dev vs production)
+- In-app updater flow with `Update now` and `Later`
+- CI release pipeline/version auto-bump fixes
+- Deployment stabilization for Vercel + Render
 
 ## Key Changes by Repository
 
-### `wkai` (Instructor App)
+### `wkai` (Instructor Desktop App)
 
-- Added capture test wrapper in `src/lib/tauri.ts` and expanded capture config passthrough.
-- Added live share state and controls:
-  - `streamingToStudents` store state
+- Capture improvements:
+  - expanded capture config passthrough in `src/lib/tauri.ts`
+  - improved JPEG/resize behavior and capture-status flow
+- Live-share controls:
+  - `streamingToStudents` state in `src/store/index.ts`
   - new `src/components/instructor/ShareToggle.tsx`
-- Added debug system:
-  - new debug types in `src/types/index.ts`
-  - debug log buffer/actions in `src/store/index.ts`
+- Debug console:
+  - debug types in `src/types/index.ts`
+  - rolling debug buffer/actions in `src/store/index.ts`
   - new `src/components/instructor/DebugPanel.tsx`
-  - debug toggle integrated in `src/components/shared/AppShell.tsx`
+  - wiring in `src/components/shared/AppShell.tsx`
   - hook instrumentation in `src/hooks/useTauriEvents.ts` and `src/hooks/useWebSocket.ts`
-- Added student/inbox views:
-  - student list and join toasts (`StudentPanel`, `StudentJoinToast`)
-  - inbox panel for instructor replies (`InboxPanel`)
-  - tabbed integration in `src/pages/SessionPage.tsx`
-- Added settings diagnostics:
+- Student management + messaging:
+  - student list panel and join toast
+  - instructor inbox panel and tab integration in `src/pages/SessionPage.tsx`
+- Settings diagnostics:
   - `src/components/instructor/MicTest.tsx`
   - `src/components/instructor/AITest.tsx`
-  - integrated into `src/pages/SettingsPage.tsx`
-- Updated end-session loading label for tone consistency.
+- Recording reliability:
+  - force-stop and cleanup hardening on end session
+- Backend URL handling (hidden and locked):
+  - settings UI backend field removed from `src/pages/SettingsPage.tsx`
+  - environment-based backend selection enforced in `src/store/index.ts`
+  - `tauri:dev` defaults to local backend
+  - packaged/release app defaults to Render backend
+  - optional env overrides supported (`VITE_BACKEND_URL_DEV`, `VITE_BACKEND_URL_PROD`)
+- Auto-update implementation:
+  - updater plugin integration in `src-tauri/src/lib.rs`
+  - custom updater UI in `src/components/shared/UpdateManager.tsx`
+  - mounted in `src/components/shared/AppShell.tsx`
+  - updater default dialog disabled in `src-tauri/tauri.conf.json`
+  - Tauri updater ACL capability added in `src-tauri/capabilities/default.json`
+  - update check behavior finalized:
+    - check on app open
+    - recheck every 1 hour while app runs
+    - no update = silent
+    - check failures = silent (dev console warning only)
+    - update failures show retry/dismiss options only when user chooses update
 
-### `wkai-student` (Student App)
+### `wkai-student` (Student Web App)
 
-- Join flow enhancements:
+- Join flow:
   - student name input + persistence in `src/pages/JoinPage.tsx`
-  - student name included in socket query (`src/hooks/useRoomSocket.ts`)
-- Added session-ended modal UX:
+  - student name sent in socket query (`src/hooks/useRoomSocket.ts`)
+- Session lifecycle UX:
   - new `src/components/shared/SessionEndedModal.tsx`
   - integrated in `src/pages/RoomPage.tsx`
-- Added live screen preview:
-  - preview state in `src/store/index.ts`
-  - socket dispatch handling in `src/hooks/useRoomSocket.ts`
+- Live view and messaging:
+  - preview state/store updates
   - new `src/components/guide/ScreenPreview.tsx`
-  - `Live` tab via `src/components/shared/TabBar.tsx`
-- Added Q&A messaging:
-  - chat types in `src/types/index.ts`
-  - chat store actions in `src/store/index.ts`
-  - reply/AI-reply handling in `src/hooks/useRoomSocket.ts`
-  - new `src/components/messages/MessagePanel.tsx`
-  - `Q&A` tab via `TabBar` and `RoomPage`
-- Added `src/vite-env.d.ts` and baseline strict-TS cleanups for student build health.
-- UI copy polish updates in `ErrorHelper`, `GuideFeed`, and `FilesPanel`.
+  - Q&A panel and message handling
+  - default tab set to `Live`
+- WebRTC receiver:
+  - new `src/hooks/useWebRtcReceiver.ts`
+  - signaling integration in room socket flow
+- Build/type stability:
+  - strict TypeScript cleanup and `src/vite-env.d.ts` additions
 
 ### `wkai-backend` (Node Backend)
 
-- WebSocket session improvements in `src/ws/server.js`:
-  - student names parsed from query string
-  - joined/left payloads include `studentId` and `studentName`
-  - `session-state` includes student list
-  - student message handling + instructor reply routing
-  - 45s AI fallback timer for unanswered student messages
-  - conditional student `screen-preview` broadcast retained
-- Redis student-list helpers in `src/db/redis.js`:
+- WebSocket session upgrades in `src/ws/server.js`:
+  - parse student names from query
+  - include `studentId`/`studentName` in join/leave events
+  - include student list in `session-state`
+  - add student-to-instructor message routing and reply events
+  - add AI fallback timer for unanswered student messages
+- Redis student list support in `src/db/redis.js`:
   - `addStudentToList`
   - `removeStudentFromList`
   - `getStudentList`
-- Added new LangGraph message fallback agent:
-  - `src/ai/graphs/messageAgent.js`
-- AI optimization/reliability updates:
-  - reduced `maxTokens` and added `callWithRetry` in `src/ai/groqClient.js`
-  - context window reduction in `src/ai/memory.js` (`slice(-4)`)
-  - tightened screen analysis prompt in `src/ai/prompts.js`
-  - increased intent confidence threshold in `src/ai/graphs/intentAgent.js`
-  - integrated retry wrapper in `intentAgent`, `screenPipeline`, `errorAgent`, and `messageAgent`
-- Runtime string polish in `src/routes/runner.js` (timeout output text).
+- AI behavior updates:
+  - added message fallback agent (`src/ai/graphs/messageAgent.js`)
+  - retry wrapper integration for key agents/pipelines
+  - lower token pressure and context trimming
+  - confidence/prompt tuning
+- WebRTC signaling relay:
+  - `webrtc-offer`, `webrtc-answer`, `webrtc-ice-candidate`, `webrtc-session-reset`
+- AI agent platform:
+  - centralized agents under `src/ai/Agents`
+  - registry/orchestration/metrics endpoint (`GET /api/ai/agents`)
 
-## Validation Performed
+## CI/CD and Release Workflow Changes
 
-- `npx tsc --noEmit` passed repeatedly in:
-  - `wkai/`
-  - `wkai-student/`
-- `cargo check` passed in:
-  - `wkai/src-tauri/`
+- Fixed release build not triggering after bump tags due to duplicate-tag and workflow behavior.
+- Updated `.github/workflows/bump-and-tag-release.yml` to:
+  - keep bumping until a unique next tag is available
+  - avoid getting stuck when version files lag behind tags
+  - restore combined run view with in-workflow build matrix jobs
+- Synced release behavior so version bumping and builds stay visible in one workflow run.
+- Verified push/rebase guidance for `ahead/behind` branch state during auto-release commits.
 
-## Commit Trail Added In This Session
+## Build/Platform Fixes
+
+- Fixed macOS CI build failure caused by unused `xcap` crate compile error:
+  - removed `xcap` from `wkai/src-tauri/Cargo.toml`
+  - lockfile updated and `cargo check` revalidated
+- Clarified macOS sharing limitation:
+  - compile fix does not replace Apple signing/notarization requirements for trust on other Macs
+
+## Deployment and Environment Setup Finalized
+
+- Vercel (`wkai-student`) configuration standardized:
+  - root directory `wkai-student/`
+  - Vite build + `dist` output
+  - required frontend env vars for backend HTTP/WS
+- Render (`wkai-backend`) setup standardized:
+  - required env vars documented and applied (`DATABASE_URL`, `REDIS_URL`, `GROQ_API_KEY`, `STUDENT_JOIN_TOKEN_SECRET`, `CORS_ALLOWED_ORIGINS`)
+  - Redis clarified to use `REDIS_URL` (`rediss://...`) for Upstash TCP/TLS
+  - health endpoint and socket endpoint validation flow confirmed
+
+## Validation Performed During Work
+
+- `npx tsc --noEmit` in `wkai/` and `wkai-student/`
+- `npm run build` in `wkai/` and `wkai-student/`
+- `cargo check` in `wkai/src-tauri/`
+- `node --check` on modified backend modules
+- workflow behavior validated through tag/version scenarios
+
+## Representative Commit Trail Mentioned
 
 - `fix(student): restore TypeScript compile baseline`
 - `fix(capture): resize+JPEG compression, capture-status events, conditional student stream`
@@ -103,40 +148,4 @@ This document summarizes all changes implemented in this session across `wkai`, 
 - `feat(settings): microphone level test and AI connectivity test`
 - `perf(ai): reduce token usage and add Groq rate-limit retries`
 - `style(ui): remove emojis, professional tone, consistent labels`
-
-## Phase 1 WebRTC + Stability (Current Session)
-
-- Added shared signaling event contracts for `webrtc-offer`, `webrtc-answer`, `webrtc-ice-candidate`, and `webrtc-session-reset` in both apps.
-- Added backend signaling relay in `wkai-backend/src/ws/server.js` with targeted student routing and diagnostics for offer/answer/ICE/reset events.
-- Added instructor publisher flow:
-  - new `wkai/src/hooks/useWebRtcPublisher.ts`
-  - integrated with `useWebSocket` handler registry and `SessionPage`
-  - per-student peer lifecycle and cleanup on disconnect/reset.
-- Added student receiver flow:
-  - new `wkai-student/src/hooks/useWebRtcReceiver.ts`
-  - signaling bridge in `wkai-student/src/hooks/useRoomSocket.ts`
-  - live `<video>` rendering in `wkai-student/src/components/guide/ScreenPreview.tsx` with screenshot fallback.
-- Fixed recording stop reliability:
-  - force-stop event from `EndSessionButton`
-  - hardened cleanup/track release and stop-state handling in `RecordingPanel`.
-- Set default student tab to `Live` in store boot and join/room bootstrap flows.
-- Kept screenshot AI path active with backend ingest relay and tuned capture cadence defaults for smoother behavior.
-
-### Phase 1 Validation
-
-- `npx tsc --noEmit` passed in `wkai/`.
-- `npx tsc --noEmit` passed in `wkai-student/`.
-- `cargo check` passed in `wkai/src-tauri/`.
-- `npm run build` passed in `wkai/`.
-- `npm run build` passed in `wkai-student/`.
-- `node --check src/ws/server.js` passed in `wkai-backend/`.
-
-### Phase 1 Commit Trail
-
-- `add shared webrtc signaling event contracts`
-- `add backend webrtc signaling relay handlers`
-- `add instructor webrtc publisher and peer management`
-- `add student webrtc receiver and live video rendering`
-- `fix recording stop behavior and end-session shutdown`
-- `set student live tab as default on join`
-- `separate screenshot ingest path and tune ai cadence defaults`
+- `add in-app auto updater and lock backend environment switching`

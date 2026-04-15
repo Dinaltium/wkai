@@ -18,6 +18,34 @@ export function MessagePanel({ send }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  useEffect(() => {
+    const handlePrefill = (event: Event) => {
+      const detail = (event as CustomEvent<{ text?: string; autoSend?: boolean }>).detail;
+      const textToUse = (detail?.text ?? "").trim();
+      if (!textToUse) return;
+      setText(textToUse);
+      if (detail?.autoSend) {
+        const messageId = `${studentId}_${Date.now()}`;
+        const msg: ChatMessage = {
+          id: messageId,
+          role: "student",
+          text: textToUse,
+          timestamp: new Date().toISOString(),
+          pending: true,
+        };
+        addChatMessage(msg);
+        send("student-message", {
+          messageId,
+          message: textToUse,
+          sessionId: session?.id,
+        });
+        setText("");
+      }
+    };
+    window.addEventListener("wkai:prefill-question", handlePrefill);
+    return () => window.removeEventListener("wkai:prefill-question", handlePrefill);
+  }, [addChatMessage, send, session?.id, studentId]);
+
   function handleSend() {
     if (!text.trim()) return;
     const messageId = `${studentId}_${Date.now()}`;

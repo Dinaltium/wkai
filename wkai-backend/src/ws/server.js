@@ -19,6 +19,7 @@ import {
   buildTranscriptQuiz,
   diagnoseStudentError,
   replyToStudentMessage,
+  analyzeColabContent,
 } from "../ai/Agents/index.js";
 import { debugLog, debugError } from "../utils/debug.js";
 import { verifyStudentJoinToken } from "../auth/sessionAccess.js";
@@ -199,6 +200,10 @@ export function initWebSocketServer(httpServer) {
         case "webrtc-session-reset":
           if (ws.role !== "instructor") break;
           handleWebRtcSessionReset(ws, msg.payload);
+          break;
+        case "colab-assist-request":
+          if (ws.role !== "student") break;
+          await handleColabAssistRequest(ws, msg.payload);
           break;
         default:
           console.log(`[WS] unhandled message type: ${msgType}`);
@@ -616,6 +621,47 @@ function handleWebRtcSessionReset(ws, payload) {
     timestamp: new Date().toISOString(),
   });
   debugLog("WS", "webrtc-session-reset broadcast", { sessionId, reason });
+}
+
+async function handleColabAssistRequest(ws, payload) {
+  const sessionId = ws.sessionId;
+  const studentId = ws.studentId;
+  const colabContent = String(payload?.colabContent ?? "").trim();
+  if (!colabContent) return;
+
+  let contentType = String(payload?.contentType ?? "log").toLowerCase();
+  if (!["url", "log", "code", "error"].includes(contentType)) {
+    contentType = "log";
+  }
+
+  try {
+    const result = await analyzeColabContent(sessionId, studentId, colabContent, contentType);
+    ws.send(
+      JSON.stringify({
+        type: "colab-assist-response",
+        payload: {
+          advice: result.advice,
+          followUpQuestions: result.followUpQuestions ?? [],
+          contentType,
+          timestamp: new Date().toISOString(),
+        },
+      })
+    );
+  } catch (err) {
+    debugError("WS", "colab assist failed", err);
+    ws.send(
+      JSON.stringify({
+        type: "colab-assist-response",
+        payload: {
+          advice:
+            "I could not analyze your Colab content right now. Please paste your traceback and failing cell output.",
+          followUpQuestions: [],
+          contentType,
+          timestamp: new Date().toISOString(),
+        },
+      })
+    );
+  }
 }
 
 // ─── Session cleanup ──────────────────────────────────────────────────────────

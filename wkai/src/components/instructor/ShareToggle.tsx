@@ -3,7 +3,15 @@ import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 
 export function ShareToggle() {
-  const { streamingToStudents, setStreamingToStudents } = useAppStore();
+  const { streamingToStudents, setStreamingToStudents, sharedDisplayStream } = useAppStore();
+
+  function handleToggle() {
+    const next = !streamingToStudents;
+    if (next && !sharedDisplayStream) {
+      window.dispatchEvent(new Event("wkai:request-stream"));
+    }
+    setStreamingToStudents(next);
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -11,7 +19,7 @@ export function ShareToggle() {
         Screen Sharing
       </p>
       <button
-        onClick={() => setStreamingToStudents(!streamingToStudents)}
+        onClick={handleToggle}
         className={clsx(
           "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
           streamingToStudents

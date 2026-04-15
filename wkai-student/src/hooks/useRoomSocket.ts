@@ -130,6 +130,13 @@ export function useRoomSocket(roomCode: string) {
         useStore.getState().setConnected(false);
         ws.current?.close();
         break;
+      case "colab-assist-response": {
+        const p = msg.payload as { advice: string; followUpQuestions?: string[] };
+        useStore.getState().setColabAdvice(p.advice);
+        useStore.getState().setColabFollowUps(p.followUpQuestions ?? []);
+        useStore.getState().addDebugLog("Colab assistant response received", "success");
+        break;
+      }
       case "webrtc-offer":
       case "webrtc-ice-candidate":
       case "webrtc-session-reset":

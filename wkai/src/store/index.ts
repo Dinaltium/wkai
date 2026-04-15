@@ -47,6 +47,8 @@ interface AppStore {
   removeStudent: (studentId: string) => void;
   streamingToStudents: boolean;
   setStreamingToStudents: (v: boolean) => void;
+  sharedDisplayStream: MediaStream | null;
+  setSharedDisplayStream: (stream: MediaStream | null) => void;
 
   // ─── Debug Console ─────────────────────────────────────────────────────────
   debugLogs: DebugLogEntry[];
@@ -137,8 +139,10 @@ export const useAppStore = create<AppStore>((set) => ({
     set((state) => ({
       students: state.students.filter((s) => s.studentId !== studentId),
     })),
-  streamingToStudents: true,
+  streamingToStudents: false,
   setStreamingToStudents: (streamingToStudents) => set({ streamingToStudents }),
+  sharedDisplayStream: null,
+  setSharedDisplayStream: (sharedDisplayStream) => set({ sharedDisplayStream }),
 
   debugLogs: [],
   addDebugLog: (message, level = "info") =>

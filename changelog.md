@@ -1,96 +1,88 @@
 # WKAI Changelog
 
-This changelog consolidates the major implementation work completed across `wkai`, `wkai-student`, and `wkai-backend`.
+Consolidated release notes for implementation and platform work across `wkai`, `wkai-student`, `wkai-backend`, CI, and deployment.
 
-## 2026-04 - Platform Stabilization + Live Stack
+## 2026-04 - Release Pipeline + Deployment Reliability
 
-### Core stability and diagnostics
-- Hardened instructor capture pipeline in Tauri/Rust.
-- Added extensive backend and frontend debug logging for HTTP + WS flows.
-- Fixed multiple reconnection/race issues in instructor and student WebSocket hooks.
-- Improved join/session lifecycle state handling to prevent stale-session kickouts.
+### CI/CD and versioning
+- Fixed auto-bump/tag flow so it no longer stalls on existing tags (for example when version files lag behind remote tags).
+- Updated bump workflow to continue incrementing until a unique `v*` tag is found.
+- Restored combined release workflow view with matrix builds in the same run (`windows`, `ubuntu`, `macos`).
+- Documented and verified safe branch sync flow (`pull --rebase`) to avoid push rejection when auto-release commits land first.
 
-### Live streaming evolution
-- Implemented WebRTC signaling contract and relay:
+### Build platform fixes
+- Resolved macOS CI build failure from unused `xcap` crate compile break (`E0282`) by removing stale dependency.
+- Revalidated Tauri Rust build after lockfile update.
+- Noted that macOS compile success and Gatekeeper trust are separate concerns (signing/notarization still required for frictionless external installs).
+
+## 2026-04 - App Connectivity and Update Experience
+
+### Hidden backend environment switching (desktop app)
+- Removed instructor-visible backend URL editing from settings.
+- Enforced internal backend routing:
+  - dev mode (`tauri:dev`) -> local backend
+  - packaged/release app -> Render backend
+- Added optional env override support for controlled internal changes.
+
+### In-app updater
+- Added Tauri updater plugin integration (Rust + frontend).
+- Implemented custom update UX with:
+  - `Update now`
+  - `Later`
+- Added per-version dismiss behavior so `Later` does not repeatedly prompt for the same version.
+- Added updater ACL capability permissions to resolve command-authorization errors.
+- Finalized check cadence and silence policy:
+  - check at app open
+  - check every 1 hour while running
+  - no update/check failure remains silent
+  - only install failures surface actionable retry UI
+
+## 2026-04 - Live Learning Stack and Product Enhancements
+
+### Instructor app (`wkai`)
+- Improved capture reliability/compression and capture-status behavior.
+- Added live share toggle, debug panel, student panel, join toasts, and inbox panel.
+- Added microphone test and AI connectivity diagnostics in settings.
+- Hardened recording stop and end-session cleanup.
+
+### Student app (`wkai-student`)
+- Added student name join flow and persistence.
+- Added session-ended modal and stronger room lifecycle handling.
+- Added `Live` tab and Q&A tab enhancements.
+- Set `Live` as default tab on join.
+
+### Backend (`wkai-backend`)
+- Enhanced WebSocket session state with student names and list state.
+- Added student message routing and instructor reply flow.
+- Added AI fallback timer for unanswered student questions.
+- Added Redis student-list helpers.
+- Added AI retry and token-efficiency improvements.
+
+## 2026-04 - Phase 1 WebRTC
+
+- Added shared signaling contract:
   - `webrtc-offer`
   - `webrtc-answer`
   - `webrtc-ice-candidate`
   - `webrtc-session-reset`
-- Added instructor WebRTC publisher with per-student peer management.
-- Added student WebRTC receiver and live `<video>` playback.
-- Added student background live behavior toggle for tab-hidden handling.
-- Removed screenshot-based student preview path; student live display now uses WebRTC-only flow.
-
-### Recording + session controls
-- Added instructor recording panel with start/stop/download flow.
-- Hardened recording stop cleanup and force-stop on end session.
-
-### Student UX and learning flow
-- Set student default tab to `Live` on join/bootstrap.
-- Added AI live transcript explanation display in student live view.
-- Added transcript-driven comprehension generation cadence on backend.
-- Merged student `Editor` + `Errors` into unified `AI Helper` workspace.
-
-### AI reliability and behavior changes
-- Added clearer AI diagnosis availability messaging (including usage-limit and API-unavailable states).
-- Removed speculative heuristic fallback fixes for diagnosis when AI is unavailable.
-- Preserved AI screenshot ingest path for backend analysis cadence while decoupling student live rendering.
+- Added backend signaling relay with targeted student routing.
+- Added instructor WebRTC publisher with per-student peer lifecycle management.
+- Added student WebRTC receiver and live video rendering path.
+- Preserved screenshot ingest pipeline for AI analysis cadence where required.
 
 ## 2026-04 - Centralized AI Agent Platform
 
-Introduced centralized AI agent architecture in backend under:
+- Introduced modular agent architecture under `wkai-backend/src/ai/Agents`.
+- Added `ScreenAgent`, `VoiceAgent`, `QuizAgent`, `DebugAgent`, `IntentAgent`, and `MessageAgent`.
+- Added shared base conventions, registry, orchestration, and metrics.
+- Added `GET /api/ai/agents` health/metrics endpoint.
+- Added agent contract tests (`npm run test:agents`).
 
-`wkai-backend/src/ai/Agents`
+## Validation Snapshots Run During Implementation
 
-### Added agents
-- `ScreenAgent`
-- `VoiceAgent`
-- `QuizAgent`
-- `DebugAgent`
-- `IntentAgent`
-- `MessageAgent`
-
-### Added platform components
-- `BaseAgent` conventions:
-  - `name`
-  - `version`
-  - `invoke`
-  - `healthCheck`
-- Agent registry + exports:
-  - `AgentRegistry.js`
-  - `index.js`
-- Agent orchestration module:
-  - `AgentOrchestrator.js` (`Voice -> Screen -> Quiz` workflow)
-
-### Feature flags
-Per-agent env flags added for safe rollout:
-- `AI_AGENT_SCREEN_AGENT_ENABLED`
-- `AI_AGENT_VOICE_AGENT_ENABLED`
-- `AI_AGENT_QUIZ_AGENT_ENABLED`
-- `AI_AGENT_DEBUG_AGENT_ENABLED`
-- `AI_AGENT_INTENT_AGENT_ENABLED`
-- `AI_AGENT_MESSAGE_AGENT_ENABLED`
-
-### Agent metrics and observability
-Tracked per-agent:
-- call count
-- latency (last/avg/total)
-- error count and error rate
-- token cost (when usage metadata is available)
-- last invoke/error metadata and tags
-
-New endpoint:
-- `GET /api/ai/agents` -> agent health + metrics snapshot
-
-### Contract tests
-Added backend contract tests for agent lifecycle and registry:
-- `wkai-backend/tests/agents.contract.test.js`
-- Script: `npm run test:agents`
-
-## Validation snapshots run during implementation
-- `npx tsc --noEmit` (instructor/student apps)
-- `cargo check` (Tauri Rust layer)
-- `npm run build` (instructor/student)
-- `node --check` on modified backend modules
-- `npm run test:agents` for agent contracts
+- `npx tsc --noEmit` (`wkai`, `wkai-student`)
+- `npm run build` (`wkai`, `wkai-student`)
+- `cargo check` (`wkai/src-tauri`)
+- `node --check` (modified backend modules)
+- `npm run test:agents` (backend agent contracts)
 

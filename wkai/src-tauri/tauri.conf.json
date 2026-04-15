@@ -31,7 +31,7 @@
       "iconAsTemplate": true
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self' asset: http://asset.localhost https://asset.localhost; connect-src ipc: http://ipc.localhost ws: wss: http: https:; img-src 'self' asset: data: blob:; media-src 'self' blob: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; frame-src 'self';"
     }
   },
   "bundle": {

@@ -50,6 +50,7 @@ export interface SharedFile {
   url: string;
   sharedAt: string;
   sizeBytes: number;
+  type?: "shared" | "material";
 }
 
 export interface StudentInfo {
