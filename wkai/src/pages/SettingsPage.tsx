@@ -45,20 +45,6 @@ export function SettingsPage() {
         </section>
 
         {/* Backend */}
-        <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
-            Backend
-          </h2>
-          <Field label="Backend URL" hint="Where your Node.js server is running">
-            <input
-              className="input font-mono text-xs"
-              value={settings.backendUrl}
-              onChange={(e) => updateSettings({ backendUrl: e.target.value })}
-              placeholder="http://localhost:4000"
-            />
-          </Field>
-        </section>
-
         {/* Network Info */}
         {networkInfo?.localIp && (
           <section className="card space-y-3 p-4">

@@ -21,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
 
         // Register all Tauri commands (callable from JS frontend)
         .invoke_handler(tauri::generate_handler![

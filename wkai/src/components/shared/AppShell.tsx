@@ -4,6 +4,7 @@ import { useTauriEvents } from "../../hooks/useTauriEvents";
 import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 import { DebugPanel } from "../instructor/DebugPanel";
+import { UpdateManager } from "./UpdateManager";
 
 export function AppShell() {
   useTauriEvents(); // wire up all Tauri event listeners
@@ -87,6 +88,7 @@ export function AppShell() {
       </div>
 
       {debugPanelOpen && <DebugPanel />}
+      <UpdateManager />
     </div>
   );
 }

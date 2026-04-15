@@ -59,10 +59,16 @@ interface AppStore {
   markInboxReplied: (messageId: string) => void;
 }
 
+const PROD_BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL_PROD ?? "https://wkai.onrender.com";
+const DEV_BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL_DEV ?? "http://localhost:4000";
+const RESOLVED_BACKEND_URL = import.meta.env.DEV ? DEV_BACKEND_URL : PROD_BACKEND_URL;
+
 const DEFAULT_SETTINGS: AppSettings = {
   instructorName: "",
   watchFolder:    "",
-  backendUrl:     "http://localhost:4000",
+  backendUrl:     RESOLVED_BACKEND_URL,
   groqApiKey:     "",
 };
 
@@ -73,7 +79,8 @@ function readStoredSettings(): AppSettings {
   if (!raw) return { ...DEFAULT_SETTINGS };
   try {
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    // Backend URL is environment-controlled and intentionally not user-editable.
+    return { ...DEFAULT_SETTINGS, ...parsed, backendUrl: RESOLVED_BACKEND_URL };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -83,7 +90,13 @@ export const useAppStore = create<AppStore>((set) => ({
   settings: readStoredSettings(),
   updateSettings: (partial) =>
     set((s) => {
-      const next = { ...s.settings, ...partial };
+      // Ignore attempts to mutate backend URL from UI or stale storage.
+      const { backendUrl: _ignoredBackendUrl, ...safePartial } = partial;
+      const next = {
+        ...s.settings,
+        ...safePartial,
+        backendUrl: RESOLVED_BACKEND_URL,
+      };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
       return { settings: next };
     }),
