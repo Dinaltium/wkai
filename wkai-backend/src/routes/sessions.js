@@ -20,7 +20,7 @@ const CreateSessionSchema = z.object({
   instructorName: z.string().min(1).max(100),
   workshopTitle:  z.string().min(1).max(200),
   roomCode:       z.string().length(6).toUpperCase(),
-  sessionPassword: z.string().min(4).max(128).optional(),
+  sessionPassword: z.string().min(4).max(128).nullable().optional(),
 });
 
 sessionRouter.post("/", async (req, res, next) => {
@@ -69,7 +69,7 @@ sessionRouter.post("/", async (req, res, next) => {
 const JoinSessionSchema = z.object({
   studentId: z.string().min(3).max(64),
   studentName: z.string().min(1).max(40),
-  sessionPassword: z.string().max(128).optional(),
+  sessionPassword: z.string().max(128).nullable().optional(),
 });
 
 sessionRouter.post("/:roomCode/join", async (req, res, next) => {
