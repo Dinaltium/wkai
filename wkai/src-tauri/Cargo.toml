@@ -1,6 +1,6 @@
 [package]
 name = "wkai-instructor"
-version = "0.1.10"
+version = "0.1.11"
 description = "WKAI Instructor Desktop App"
 authors = ["WKAI Team"]
 edition = "2021"
