@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 
-type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "done" | "error";
+/** Hourly check interval while app stays open */
+const CHECK_INTERVAL_MS = 1000 * 60 * 60;
+
+type UpdateStatus = "idle" | "available" | "downloading" | "done" | "installError";
+
 const DISMISSED_UPDATE_KEY = "wkai_dismissed_update_version";
 
 export function UpdateManager() {
   const [status, setStatus] = useState<UpdateStatus>("idle");
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const [installErrorText, setInstallErrorText] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(() =>
     localStorage.getItem(DISMISSED_UPDATE_KEY)
   );
@@ -16,7 +20,7 @@ export function UpdateManager() {
     if (status === "available" && latestVersion && dismissedVersion === latestVersion) {
       return false;
     }
-    return status === "available" || status === "downloading" || status === "done" || status === "error";
+    return status === "available" || status === "downloading" || status === "done" || status === "installError";
   }, [status, latestVersion, dismissedVersion]);
 
   useEffect(() => {
@@ -26,7 +30,6 @@ export function UpdateManager() {
 
     async function runCheck() {
       try {
-        setStatus("checking");
         const update = await check();
         if (cancelled) return;
 
@@ -43,15 +46,17 @@ export function UpdateManager() {
         setStatus("available");
       } catch (err) {
         if (cancelled) return;
-        setErrorText(err instanceof Error ? err.message : String(err));
-        setStatus("error");
+        if (import.meta.env.DEV) {
+          console.warn("[WKAI updater] check failed:", err);
+        }
+        setStatus("idle");
       }
     }
 
     void runCheck();
     const timer = window.setInterval(() => {
       void runCheck();
-    }, 1000 * 60 * 30);
+    }, CHECK_INTERVAL_MS);
 
     return () => {
       cancelled = true;
@@ -61,6 +66,7 @@ export function UpdateManager() {
 
   async function handleUpdateNow() {
     try {
+      setInstallErrorText(null);
       setStatus("downloading");
       const update = await check();
       if (!update) {
@@ -70,8 +76,8 @@ export function UpdateManager() {
       await update.downloadAndInstall();
       setStatus("done");
     } catch (err) {
-      setErrorText(err instanceof Error ? err.message : String(err));
-      setStatus("error");
+      setInstallErrorText(err instanceof Error ? err.message : String(err));
+      setStatus("installError");
     }
   }
 
@@ -120,13 +126,16 @@ export function UpdateManager() {
         </div>
       )}
 
-      {status === "error" && (
+      {status === "installError" && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-red-400">Update check failed</h3>
-          <p className="text-xs text-wkai-text-dim">{errorText ?? "Unknown updater error."}</p>
-          <div className="flex justify-end">
+          <h3 className="text-sm font-semibold text-red-400">Update failed</h3>
+          <p className="text-xs text-wkai-text-dim">{installErrorText ?? "Could not install update."}</p>
+          <div className="flex justify-end gap-2">
             <button className="rounded-md border border-wkai-border px-3 py-1.5 text-xs text-wkai-text-dim" onClick={() => setStatus("idle")}>
               Dismiss
+            </button>
+            <button className="btn-primary !h-auto px-3 py-1.5 text-xs" onClick={handleUpdateNow}>
+              Try again
             </button>
           </div>
         </div>
