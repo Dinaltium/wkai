@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { check } from "@tauri-apps/plugin-updater";
+import { getVersion } from "@tauri-apps/api/app";
+import { open } from "@tauri-apps/plugin-shell";
 
 /** Hourly check interval while app stays open */
 const CHECK_INTERVAL_MS = 1000 * 60 * 60;
@@ -7,11 +9,37 @@ const CHECK_INTERVAL_MS = 1000 * 60 * 60;
 type UpdateStatus = "idle" | "available" | "downloading" | "done" | "installError";
 
 const DISMISSED_UPDATE_KEY = "wkai_dismissed_update_version";
+const RELEASES_API_URL = "https://api.github.com/repos/Dinaltium/wkai/releases/latest";
+const RELEASES_PAGE_URL = "https://github.com/Dinaltium/wkai/releases/latest";
+
+function parseVersionParts(version: string): number[] {
+  return version
+    .replace(/^v/i, "")
+    .split(".")
+    .map((part) => {
+      const n = Number(part);
+      return Number.isFinite(n) ? n : 0;
+    });
+}
+
+function isVersionGreater(nextVersion: string, currentVersion: string): boolean {
+  const next = parseVersionParts(nextVersion);
+  const current = parseVersionParts(currentVersion);
+  const maxLen = Math.max(next.length, current.length);
+  for (let i = 0; i < maxLen; i += 1) {
+    const a = next[i] ?? 0;
+    const b = current[i] ?? 0;
+    if (a > b) return true;
+    if (a < b) return false;
+  }
+  return false;
+}
 
 export function UpdateManager() {
   const [status, setStatus] = useState<UpdateStatus>("idle");
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [installErrorText, setInstallErrorText] = useState<string | null>(null);
+  const [manualUpdateMode, setManualUpdateMode] = useState(false);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(() =>
     localStorage.getItem(DISMISSED_UPDATE_KEY)
   );
@@ -27,14 +55,47 @@ export function UpdateManager() {
     if (import.meta.env.DEV) return;
 
     let cancelled = false;
+    let currentVersion = "";
+
+    async function checkGitHubFallback() {
+      try {
+        if (!currentVersion) currentVersion = await getVersion();
+        const response = await fetch(RELEASES_API_URL, {
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!response.ok) return false;
+        const data = (await response.json()) as { tag_name?: string };
+        const tagVersion = String(data.tag_name ?? "").replace(/^v/i, "");
+        if (!tagVersion) return false;
+        if (!isVersionGreater(tagVersion, currentVersion)) return false;
+        if (cancelled) return true;
+        setManualUpdateMode(true);
+        setLatestVersion(tagVersion);
+        setStatus("available");
+        return true;
+      } catch {
+        return false;
+      }
+    }
 
     async function runCheck() {
       try {
+        setManualUpdateMode(false);
         const update = await check();
         if (cancelled) return;
 
         if (!update) {
-          setStatus("idle");
+          const hasFallback = await checkGitHubFallback();
+          if (cancelled) return;
+          if (!hasFallback) {
+            setStatus("idle");
+          }
+          return;
+        }
+
+        if (!update.version) {
+          const hasFallback = await checkGitHubFallback();
+          if (!hasFallback) setStatus("idle");
           return;
         }
 
@@ -46,10 +107,13 @@ export function UpdateManager() {
         setStatus("available");
       } catch (err) {
         if (cancelled) return;
-        if (import.meta.env.DEV) {
-          console.warn("[WKAI updater] check failed:", err);
+        const hasFallback = await checkGitHubFallback();
+        if (!hasFallback) {
+          if (import.meta.env.DEV) {
+            console.warn("[WKAI updater] check failed:", err);
+          }
+          setStatus("idle");
         }
-        setStatus("idle");
       }
     }
 
@@ -65,6 +129,14 @@ export function UpdateManager() {
   }, []);
 
   async function handleUpdateNow() {
+    if (manualUpdateMode) {
+      try {
+        await open(RELEASES_PAGE_URL);
+      } catch {
+        window.open(RELEASES_PAGE_URL, "_blank");
+      }
+      return;
+    }
     try {
       setInstallErrorText(null);
       setStatus("downloading");
@@ -99,6 +171,11 @@ export function UpdateManager() {
           <p className="text-xs text-wkai-text-dim">
             WKAI {latestVersion ? `v${latestVersion}` : "new version"} is available.
           </p>
+          {manualUpdateMode && (
+            <p className="text-xs text-amber-300">
+              Auto-install metadata is missing for this release. Selecting Update now will open the release page.
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <button className="rounded-md border border-wkai-border px-3 py-1.5 text-xs text-wkai-text-dim" onClick={handleLater}>
               Later
