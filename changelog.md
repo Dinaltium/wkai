@@ -28,6 +28,18 @@ Consolidated release notes for implementation and platform work across `wkai`, `
   - returns URL-derived entries as ghost files when full content should not be pulled
 - Exported URL diagnostics agent through the shared AI agents index.
 
+## 2026-04 - In-App Updater Reliability
+
+### Instructor app (`wkai`)
+- Removed GitHub redirect fallback from update UI so updates remain an in-app flow.
+- Update checks now surface a clear in-app error when updater metadata/signature is missing instead of opening browser download pages.
+
+### CI/CD (`.github/workflows`)
+- Fixed Tauri updater signing env wiring in release workflows:
+  - `TAURI_SIGNING_PRIVATE_KEY`
+  - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+- Kept existing secret names and mapped them to Tauri updater env variables so `latest.json` metadata/signatures can be generated for in-app installs.
+
 ## 2026-04 - Release Pipeline + Deployment Reliability
 
 ### CI/CD and versioning
