@@ -10,7 +10,7 @@ interface Props {
 
 export function MessagePanel({ send }: Props) {
   const { chatMessages, addChatMessage, studentId, session } = useStore();
-  const studentName = sessionStorage.getItem("wkai_student_name") ?? "Student";
+  const studentName = localStorage.getItem("wkai_student_name") ?? "Student";
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +83,7 @@ export function MessagePanel({ send }: Props) {
             No messages yet. Ask a question.
           </p>
         ) : (
-          chatMessages.map((m) => <MessageBubble key={m.id} msg={m} studentName={studentName} />)
+          chatMessages.map((m: ChatMessage) => <MessageBubble key={m.id} msg={m} studentName={studentName} />)
         )}
         <div ref={bottomRef} />
       </div>

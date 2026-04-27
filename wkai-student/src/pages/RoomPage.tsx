@@ -15,7 +15,7 @@ import { joinRoom } from "../lib/api";
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { studentId, session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
   const bootstrappingRef = useRef(!session && !sessionEnded);
 
@@ -27,7 +27,8 @@ export function RoomPage() {
 
       bootstrappingRef.current = true;
       try {
-        const data = await joinRoom(code);
+        const studentName = localStorage.getItem("wkai_student_name") || "Student";
+        const data = await joinRoom(code, studentId, studentName);
         if (cancelled) return;
 
         if (data.session.status === "ended") {

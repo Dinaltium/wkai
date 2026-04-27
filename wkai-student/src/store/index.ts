@@ -48,6 +48,29 @@ interface StudentStore {
   errorDiagnosing: boolean;
   setErrorDiagnosing: (v: boolean) => void;
 
+  // ─── AI Helper ─────────────────────────────────────────────────────────────
+  colabAdvice: string | null;
+  setColabAdvice: (a: string | null) => void;
+  colabFollowUps: string[];
+  setColabFollowUps: (f: string[]) => void;
+
+  // ─── Live ──────────────────────────────────────────────────────────────────
+  latestLiveExplanation: LiveExplanation | null;
+  setLatestLiveExplanation: (e: LiveExplanation | null) => void;
+  backgroundLiveEnabled: boolean;
+  setBackgroundLiveEnabled: (v: boolean) => void;
+
+  // ─── Messages ──────────────────────────────────────────────────────────────
+  chatMessages: ChatMessage[];
+  addChatMessage: (m: ChatMessage) => void;
+
+  // ─── Debug ─────────────────────────────────────────────────────────────────
+  debugLogs: DebugLogEntry[];
+  addDebugLog: (msg: string, level?: DebugLogLevel) => void;
+  clearDebugLogs: () => void;
+  screenPreview: string | null;
+  setScreenPreview: (url: string | null) => void;
+
   // ─── UI ────────────────────────────────────────────────────────────────────
   activeTab: RoomTab;
   setActiveTab: (t: RoomTab) => void;
@@ -76,7 +99,7 @@ function readStoredSession(): Session | null {
   }
 }
 
-export const useStore = create<StudentStore>((set, get) => ({
+export const useStore = create<StudentStore>((set) => ({
   studentId: STUDENT_ID,
 
   session: readStoredSession(),
@@ -120,6 +143,31 @@ export const useStore = create<StudentStore>((set, get) => ({
   setResolution: (resolution) => set({ resolution }),
   errorDiagnosing: false,
   setErrorDiagnosing: (errorDiagnosing) => set({ errorDiagnosing }),
+
+  colabAdvice: null,
+  setColabAdvice: (colabAdvice) => set({ colabAdvice }),
+  colabFollowUps: [],
+  setColabFollowUps: (colabFollowUps) => set({ colabFollowUps }),
+
+  latestLiveExplanation: null,
+  setLatestLiveExplanation: (latestLiveExplanation) => set({ latestLiveExplanation }),
+  backgroundLiveEnabled: true,
+  setBackgroundLiveEnabled: (backgroundLiveEnabled) => set({ backgroundLiveEnabled }),
+
+  chatMessages: [],
+  addChatMessage: (m) => set((s) => ({ chatMessages: [...s.chatMessages, m] })),
+
+  debugLogs: [],
+  addDebugLog: (message, level = "info") =>
+    set((s) => ({
+      debugLogs: [
+        ...s.debugLogs,
+        { id: Math.random().toString(36).slice(2), timestamp: new Date().toISOString(), message, level },
+      ].slice(-100),
+    })),
+  clearDebugLogs: () => set({ debugLogs: [] }),
+  screenPreview: null,
+  setScreenPreview: (screenPreview) => set({ screenPreview }),
 
   activeTab: "guide",
   setActiveTab: (activeTab) => {

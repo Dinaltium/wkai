@@ -11,8 +11,8 @@ export function RoomHeader() {
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-wkai-border bg-wkai-surface px-4">
       {/* Left: brand + session title */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500 text-white text-xs font-bold">
-          WK
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center">
+          <img src="/wkai-logo.svg" alt="WKAI Logo" className="h-7 w-7 object-contain" />
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-wkai-text leading-tight">

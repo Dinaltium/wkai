@@ -126,7 +126,7 @@ export function ColabAssistPanel({ send }: Props) {
               Suggested Follow-ups
             </p>
             <div className="space-y-1.5">
-              {colabFollowUps.map((q) => (
+              {colabFollowUps.map((q: string) => (
                 <button
                   key={q}
                   className="w-full text-left rounded-lg border border-wkai-border px-2.5 py-2 text-xs text-wkai-text-dim hover:text-wkai-text hover:border-indigo-400 transition-colors"

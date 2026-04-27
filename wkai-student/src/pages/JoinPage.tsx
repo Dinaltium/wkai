@@ -6,19 +6,24 @@ import { useStore } from "../store";
 
 export function JoinPage() {
   const navigate = useNavigate();
-  const { setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { studentId, setSession, setGuideBlocks, setSharedFiles } = useStore();
 
+  const [name, setName] = useState(localStorage.getItem("wkai_student_name") || "");
   // 6 individual digit/letter inputs
   const [chars, setChars] = useState<string[]>(["", "", "", "", "", ""]);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-focus first input on mount
-  useEffect(() => { refs.current[0]?.focus(); }, []);
+  // Auto-focus first input on mount if name exists, else focus name
+  useEffect(() => {
+    if (name) {
+      refs.current[0]?.focus();
+    }
+  }, []);
 
   const roomCode = chars.join("").toUpperCase();
-  const isComplete = chars.every((c) => c !== "");
+  const isComplete = chars.every((c) => c !== "") && name.trim().length > 0;
 
   function handleChar(i: number, val: string) {
     const ch = val.replace(/[^a-zA-Z0-9]/g, "").slice(-1).toUpperCase();
@@ -48,7 +53,8 @@ export function JoinPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await joinRoom(roomCode);
+      localStorage.setItem("wkai_student_name", name);
+      const data = await joinRoom(roomCode, studentId, name);
       if (data.session.status === "ended") {
         setError("This session has already ended.");
         return;
@@ -75,6 +81,21 @@ export function JoinPage() {
         <p className="text-sm text-wkai-text-dim">
           Enter the 6-character code your instructor shared
         </p>
+      </div>
+
+      {/* Name input */}
+      <div className="mb-6 w-full max-w-[320px]">
+        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-wkai-text-dim">
+          Your Name
+        </label>
+        <input
+          className="h-12 w-full rounded-xl border border-wkai-border bg-wkai-surface px-4 text-sm font-medium text-wkai-text focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder:text-wkai-text-dim/30"
+          placeholder="e.g. Alex Smith"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="name"
+          spellCheck={false}
+        />
       </div>
 
       {/* Code input */}

@@ -67,9 +67,9 @@ export function StudentDebugPanel() {
             {debugLogs.length === 0 ? (
               <p className="text-wkai-text-dim text-center py-2">No events yet</p>
             ) : (
-              [...debugLogs].reverse().map((log) => (
+              [...debugLogs].reverse().map((log: import("../../types").DebugLogEntry) => (
                 <div key={log.id} className={clsx("flex gap-2 leading-5", LEVEL_COLOR[log.level])}>
-                  <span className="shrink-0 text-wkai-text-dim/50">{log.timestamp}</span>
+                  <span className="shrink-0 text-wkai-text-dim/50">{log.timestamp.split("T")[1].slice(0, 8)}</span>
                   <span className="break-all">{log.message}</span>
                 </div>
               ))
