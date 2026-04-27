@@ -11,7 +11,8 @@
     "release:bump": "node ./scripts/bump-version.mjs patch",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "npm run version:bump && tauri build"
+    "tauri:build": "npm run version:bump && tauri build",
+    "tauri:build:signed": "npm run tauri:build && powershell ./scripts/sign-windows-bundle.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

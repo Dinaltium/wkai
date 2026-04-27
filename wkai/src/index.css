@@ -107,4 +107,11 @@
   .pulse-dot.idle::after {
     @apply bg-gray-600;
   }
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }

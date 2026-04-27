@@ -23,14 +23,14 @@ export function InboxPanel({ send }: Props) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between border-b border-wkai-border px-4 py-3">
         <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
           Student Q&A Inbox
         </p>
         <span className="text-xs text-wkai-text-dim">{inboxMessages.length} message(s)</span>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="p-3 space-y-3">
         {inboxMessages.length === 0 ? (
           <p className="text-xs text-wkai-text-dim text-center py-8">No student questions yet</p>
         ) : (

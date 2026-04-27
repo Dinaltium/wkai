@@ -5,7 +5,7 @@ export function StudentPanel() {
   const { students, studentCount } = useAppStore();
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between border-b border-wkai-border px-4 py-3">
         <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
           Students
@@ -15,7 +15,7 @@ export function StudentPanel() {
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="px-3 py-2">
         {students.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-wkai-text-dim">
             <Users size={18} />

@@ -36,7 +36,7 @@ export function SessionPage() {
   return (
     <div className="relative flex h-full gap-0">
       {/* ─── Left column: status + people ─────────────────────────── */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-wkai-border min-h-0 overflow-y-auto">
+      <div className="flex w-64 shrink-0 flex-col border-r border-wkai-border min-h-0 overflow-y-auto no-scrollbar">
         <div className="border-b border-wkai-border p-4">
           <RoomInfo session={session} />
         </div>
@@ -49,7 +49,7 @@ export function SessionPage() {
         <div className="border-b border-wkai-border p-4">
           <RecordingPanel roomCode={session.roomCode} />
         </div>
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col">
           <div className="flex border-b border-wkai-border">
             {(["students", "inbox"] as const).map((tab) => (
               <button
@@ -66,7 +66,7 @@ export function SessionPage() {
               </button>
             ))}
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className="">
             {leftTab === "students" && <StudentPanel />}
             {leftTab === "inbox" && <InboxPanel send={send} />}
           </div>
