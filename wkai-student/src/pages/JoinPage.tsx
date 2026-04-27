@@ -6,30 +6,13 @@ import { useStore } from "../store";
 
 export function JoinPage() {
   const navigate = useNavigate();
-  const { studentId, setSession, setGuideBlocks, setSharedFiles, setSessionEnded, setConnected, setActiveTab } = useStore();
-
-  const [studentName, setStudentName] = useState(
-    sessionStorage.getItem("wkai_student_name") ?? ""
-  );
+  const { setSession, setGuideBlocks, setSharedFiles } = useStore();
 
   // 6 individual digit/letter inputs
   const [chars, setChars] = useState<string[]>(["", "", "", "", "", ""]);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionPassword, setSessionPassword] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [backendUrl, setBackendUrl] = useState(
-    sessionStorage.getItem('wkai_backend_url') ?? ''
-  );
-
-  function saveBackendUrl() {
-    if (backendUrl.trim()) {
-      sessionStorage.setItem('wkai_backend_url', backendUrl.trim());
-    } else {
-      sessionStorage.removeItem('wkai_backend_url');
-    }
-  }
 
   // Auto-focus first input on mount
   useEffect(() => { refs.current[0]?.focus(); }, []);
@@ -62,39 +45,20 @@ export function JoinPage() {
 
   async function handleJoin() {
     if (!isComplete) return;
-    if (!studentName.trim()) {
-      setError("Please enter your name before joining.");
-      return;
-    }
-    sessionStorage.setItem("wkai_student_name", studentName.trim());
     setLoading(true);
     setError(null);
     try {
-      const data = await joinRoom(roomCode, studentId, studentName.trim(), sessionPassword.trim() || undefined);
+      const data = await joinRoom(roomCode);
       if (data.session.status === "ended") {
         setError("This session has already ended.");
         return;
       }
-      if (data.joinToken) {
-        sessionStorage.setItem("wkai_join_token", data.joinToken);
-      }
-      // Reset stale state from any previous ended/disconnected room before entering a new one.
-      setSessionEnded(false);
-      setConnected(false);
-      setActiveTab("live");
       setSession(data.session);
       setGuideBlocks(data.guideBlocks);
       setSharedFiles(data.sharedFiles);
       navigate(`/room/${roomCode}`, { replace: true });
-    } catch (err: unknown) {
-      const message =
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        typeof (err as { response?: { data?: { error?: string } } }).response?.data?.error === "string"
-          ? (err as { response: { data: { error: string } } }).response.data.error
-          : "Room not found. Check the code and try again.";
-      setError(message);
+    } catch {
+      setError("Room not found. Check the code and try again.");
     } finally {
       setLoading(false);
     }
@@ -104,31 +68,13 @@ export function JoinPage() {
     <div className="flex min-h-full flex-col items-center justify-center px-4 py-16">
       {/* Brand */}
       <div className="mb-10 text-center space-y-2">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500 text-white font-bold text-xl shadow-lg shadow-indigo-500/30">
-          WK
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center">
+          <img src="/wkai-logo.svg" alt="WKAI Logo" className="h-14 w-14 object-contain drop-shadow-lg" />
         </div>
         <h1 className="text-2xl font-bold text-wkai-text">Join Workshop</h1>
         <p className="text-sm text-wkai-text-dim">
           Enter the 6-character code your instructor shared
         </p>
-      </div>
-
-      <div className="w-full max-w-xs mb-6">
-        <input
-          className="input text-center"
-          placeholder="Your name"
-          value={studentName}
-          onChange={(e) => setStudentName(e.target.value)}
-          maxLength={40}
-        />
-        <input
-          className="input mt-3 text-center"
-          type="password"
-          placeholder="Session password (if required)"
-          value={sessionPassword}
-          onChange={(e) => setSessionPassword(e.target.value)}
-          maxLength={128}
-        />
       </div>
 
       {/* Code input */}
@@ -150,29 +96,6 @@ export function JoinPage() {
           />
         ))}
       </div>
-
-      {/* Advanced toggle */}
-      <button
-        className="mt-4 text-xs text-wkai-text-dim hover:text-wkai-text transition-colors"
-        onClick={() => setShowAdvanced(v => !v)}
-      >
-        {showAdvanced ? 'Hide' : 'Advanced settings'}
-      </button>
-
-      {showAdvanced && (
-        <div className="mt-3 w-full max-w-xs space-y-2">
-          <p className="text-xs text-wkai-text-dim text-center">
-            Enter the instructor's backend URL if not on localhost
-          </p>
-          <input
-            className="h-10 w-full rounded-lg border border-wkai-border bg-wkai-surface px-3 text-xs font-mono text-wkai-text focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all"
-            placeholder="http://192.168.1.x:4000"
-            value={backendUrl}
-            onChange={(e) => setBackendUrl(e.target.value)}
-            onBlur={saveBackendUrl}
-          />
-        </div>
-      )}
 
       {/* Error */}
       {error && (

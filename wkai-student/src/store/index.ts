@@ -6,10 +6,6 @@ import type {
   SharedFile,
   ErrorResolution,
   RoomTab,
-  ChatMessage,
-  DebugLogEntry,
-  DebugLogLevel,
-  LiveExplanation,
 } from "../types";
 
 interface StudentStore {
@@ -27,13 +23,6 @@ interface StudentStore {
   setConnected: (v: boolean) => void;
   studentCount: number;
   setStudentCount: (n: number) => void;
-  screenPreview: string | null;
-  screenPreviewTs: string | null;
-  setScreenPreview: (b64: string, ts: string) => void;
-  latestLiveExplanation: LiveExplanation | null;
-  setLatestLiveExplanation: (v: LiveExplanation | null) => void;
-  backgroundLiveEnabled: boolean;
-  setBackgroundLiveEnabled: (v: boolean) => void;
 
   // ─── Guide ─────────────────────────────────────────────────────────────────
   guideBlocks: GuideBlock[];
@@ -58,16 +47,6 @@ interface StudentStore {
   setResolution: (r: ErrorResolution | null) => void;
   errorDiagnosing: boolean;
   setErrorDiagnosing: (v: boolean) => void;
-  chatMessages: ChatMessage[];
-  addChatMessage: (m: ChatMessage) => void;
-  updateChatMessage: (id: string, update: Partial<ChatMessage>) => void;
-  debugLogs: DebugLogEntry[];
-  addDebugLog: (message: string, level?: DebugLogLevel) => void;
-  clearDebugLogs: () => void;
-  colabAdvice: string | null;
-  setColabAdvice: (advice: string | null) => void;
-  colabFollowUps: string[];
-  setColabFollowUps: (questions: string[]) => void;
 
   // ─── UI ────────────────────────────────────────────────────────────────────
   activeTab: RoomTab;
@@ -84,7 +63,6 @@ const STUDENT_ID =
   })();
 
 const SESSION_STORAGE_KEY = "wkai_student_session";
-const BG_LIVE_STORAGE_KEY = "wkai_student_background_live";
 
 function readStoredSession(): Session | null {
   const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -98,7 +76,7 @@ function readStoredSession(): Session | null {
   }
 }
 
-export const useStore = create<StudentStore>((set) => ({
+export const useStore = create<StudentStore>((set, get) => ({
   studentId: STUDENT_ID,
 
   session: readStoredSession(),
@@ -117,16 +95,6 @@ export const useStore = create<StudentStore>((set) => ({
   setConnected: (connected) => set({ connected }),
   studentCount: 0,
   setStudentCount: (studentCount) => set({ studentCount }),
-  screenPreview: null,
-  screenPreviewTs: null,
-  setScreenPreview: (screenPreview, screenPreviewTs) => set({ screenPreview, screenPreviewTs }),
-  latestLiveExplanation: null,
-  setLatestLiveExplanation: (latestLiveExplanation) => set({ latestLiveExplanation }),
-  backgroundLiveEnabled: localStorage.getItem(BG_LIVE_STORAGE_KEY) === "1",
-  setBackgroundLiveEnabled: (backgroundLiveEnabled) => {
-    localStorage.setItem(BG_LIVE_STORAGE_KEY, backgroundLiveEnabled ? "1" : "0");
-    set({ backgroundLiveEnabled });
-  },
 
   guideBlocks: [],
   addGuideBlock: (b) => set((s) => ({ guideBlocks: [...s.guideBlocks, b] })),
@@ -152,32 +120,8 @@ export const useStore = create<StudentStore>((set) => ({
   setResolution: (resolution) => set({ resolution }),
   errorDiagnosing: false,
   setErrorDiagnosing: (errorDiagnosing) => set({ errorDiagnosing }),
-  chatMessages: [],
-  addChatMessage: (m) => set((s) => ({ chatMessages: [...s.chatMessages, m] })),
-  updateChatMessage: (id, update) =>
-    set((s) => ({
-      chatMessages: s.chatMessages.map((m) => (m.id === id ? { ...m, ...update } : m)),
-    })),
-  debugLogs: [],
-  addDebugLog: (message, level = "info") =>
-    set((s) => ({
-      debugLogs: [
-        ...s.debugLogs.slice(-19),
-        {
-          id: Math.random().toString(36).slice(2),
-          timestamp: new Date().toLocaleTimeString(),
-          message,
-          level,
-        },
-      ],
-    })),
-  clearDebugLogs: () => set({ debugLogs: [] }),
-  colabAdvice: null,
-  setColabAdvice: (colabAdvice) => set({ colabAdvice }),
-  colabFollowUps: [],
-  setColabFollowUps: (colabFollowUps) => set({ colabFollowUps }),
 
-  activeTab: "live",
+  activeTab: "guide",
   setActiveTab: (activeTab) => {
     set({ activeTab });
     if (activeTab === "files") set({ newFileCount: 0 });

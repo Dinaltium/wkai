@@ -85,7 +85,7 @@ function exec(cmd, args, timeoutMs) {
       (error, stdout, stderr) => {
         if (error) {
           if (error.killed) {
-            resolve(`Execution timed out after ${timeoutMs / 1000}s`);
+            resolve(`⏱ Execution timed out after ${timeoutMs / 1000}s`);
           } else {
             // Return stderr as output so the student sees the error
             resolve((stderr || error.message).slice(0, MAX_OUTPUT));

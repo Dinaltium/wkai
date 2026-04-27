@@ -7,51 +7,27 @@ import {
   decrementStudentCount,
   clearStudentConnections,
   getStudentCount,
-  addStudentToList,
-  removeStudentFromList,
-  getStudentList,
+  setTranscript,
+  getTranscript,
 } from "../db/redis.js";
 import { query } from "../db/client.js";
+import { processScreenFrame } from "../ai/pipeline.js";
 import { clearSessionMemory } from "../ai/memory.js";
-import {
-  detectShareIntentForFiles,
-  expandInstructorTranscript,
-  buildTranscriptQuiz,
-  diagnoseStudentError,
-  replyToStudentMessage,
-  analyzeColabContent,
-} from "../ai/Agents/index.js";
-import { debugLog, debugError } from "../utils/debug.js";
-import { verifyStudentJoinToken } from "../auth/sessionAccess.js";
+import { detectShareIntent } from "../ai/graphs/intentAgent.js";
 
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
-const pendingStudentMessages = new Map();
-const lastTranscriptExplanationAt = new Map();
-const lastTranscriptQuizAt = new Map();
-
-function roomSnapshot(sessionId) {
-  const room = rooms.get(sessionId);
-  if (!room) return { exists: false, size: 0, keys: [] };
-  return { exists: true, size: room.size, keys: [...room.keys()] };
-}
 
 export function initWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
   wss.on("connection", async (ws, req) => {
-    debugLog("WS", "connection opened", { url: req.url });
     const { query: qs } = parse(req.url, true);
     const sessionParam = String(qs.session ?? "").trim();
     const role = qs.role === "instructor" ? "instructor" : "student";
     const studentId = typeof qs.studentId === "string" && qs.studentId.length > 0
       ? qs.studentId
       : `s_${Math.random().toString(36).slice(2, 8)}`;
-    const studentName =
-      typeof qs.studentName === "string" && qs.studentName.length > 0
-        ? decodeURIComponent(qs.studentName).slice(0, 40)
-        : "Student";
-    const joinToken = typeof qs.joinToken === "string" ? qs.joinToken : "";
 
     const isInstructor = role === "instructor";
     const lookupQuery = isInstructor
@@ -60,35 +36,11 @@ export function initWebSocketServer(httpServer) {
     const lookupValue = isInstructor ? sessionParam : sessionParam.toUpperCase();
 
     const { rows } = await query(lookupQuery, [lookupValue]);
-    debugLog("WS", "session lookup", {
-      role,
-      sessionParam,
-      lookupValue,
-      matched: rows.length,
-    });
 
     if (!rows.length || rows[0].status === "ended") {
-      debugLog("WS", "connection rejected", {
-        role,
-        sessionParam,
-        reason: !rows.length ? "not_found" : "ended",
-      });
       ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found or ended" } }));
       ws.close();
       return;
-    }
-    if (!isInstructor && rows[0].session_password_hash) {
-      const tokenCheck = verifyStudentJoinToken(joinToken);
-      if (!tokenCheck.valid || tokenCheck.payload?.sessionId !== rows[0].id) {
-        ws.send(JSON.stringify({ type: "error", payload: { message: "Invalid or expired join token" } }));
-        ws.close();
-        return;
-      }
-      if (tokenCheck.payload?.studentId && tokenCheck.payload.studentId !== studentId) {
-        ws.send(JSON.stringify({ type: "error", payload: { message: "Join token student mismatch" } }));
-        ws.close();
-        return;
-      }
     }
 
     const sessionId = rows[0].id;
@@ -109,35 +61,17 @@ export function initWebSocketServer(httpServer) {
     ws.clientKey = clientKey;
     ws.role      = role;
     ws.studentId = studentId;
-    ws.studentName = studentName;
 
     console.log(`[WS] ${role} connected to room ${roomCode} (sessionId: ${sessionId})`);
-    debugLog("WS", "connection accepted", {
-      role,
-      sessionId,
-      roomCode,
-      clientKey,
-      room: roomSnapshot(sessionId),
-    });
 
     if (role === "student" && previousSocket !== ws) {
       const count = await incrementStudentCount(sessionId, studentId);
       console.log(`[WS] Student count for ${sessionId}: ${count}, room size: ${rooms.get(sessionId)?.size ?? 0}`);
-      broadcast(sessionId, {
-        type: "student-joined",
-        payload: { count, studentId, studentName },
-      }, ws);
-      await addStudentToList(sessionId, { studentId, studentName });
+      broadcast(sessionId, { type: "student-joined", payload: { count } }, ws);
     }
 
     const state = await getSessionData(sessionId);
-    if (state) {
-      const studentList = await getStudentList(sessionId);
-      ws.send(JSON.stringify({
-        type: "session-state",
-        payload: { ...state, studentList },
-      }));
-    }
+    if (state) ws.send(JSON.stringify({ type: "session-state", payload: state }));
 
     if (role === "instructor") {
       const count = await getStudentCount(sessionId);
@@ -146,26 +80,13 @@ export function initWebSocketServer(httpServer) {
 
     ws.on("message", async (raw) => {
       let msg;
-      try { msg = JSON.parse(raw.toString()); } catch (err) {
-        debugError("WS", "message parse failed", err);
-        return;
-      }
-      const msgType = msg?.type ?? "unknown";
-      const payloadKeys = msg?.payload && typeof msg.payload === "object"
-        ? Object.keys(msg.payload).join(",")
-        : "none";
-      console.log(
-        `[WS] inbound role=${ws.role} session=${ws.sessionId} type=${msgType} payload_keys=${payloadKeys}`
-      );
-      debugLog("WS", "inbound payload", {
-        role: ws.role,
-        sessionId: ws.sessionId,
-        type: msgType,
-        hasPayload: !!msg?.payload,
-        frameLen: msg?.payload?.frameB64 ? String(msg.payload.frameB64).length : 0,
-      });
+      try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       switch (msg.type) {
+        case "screen-frame":
+          if (ws.role !== "instructor") break;
+          handleScreenFrame(ws, msg.payload);
+          break;
         case "audio-transcript":
           if (ws.role !== "instructor") break;
           handleAudioTranscript(ws, msg.payload);
@@ -180,48 +101,10 @@ export function initWebSocketServer(httpServer) {
         case "comprehension-answer":
           handleComprehensionAnswer(ws, msg.payload);
           break;
-        case "student-message":
-          await handleStudentMessage(ws, msg.payload);
-          break;
-        case "instructor-reply":
-          if (ws.role !== "instructor") break;
-          handleInstructorReply(ws, msg.payload);
-          break;
-        case "webrtc-offer":
-          if (ws.role !== "instructor") break;
-          handleWebRtcOffer(ws, msg.payload);
-          break;
-        case "webrtc-answer":
-          handleWebRtcAnswer(ws, msg.payload);
-          break;
-        case "webrtc-ice-candidate":
-          handleWebRtcIceCandidate(ws, msg.payload);
-          break;
-        case "webrtc-session-reset":
-          if (ws.role !== "instructor") break;
-          handleWebRtcSessionReset(ws, msg.payload);
-          break;
-        case "webrtc-request-offer":
-          if (ws.role !== "student") break;
-          handleWebRtcRequestOffer(ws, msg.payload);
-          break;
-        case "colab-assist-request":
-          if (ws.role !== "student") break;
-          await handleColabAssistRequest(ws, msg.payload);
-          break;
-        default:
-          console.log(`[WS] unhandled message type: ${msgType}`);
-          break;
       }
     });
 
     ws.on("close", async () => {
-      debugLog("WS", "client closed", {
-        role,
-        sessionId,
-        clientKey,
-        roomBefore: roomSnapshot(sessionId),
-      });
       const room = rooms.get(sessionId);
       if (!room) return;
 
@@ -231,25 +114,12 @@ export function initWebSocketServer(httpServer) {
 
         if (role === "student") {
           const count = await decrementStudentCount(sessionId, studentId);
-          broadcast(sessionId, {
-            type: "student-left",
-            payload: { count, studentId, studentName: ws.studentName ?? "Student" },
-          });
-          await removeStudentFromList(sessionId, studentId);
+          broadcast(sessionId, { type: "student-left", payload: { count } });
         }
-        debugLog("WS", "client removed from room", {
-          role,
-          sessionId,
-          clientKey,
-          roomAfter: roomSnapshot(sessionId),
-        });
       }
     });
 
-    ws.on("error", (err) => {
-      console.error("[WS] Client error:", err.message);
-      debugError("WS", "client socket error", err);
-    });
+    ws.on("error", (err) => console.error("[WS] Client error:", err.message));
   });
 
   console.log("[WS] WebSocket server initialized");
@@ -257,18 +127,55 @@ export function initWebSocketServer(httpServer) {
 
 // ─── Message Handlers ─────────────────────────────────────────────────────────
 
+async function handleScreenFrame(ws, payload) {
+  const { sessionId } = ws;
+  const { frameB64 } = payload;
+
+  try {
+    // Pull latest transcript from Redis (written by audio-transcript handler)
+    const transcript = await getTranscript(sessionId);
+
+    // Run the full LangGraph screen analysis pipeline
+    const result = await processScreenFrame(sessionId, frameB64, transcript ?? "");
+
+    for (const block of result.guideBlocks ?? []) {
+      const { rows } = await query(
+        `INSERT INTO guide_blocks (session_id, type, title, content, code, language, locked)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [sessionId, block.type, block.title ?? null, block.content,
+         block.code ?? null, block.language ?? null, block.locked ?? false]
+      );
+      broadcast(sessionId, {
+        type: "guide-block",
+        payload: formatGuideBlock(rows[0]),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (result.comprehensionQuestion) {
+      const q = result.comprehensionQuestion;
+      const { rows } = await query(
+        `INSERT INTO comprehension_questions (session_id, question, options, correct_index, explanation)
+         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+        [sessionId, q.question, JSON.stringify(q.options), q.correctIndex, q.explanation]
+      );
+      broadcast(sessionId, { type: "comprehension-question", payload: rows[0] });
+    }
+  } catch (err) {
+    console.error("[WS] Screen frame pipeline error:", err.message);
+  }
+}
+
 async function handleAudioTranscript(ws, payload) {
   const { sessionId } = ws;
   const { transcript, recentFiles = [] } = payload;
-  debugLog("WS", "handleAudioTranscript", {
-    sessionId,
-    transcriptLen: String(transcript ?? "").length,
-    recentFileCount: Array.isArray(recentFiles) ? recentFiles.length : 0,
-  });
+
+  // Store latest transcript in Redis for next screen frame to pick up
+  await setTranscript(sessionId, transcript);
 
   // Run the LangGraph intent detection agent
   try {
-    const intent = await detectShareIntentForFiles(transcript, recentFiles);
+    const intent = await detectShareIntent(transcript, recentFiles);
     if (intent.shouldShare && intent.file) {
       console.log(`[IntentAgent] Share intent detected (${(intent.confidence * 100).toFixed(0)}%) → ${intent.file.name}`);
       // Emit back to instructor for confirmation before sharing
@@ -282,56 +189,11 @@ async function handleAudioTranscript(ws, payload) {
     }
   } catch (err) {
     console.error("[WS] Intent detection error:", err.message);
-    debugError("WS", "handleAudioTranscript failed", err);
-  }
-
-  // Generate student-facing explanation from transcript (5-10s cadence friendly).
-  try {
-    const now = Date.now();
-    const lastAt = lastTranscriptExplanationAt.get(sessionId) ?? 0;
-    if (now - lastAt >= 8_000 && transcript?.trim()) {
-      lastTranscriptExplanationAt.set(sessionId, now);
-      const explanation = await expandInstructorTranscript(sessionId, transcript);
-      if (explanation) {
-        broadcastToStudents(sessionId, {
-          type: "live-explanation",
-          payload: {
-            transcript: transcript.trim().slice(0, 180),
-            explanation,
-            timestamp: new Date().toISOString(),
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-  } catch (err) {
-    debugError("WS", "transcript explainer failed", err);
-  }
-
-  // Generate comprehension checks from transcript at slower cadence.
-  try {
-    const now = Date.now();
-    const lastAt = lastTranscriptQuizAt.get(sessionId) ?? 0;
-    if (now - lastAt >= 45_000 && transcript?.trim()) {
-      const question = await buildTranscriptQuiz(sessionId, transcript);
-      if (question) {
-        lastTranscriptQuizAt.set(sessionId, now);
-        const { rows } = await query(
-          `INSERT INTO comprehension_questions (session_id, question, options, correct_index, explanation)
-           VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-          [sessionId, question.question, JSON.stringify(question.options), question.correctIndex, question.explanation]
-        );
-        broadcast(sessionId, { type: "comprehension-question", payload: rows[0] });
-      }
-    }
-  } catch (err) {
-    debugError("WS", "transcript comprehension generation failed", err);
   }
 }
 
 async function handleFileShared(sessionId, payload) {
   const { name, url, sizeBytes } = payload;
-  debugLog("WS", "handleFileShared", { sessionId, name, sizeBytes });
   const { rows } = await query(
     `INSERT INTO shared_files (session_id, name, url, size_bytes)
      VALUES ($1,$2,$3,$4) RETURNING *`,
@@ -352,13 +214,9 @@ async function handleFileShared(sessionId, payload) {
 async function handleStudentError(ws, payload) {
   const { sessionId, studentId } = ws;
   const { errorMessage } = payload;
-  debugLog("WS", "handleStudentError", {
-    sessionId,
-    studentId,
-    messageLen: String(errorMessage ?? "").length,
-  });
   try {
-    const result = await diagnoseStudentError(errorMessage);
+    const { diagnoseError } = await import("../ai/errorDiagnosis.js");
+    const result = await diagnoseError(errorMessage);
     await query(
       `INSERT INTO error_resolutions (session_id, student_id, error_message, diagnosis, fix_command)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -367,17 +225,11 @@ async function handleStudentError(ws, payload) {
     ws.send(JSON.stringify({ type: "error-resolved", payload: result }));
   } catch (err) {
     console.error("[WS] Error diagnosis failed:", err.message);
-    debugError("WS", "handleStudentError failed", err);
   }
 }
 
 async function handleComprehensionAnswer(ws, payload) {
   const { questionId, answerIndex } = payload;
-  debugLog("WS", "handleComprehensionAnswer", {
-    sessionId: ws.sessionId,
-    questionId,
-    answerIndex,
-  });
   const { rows } = await query(
     "SELECT correct_index, explanation FROM comprehension_questions WHERE id = $1",
     [questionId]
@@ -393,316 +245,11 @@ async function handleComprehensionAnswer(ws, payload) {
   }));
 }
 
-async function handleStudentMessage(ws, payload) {
-  const { sessionId, studentId, studentName } = ws;
-  const { message, messageId } = payload;
-  debugLog("WS", "handleStudentMessage", {
-    sessionId,
-    studentId,
-    messageId,
-    messageLen: String(message ?? "").length,
-  });
-
-  if (!message?.trim() || !messageId) return;
-
-  const instructorWs = rooms.get(sessionId)?.get("instructor");
-  if (instructorWs?.readyState === WebSocket.OPEN) {
-    instructorWs.send(
-      JSON.stringify({
-        type: "student-message",
-        payload: {
-          messageId,
-          studentId,
-          studentName,
-          message,
-          timestamp: new Date().toISOString(),
-        },
-      })
-    );
-  }
-
-  const timer = setTimeout(async () => {
-    if (!pendingStudentMessages.has(messageId)) return;
-    pendingStudentMessages.delete(messageId);
-    try {
-      const response = await replyToStudentMessage(sessionId, studentName ?? "Student", message);
-      ws.send(
-        JSON.stringify({
-          type: "ai-reply",
-          payload: { messageId, response, timestamp: new Date().toISOString() },
-        })
-      );
-    } catch (err) {
-      console.error("[MessageAgent] Fallback failed:", err.message);
-    }
-  }, 45_000);
-
-  pendingStudentMessages.set(messageId, { timer, studentClientKey: ws.clientKey });
-}
-
-function handleInstructorReply(ws, payload) {
-  const { sessionId } = ws;
-  const { messageId, reply, studentId } = payload;
-  debugLog("WS", "handleInstructorReply", {
-    sessionId,
-    messageId,
-    studentId,
-    replyLen: String(reply ?? "").length,
-  });
-
-  const pending = pendingStudentMessages.get(messageId);
-  if (pending) {
-    clearTimeout(pending.timer);
-    pendingStudentMessages.delete(messageId);
-  }
-
-  const studentWs = rooms.get(sessionId)?.get(`student:${studentId}`);
-  if (studentWs?.readyState === WebSocket.OPEN) {
-    studentWs.send(
-      JSON.stringify({
-        type: "instructor-reply",
-        payload: { messageId, reply, timestamp: new Date().toISOString() },
-      })
-    );
-  }
-}
-
-function getInstructorSocket(sessionId) {
-  return rooms.get(sessionId)?.get("instructor") ?? null;
-}
-
-function getStudentSocket(sessionId, studentId) {
-  if (!studentId) return null;
-  return rooms.get(sessionId)?.get(`student:${studentId}`) ?? null;
-}
-
-function handleWebRtcOffer(ws, payload) {
-  const { sessionId } = ws;
-  const targetStudentId = payload?.targetStudentId;
-  if (!payload?.sdp || !targetStudentId) {
-    debugLog("WS", "webrtc-offer dropped invalid payload", {
-      sessionId,
-      targetStudentId,
-      hasSdp: !!payload?.sdp,
-    });
-    return;
-  }
-
-  const studentWs = getStudentSocket(sessionId, targetStudentId);
-  if (studentWs?.readyState !== WebSocket.OPEN) {
-    debugLog("WS", "webrtc-offer target unavailable", {
-      sessionId,
-      targetStudentId,
-      room: roomSnapshot(sessionId),
-    });
-    return;
-  }
-
-  studentWs.send(
-    JSON.stringify({
-      type: "webrtc-offer",
-      payload: {
-        sdp: payload.sdp,
-        studentId: targetStudentId,
-      },
-      timestamp: new Date().toISOString(),
-    })
-  );
-  debugLog("WS", "webrtc-offer relayed", { sessionId, targetStudentId });
-}
-
-function handleWebRtcAnswer(ws, payload) {
-  const { sessionId } = ws;
-  const senderStudentId = ws.studentId;
-  const sourceRole = ws.role;
-  const targetStudentId = payload?.studentId ?? senderStudentId;
-
-  if (!payload?.sdp || !targetStudentId) {
-    debugLog("WS", "webrtc-answer dropped invalid payload", {
-      sessionId,
-      sourceRole,
-      targetStudentId,
-      hasSdp: !!payload?.sdp,
-    });
-    return;
-  }
-
-  const instructorWs = getInstructorSocket(sessionId);
-  if (instructorWs?.readyState !== WebSocket.OPEN) {
-    debugLog("WS", "webrtc-answer instructor unavailable", {
-      sessionId,
-      sourceRole,
-      targetStudentId,
-    });
-    return;
-  }
-
-  instructorWs.send(
-    JSON.stringify({
-      type: "webrtc-answer",
-      payload: {
-        sdp: payload.sdp,
-        studentId: targetStudentId,
-      },
-      timestamp: new Date().toISOString(),
-    })
-  );
-  debugLog("WS", "webrtc-answer relayed", { sessionId, targetStudentId, sourceRole });
-}
-
-function handleWebRtcIceCandidate(ws, payload) {
-  const { sessionId } = ws;
-  if (!payload?.candidate) {
-    debugLog("WS", "webrtc-ice dropped invalid payload", {
-      sessionId,
-      role: ws.role,
-    });
-    return;
-  }
-
-  if (ws.role === "student") {
-    const instructorWs = getInstructorSocket(sessionId);
-    if (instructorWs?.readyState !== WebSocket.OPEN) {
-      debugLog("WS", "webrtc-ice student->instructor target unavailable", {
-        sessionId,
-        studentId: ws.studentId,
-      });
-      return;
-    }
-    instructorWs.send(
-      JSON.stringify({
-        type: "webrtc-ice-candidate",
-        payload: {
-          candidate: payload.candidate,
-          studentId: ws.studentId,
-        },
-        timestamp: new Date().toISOString(),
-      })
-    );
-    debugLog("WS", "webrtc-ice relayed student->instructor", {
-      sessionId,
-      studentId: ws.studentId,
-    });
-    return;
-  }
-
-  const targetStudentId = payload?.studentId;
-  if (!targetStudentId) {
-    debugLog("WS", "webrtc-ice instructor payload missing studentId", {
-      sessionId,
-    });
-    return;
-  }
-
-  const studentWs = getStudentSocket(sessionId, targetStudentId);
-  if (studentWs?.readyState !== WebSocket.OPEN) {
-    debugLog("WS", "webrtc-ice instructor->student target unavailable", {
-      sessionId,
-      targetStudentId,
-    });
-    return;
-  }
-
-  studentWs.send(
-    JSON.stringify({
-      type: "webrtc-ice-candidate",
-      payload: {
-        candidate: payload.candidate,
-        studentId: targetStudentId,
-      },
-      timestamp: new Date().toISOString(),
-    })
-  );
-  debugLog("WS", "webrtc-ice relayed instructor->student", { sessionId, targetStudentId });
-}
-
-function handleWebRtcSessionReset(ws, payload) {
-  const { sessionId } = ws;
-  const reason = payload?.reason ?? "instructor-reset";
-  broadcastToStudents(sessionId, {
-    type: "webrtc-session-reset",
-    payload: { reason },
-    timestamp: new Date().toISOString(),
-  });
-  debugLog("WS", "webrtc-session-reset broadcast", { sessionId, reason });
-}
-
-function handleWebRtcRequestOffer(ws, payload) {
-  const { sessionId, studentId } = ws;
-  const instructorWs = getInstructorSocket(sessionId);
-  if (instructorWs?.readyState !== WebSocket.OPEN) {
-    debugLog("WS", "webrtc-request-offer instructor unavailable", {
-      sessionId,
-      studentId,
-    });
-    return;
-  }
-
-  instructorWs.send(
-    JSON.stringify({
-      type: "webrtc-request-offer",
-      payload: {
-        studentId,
-        reason: payload?.reason ?? "student-request",
-      },
-      timestamp: new Date().toISOString(),
-    })
-  );
-  debugLog("WS", "webrtc-request-offer relayed", {
-    sessionId,
-    studentId,
-    reason: payload?.reason ?? "student-request",
-  });
-}
-
-async function handleColabAssistRequest(ws, payload) {
-  const sessionId = ws.sessionId;
-  const studentId = ws.studentId;
-  const colabContent = String(payload?.colabContent ?? "").trim();
-  if (!colabContent) return;
-
-  let contentType = String(payload?.contentType ?? "log").toLowerCase();
-  if (!["url", "log", "code", "error"].includes(contentType)) {
-    contentType = "log";
-  }
-
-  try {
-    const result = await analyzeColabContent(sessionId, studentId, colabContent, contentType);
-    ws.send(
-      JSON.stringify({
-        type: "colab-assist-response",
-        payload: {
-          advice: result.advice,
-          followUpQuestions: result.followUpQuestions ?? [],
-          contentType,
-          timestamp: new Date().toISOString(),
-        },
-      })
-    );
-  } catch (err) {
-    debugError("WS", "colab assist failed", err);
-    ws.send(
-      JSON.stringify({
-        type: "colab-assist-response",
-        payload: {
-          advice:
-            "I could not analyze your Colab content right now. Please paste your traceback and failing cell output.",
-          followUpQuestions: [],
-          contentType,
-          timestamp: new Date().toISOString(),
-        },
-      })
-    );
-  }
-}
-
 // ─── Session cleanup ──────────────────────────────────────────────────────────
 
 export function cleanupSession(sessionId) {
   clearSessionMemory(sessionId);
   void clearStudentConnections(sessionId);
-  lastTranscriptExplanationAt.delete(sessionId);
-  lastTranscriptQuizAt.delete(sessionId);
   rooms.delete(sessionId);
 }
 
@@ -712,7 +259,6 @@ export function broadcast(sessionId, msg, exclude = null) {
   const clients = rooms.get(sessionId);
   if (!clients) {
     console.log(`[WS] broadcast: No room found for sessionId ${sessionId}`);
-    debugLog("WS", "broadcast skipped missing room", { sessionId, type: msg?.type });
     return;
   }
   console.log(`[WS] broadcast: Sending ${msg.type} to ${clients.size} clients in room ${sessionId}`);
@@ -725,37 +271,15 @@ export function broadcast(sessionId, msg, exclude = null) {
     }
   }
   console.log(`[WS] broadcast: Sent to ${sent} clients`);
-  debugLog("WS", "broadcast done", {
-    sessionId,
-    type: msg?.type,
-    sent,
-    roomSize: clients.size,
-  });
 }
 
 export function broadcastToStudents(sessionId, msg) {
   const clients = rooms.get(sessionId);
-  if (!clients) {
-    debugLog("WS", "broadcastToStudents skipped missing room", {
-      sessionId,
-      type: msg?.type,
-    });
-    return;
-  }
+  if (!clients) return;
   const data = JSON.stringify(msg);
-  let sent = 0;
   for (const client of clients.values()) {
-    if (client.role === "student" && client.readyState === WebSocket.OPEN) {
-      client.send(data);
-      sent += 1;
-    }
+    if (client.role === "student" && client.readyState === WebSocket.OPEN) client.send(data);
   }
-  debugLog("WS", "broadcastToStudents done", {
-    sessionId,
-    type: msg?.type,
-    sent,
-    roomSize: clients.size,
-  });
 }
 
 export function getRoomSize(sessionId) {

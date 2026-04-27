@@ -18,8 +18,8 @@ export function AppShell() {
       {/* ─── Sidebar ─────────────────────────────────────────────────── */}
       <aside className="flex w-14 flex-col items-center border-r border-wkai-border bg-wkai-surface py-4 gap-1">
         {/* Logo */}
-        <div className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 text-white font-bold text-xs select-none">
-          WK
+        <div className="mb-4 flex h-8 w-8 items-center justify-center select-none">
+          <img src="/wkai-logo.svg" alt="WKAI Logo" className="h-8 w-8 object-contain" />
         </div>
 
         <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Setup" />

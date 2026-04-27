@@ -6,8 +6,8 @@ export function LandingPage() {
       <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-6 py-16">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500 font-bold text-white">
-              WK
+            <div className="flex h-10 w-10 items-center justify-center">
+              <img src="/wkai-logo.svg" alt="WKAI Logo" className="h-10 w-10 object-contain" />
             </div>
             <div>
               <p className="text-sm font-semibold">WKAI</p>

@@ -4,13 +4,6 @@ import { query } from "../db/client.js";
 import { setSessionData, deleteSessionData, clearStudentConnections } from "../db/redis.js";
 import { broadcast, cleanupSession } from "../ws/server.js";
 import { clearSessionMemory } from "../ai/memory.js";
-import { debugLog, debugError } from "../utils/debug.js";
-import {
-  hashSessionPassword,
-  verifySessionPassword,
-  issueStudentJoinToken,
-  verifyStudentJoinToken,
-} from "../auth/sessionAccess.js";
 
 export const sessionRouter = Router();
 
@@ -20,25 +13,16 @@ const CreateSessionSchema = z.object({
   instructorName: z.string().min(1).max(100),
   workshopTitle:  z.string().min(1).max(200),
   roomCode:       z.string().length(6).toUpperCase(),
-  sessionPassword: z.string().min(4).max(128).nullable().optional(),
 });
 
 sessionRouter.post("/", async (req, res, next) => {
   try {
-    debugLog("SESSION", "create request", {
-      bodyKeys: req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
-      roomCode: req.body?.roomCode,
-      instructorName: req.body?.instructorName,
-    });
     const body = CreateSessionSchema.parse(req.body);
 
-    const passwordHash = body.sessionPassword?.trim()
-      ? hashSessionPassword(body.sessionPassword.trim())
-      : null;
     const { rows } = await query(
-      `INSERT INTO sessions (room_code, instructor_name, workshop_title, session_password_hash)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [body.roomCode, body.instructorName, body.workshopTitle, passwordHash]
+      `INSERT INTO sessions (room_code, instructor_name, workshop_title)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [body.roomCode, body.instructorName, body.workshopTitle]
     );
 
     const session = rows[0];
@@ -51,99 +35,33 @@ sessionRouter.post("/", async (req, res, next) => {
       status:         session.status,
       startedAt:      session.started_at,
     });
-    debugLog("SESSION", "create success", {
-      sessionId: session.id,
-      roomCode: session.room_code,
-      status: session.status,
-    });
 
     res.status(201).json({ session: formatSession(session) });
   } catch (err) {
-    debugError("SESSION", "create failed", err);
     next(err);
   }
 });
 
-// ─── POST /api/sessions/:roomCode/join — authenticated student join ───────────
-
-const JoinSessionSchema = z.object({
-  studentId: z.string().min(3).max(64),
-  studentName: z.string().min(1).max(40),
-  sessionPassword: z.string().max(128).nullable().optional(),
-});
-
-sessionRouter.post("/:roomCode/join", async (req, res, next) => {
-  try {
-    const roomCode = req.params.roomCode.toUpperCase();
-    const body = JoinSessionSchema.parse(req.body);
-    debugLog("SESSION", "join lookup", { roomCode });
-    const { rows } = await query(
-      "SELECT * FROM sessions WHERE room_code = $1",
-      [roomCode]
-    );
-
-    if (!rows.length) return res.status(404).json({ error: "Session not found" });
-
-    const session = rows[0];
-    const providedPassword = body.sessionPassword?.trim();
-    const passwordOk = verifySessionPassword(providedPassword, session.session_password_hash);
-    if (!passwordOk) {
-      return res.status(401).json({ error: "Invalid session password" });
-    }
-    const [blocks, files] = await Promise.all([
-      query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC",  [session.id]),
-      query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [session.id]),
-    ]);
-    const joinToken = issueStudentJoinToken({
-      sessionId: session.id,
-      roomCode: session.room_code,
-      studentId: body.studentId,
-      studentName: body.studentName,
-    });
-    debugLog("SESSION", "join success", {
-      roomCode,
-      sessionId: session.id,
-      blockCount: blocks.rows.length,
-      fileCount: files.rows.length,
-      status: session.status,
-    });
-
-    res.json({
-      session:     formatSession(session),
-      guideBlocks: blocks.rows.map(formatGuideBlock),
-      sharedFiles: files.rows.map(formatSharedFile),
-      joinToken,
-    });
-  } catch (err) {
-    debugError("SESSION", "join failed", err);
-    next(err);
-  }
-});
-
-// ─── GET /api/sessions/:roomCode — refresh session with join token ───────────
+// ─── GET /api/sessions/:roomCode — Join validation + full state ───────────────
 
 sessionRouter.get("/:roomCode", async (req, res, next) => {
   try {
     const roomCode = req.params.roomCode.toUpperCase();
-    const joinToken = String(req.query.joinToken ?? "");
     const { rows } = await query(
       "SELECT * FROM sessions WHERE room_code = $1",
       [roomCode]
     );
+
     if (!rows.length) return res.status(404).json({ error: "Session not found" });
+
     const session = rows[0];
-    if (session.session_password_hash) {
-      const tokenCheck = verifyStudentJoinToken(joinToken);
-      if (!tokenCheck.valid || tokenCheck.payload?.sessionId !== session.id) {
-        return res.status(401).json({ error: "Join token required" });
-      }
-    }
     const [blocks, files] = await Promise.all([
-      query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC", [session.id]),
+      query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC",  [session.id]),
       query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [session.id]),
     ]);
+
     res.json({
-      session: formatSession(session),
+      session:     formatSession(session),
       guideBlocks: blocks.rows.map(formatGuideBlock),
       sharedFiles: files.rows.map(formatSharedFile),
     });
@@ -156,7 +74,6 @@ sessionRouter.get("/:roomCode", async (req, res, next) => {
 
 sessionRouter.patch("/:id/end", async (req, res, next) => {
   try {
-    debugLog("SESSION", "end requested", { sessionId: req.params.id });
     const { rows } = await query(
       `UPDATE sessions SET status = 'ended', ended_at = NOW()
        WHERE id = $1 AND status != 'ended' RETURNING *`,
@@ -174,10 +91,6 @@ sessionRouter.patch("/:id/end", async (req, res, next) => {
     await clearStudentConnections(session.id);
     clearSessionMemory(session.id);
     cleanupSession(session.id);
-    debugLog("SESSION", "end cleanup complete", {
-      sessionId: session.id,
-      roomCode: session.room_code,
-    });
 
     broadcast(session.id, {
       type:    "session-ended",
@@ -186,7 +99,6 @@ sessionRouter.patch("/:id/end", async (req, res, next) => {
 
     res.json({ session: formatSession(session) });
   } catch (err) {
-    debugError("SESSION", "end failed", err);
     next(err);
   }
 });

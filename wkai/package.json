@@ -11,25 +11,22 @@
     "release:bump": "node ./scripts/bump-version.mjs patch",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "npm run version:bump && tauri build",
-    "windows:sign": "powershell -ExecutionPolicy Bypass -File .\\scripts\\sign-windows-bundle.ps1",
-    "tauri:build:signed": "npm run tauri:build && npm run windows:sign"
+    "tauri:build": "npm run version:bump && tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",
-    "@tauri-apps/plugin-updater": "^2.10.1",
-    "axios": "^1.7.7",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.454.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
+    "zustand": "^5.0.0",
+    "axios": "^1.7.7",
     "socket.io-client": "^4.8.0",
-    "tailwind-merge": "^2.5.4",
-    "zustand": "^5.0.0"
+    "lucide-react": "^0.454.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
