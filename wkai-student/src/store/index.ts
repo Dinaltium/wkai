@@ -6,6 +6,10 @@ import type {
   SharedFile,
   ErrorResolution,
   RoomTab,
+  LiveExplanation,
+  ChatMessage,
+  DebugLogEntry,
+  DebugLogLevel,
 } from "../types";
 
 interface StudentStore {
