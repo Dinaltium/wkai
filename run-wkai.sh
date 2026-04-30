@@ -22,12 +22,10 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "ERROR: Docker is not installed."
-    echo "Install with: sudo apt install -y docker.io"
-    echo "Or use Docker Desktop with WSL2 integration."
-    exit 1
+# Redis check (optional)
+if ! command -v redis-server &> /dev/null; then
+    echo "WARNING: Local Redis (redis-server) not found in PATH."
+    echo "Ensure Redis is running on localhost:6379"
 fi
 
 # Check if directories exist
@@ -36,12 +34,10 @@ if [ ! -d "$BACKEND_DIR" ] || [ ! -d "$STUDENT_DIR" ] || [ ! -d "$INSTRUCTOR_DIR
     exit 1
 fi
 
-echo "[1/4] Starting databases (PostgreSQL + Redis)..."
-cd "$BACKEND_DIR"
-docker compose up -d
-
-echo "      Waiting for databases to be ready..."
-sleep 5
+echo "[1/4] Checking local environment..."
+echo "      Using local Redis and Neon Postgres."
+echo "      Make sure wkai-backend/.env is configured with your Neon URL."
+sleep 2
 
 echo ""
 echo "[2/4] Running database migrations (if needed)..."
@@ -71,7 +67,6 @@ echo "  Backend:       http://localhost:4000"
 echo "  Student App:   http://localhost:3000"
 echo "  Instructor:    Run 'npm run tauri:dev' in $INSTRUCTOR_DIR"
 echo ""
-echo "  To stop databases:  docker compose down"
 echo "  To stop servers:    Press Ctrl+C or run ./stop-wkai.sh"
 echo ""
 echo "  Instructor app has its own window - start with:"

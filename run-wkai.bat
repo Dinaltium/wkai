@@ -23,12 +23,11 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM Check if Docker is installed
-where docker >nul 2>nul
+REM Redis check (optional but helpful)
+where redis-server >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Docker is not installed.
-    echo Download Docker Desktop from: https://docker.com/products/docker-desktop/
-    exit /b 1
+    echo WARNING: Local Redis (redis-server) not found in PATH.
+    echo Ensure Redis is running on localhost:6379
 )
 
 REM Check if directories exist
@@ -47,12 +46,11 @@ if not exist "%INSTRUCTOR_DIR%" (
     exit /b 1
 )
 
-echo [1/5] Starting databases (PostgreSQL + Redis)...
-cd /d "%BACKEND_DIR%"
-docker compose up -d
-
-echo       Waiting for databases to be ready...
-timeout /t 5 /nobreak >nul
+echo [1/5] Checking local environment...
+echo       Using local Redis and Neon Postgres.
+echo       Make sure wkai-backend/.env is configured with your Neon URL.
+echo.
+timeout /t 2 /nobreak >nul
 
 echo.
 echo [2/5] Running database migrations (if needed)...
@@ -88,8 +86,8 @@ echo.
 echo   First time only - fix icon issue:
 echo     npm run tauri icon -- --input ./icons/128x128.png
 echo.
-echo   To stop databases:
-echo     docker compose down
+echo   To stop servers:
+echo     Run stop-wkai.bat
 echo ==========================================
 echo.
 echo Opening instructor app instructions...

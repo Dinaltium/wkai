@@ -20,9 +20,8 @@ echo "[2/3] Stopping student app (port 3000/3001)..."
 lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true
 lsof -ti:3001 | xargs -r kill -9 2>/dev/null || true
 
-echo "[3/3] Stopping databases..."
-cd "$BACKEND_DIR"
-docker compose down
+echo "[3/3] Stopping database connections..."
+# No Docker to stop. Backend will close connections on exit.
 
 echo ""
 echo "=========================================="

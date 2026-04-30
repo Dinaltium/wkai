@@ -20,9 +20,8 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3001') do (
     taskkill /F /PID %%a 2>nul
 )
 
-echo [3/3] Stopping databases...
-cd /d "%~dp0wkai-backend"
-docker compose down
+echo [3/3] Stopping database connections...
+REM No Docker to stop. Backend will close connections on exit.
 
 echo.
 echo ==========================================
