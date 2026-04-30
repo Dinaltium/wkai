@@ -1,6 +1,6 @@
 @echo off
 REM WKAI - Workshop AI - Startup Script for Windows
-REM Usage: run-wkai.bat (run from PowerShell or Command Prompt)
+REM Usage: run-wkai.bat
 
 setlocal EnableDelayedExpansion
 
@@ -17,7 +17,7 @@ echo.
 
 REM Check if Node.js is installed
 where node >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
+if errorlevel 1 (
     echo ERROR: Node.js is not installed.
     echo Download from: https://nodejs.org/
     exit /b 1
@@ -25,8 +25,8 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM Redis check (optional but helpful)
 where redis-server >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo WARNING: Local Redis (redis-server) not found in PATH.
+if errorlevel 1 (
+    echo WARNING: Local Redis [redis-server] not found in PATH.
     echo Ensure Redis is running on localhost:6379
 )
 
@@ -54,6 +54,7 @@ timeout /t 2 /nobreak >nul
 
 echo.
 echo [2/5] Running database migrations (if needed)...
+cd /d "%BACKEND_DIR%"
 call npm run db:migrate
 
 echo.
@@ -93,5 +94,4 @@ echo.
 echo Opening instructor app instructions...
 timeout /t 3 /nobreak >nul
 
-REM Don't wait - let user start instructor app manually
 exit /b 0
