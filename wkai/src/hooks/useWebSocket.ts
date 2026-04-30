@@ -87,5 +87,9 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
     handlers.current.set(type, handler as Handler);
   }, []);
 
-  return { send, on };
+  const off = useCallback((type: WsEventType) => {
+    handlers.current.delete(type);
+  }, []);
+
+  return { send, on, off };
 }
