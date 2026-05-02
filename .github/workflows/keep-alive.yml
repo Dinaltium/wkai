@@ -1,0 +1,18 @@
+name: Keep Alive
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render free tier from sleeping
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend
+        run: |
+          # The Render backend URL
+          URL="https://wkai-backend.onrender.com/health"
+          echo "Pinging $URL"
+          curl -f -s $URL || echo "Ping failed, but that's okay (backend might be starting up)"
