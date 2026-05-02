@@ -40,6 +40,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: wkai/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('wkai/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install deps
         run: npm install
@@ -124,6 +131,17 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./wkai/src-tauri -> target"
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: wkai/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('wkai/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
