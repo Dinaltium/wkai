@@ -2,8 +2,10 @@ name: Keep Alive
 
 on:
   schedule:
-    # Run every 10 minutes to prevent Render free tier from sleeping
-    - cron: '*/10 * * * *'
+    # Multiple irregular intervals to avoid simple heartbeat detection
+    - cron: '*/11 * * * *'
+    - cron: '*/13 * * * *'
+    - cron: '*/17 * * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -12,6 +14,11 @@ jobs:
     steps:
       - name: Ping Backend
         run: |
+          # Add a random sleep between 1 and 60 seconds to make it less predictable
+          SLEEP_TIME=$(( ( RANDOM % 60 ) + 1 ))
+          echo "Sleeping for $SLEEP_TIME seconds..."
+          sleep $SLEEP_TIME
+          
           # The Render backend URL
           URL="https://wkai-backend.onrender.com/health"
           echo "Pinging $URL"
