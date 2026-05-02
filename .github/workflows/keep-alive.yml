@@ -20,6 +20,6 @@ jobs:
           sleep $SLEEP_TIME
           
           # The Render backend URL
-          URL="https://wkai-backend.onrender.com/health"
+          URL="https://wkai.onrender.com/health"
           echo "Pinging $URL"
           curl -f -s $URL || echo "Ping failed, but that's okay (backend might be starting up)"
