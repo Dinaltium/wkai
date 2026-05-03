@@ -14,6 +14,7 @@ import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
 import { RecordingPanel } from "../components/instructor/RecordingPanel";
 import { useWebRtcPublisher } from "../hooks/useWebRtcPublisher";
+import { useAiAnalysis } from "../hooks/useAiAnalysis";
 
 export function SessionPage() {
   const { session, settings, studentCount } = useAppStore();
@@ -22,6 +23,7 @@ export function SessionPage() {
     backendUrl: settings.backendUrl,
   });
   useWebRtcPublisher(session?.id ?? null, send, on, off);
+  useAiAnalysis(send);
 
   const [leftTab, setLeftTab] = useState<"students" | "inbox">("students");
 

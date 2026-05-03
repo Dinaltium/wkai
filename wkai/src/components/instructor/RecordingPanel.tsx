@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Download, Loader2, Square } from "lucide-react";
 import { useAppStore } from "../../store";
+import { useNativeCapture } from "../../hooks/useNativeCapture";
 
 function pickMimeType() {
   const preferred = [
@@ -23,6 +24,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [lastName, setLastName] = useState<string | null>(null);
   const [lastMime, setLastMime] = useState<string | null>(null);
+  const { startNativeCapture, stopNativeCapture: stopNative } = useNativeCapture();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -42,20 +44,10 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
     try {
       const display =
         sharedDisplayStream ??
-        (await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            displaySurface: "monitor",
-          },
-          audio: false,
-          preferCurrentTab: false,
-          selfBrowserSurface: "exclude",
-        } as MediaStreamConstraints & {
-          preferCurrentTab?: boolean;
-          selfBrowserSurface?: "exclude";
-        }));
-      if (!sharedDisplayStream) {
-        setSharedDisplayStream(display);
-      }
+        (await startNativeCapture());
+      
+      if (!display) throw new Error("Could not start capture");
+
       streamRef.current = display;
       const recorder = new MediaRecorder(
         display,
@@ -108,6 +100,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       return;
     }
     rec.stop();
+    stopNative();
     addDebugLog("Recording stop requested", "warn");
   }
 

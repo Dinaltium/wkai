@@ -31,6 +31,7 @@ pub fn run() {
             commands::files::watch_folder,
             commands::files::share_file,
             commands::files::list_watched_files,
+            commands::ai::capture_screen,
         ])
 
         // Setup system tray

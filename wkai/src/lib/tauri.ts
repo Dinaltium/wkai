@@ -51,6 +51,10 @@ export async function listWatchedFiles(
   return invoke<WatchedFile[]>("list_watched_files", { folderPath });
 }
 
+export async function captureScreen(): Promise<string> {
+  return invoke<string>("capture_screen");
+}
+
 interface UrlImportDiagnosis {
   accessible: boolean;
   reason: string;

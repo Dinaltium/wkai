@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "../store";
+import { useNativeCapture } from "./useNativeCapture";
 import type {
   WebRtcAnswerPayload,
   WebRtcIceCandidatePayload,
@@ -15,6 +16,8 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
+
+
 export function useWebRtcPublisher(
   sessionId: string | null,
   send: WsSend,
@@ -29,6 +32,7 @@ export function useWebRtcPublisher(
   const students = useAppStore((s) => s.students);
   const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
+  const { startNativeCapture, stopNativeCapture } = useNativeCapture();
   const createPeerRef = useRef<(studentId: string, forceRestart?: boolean) => Promise<void>>(async () => {});
 
   const ensureStream = async () => {
@@ -39,32 +43,27 @@ export function useWebRtcPublisher(
     }
     if (hasRequestedStreamRef.current) return null;
     hasRequestedStreamRef.current = true;
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        frameRate: { ideal: 24, max: 30 },
-        displaySurface: "monitor",
-      },
-      audio: false,
-      preferCurrentTab: false,
-      selfBrowserSurface: "exclude",
-      // Browser-specific hints; ignored where unsupported.
-      // Cast is required because these properties are not in all TS lib DOM versions.
-    } as MediaStreamConstraints & {
-      preferCurrentTab?: boolean;
-      selfBrowserSurface?: "exclude";
-    });
-    streamRef.current = stream;
-    setSharedDisplayStream(stream);
-    stream.getVideoTracks().forEach((track) => {
-      track.onended = () => {
-        setSharedDisplayStream(null);
-        streamRef.current = null;
-        hasRequestedStreamRef.current = false;
-        send("webrtc-session-reset", { reason: "display-track-ended" });
-        addDebugLog("WebRTC stream ended by OS/user", "warn");
-      };
-    });
-    return stream;
+    
+    try {
+      const stream = await startNativeCapture();
+      if (!stream) throw new Error("Native capture failed");
+      
+      streamRef.current = stream;
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          stopNativeCapture();
+          streamRef.current = null;
+          hasRequestedStreamRef.current = false;
+          send("webrtc-session-reset", { reason: "display-track-ended" });
+          addDebugLog("WebRTC stream ended", "warn");
+        };
+      });
+      return stream;
+    } catch (err) {
+      addDebugLog(`Failed to start native capture: ${String(err)}`, "error");
+      hasRequestedStreamRef.current = false;
+      return null;
+    }
   };
 
   const closePeer = (studentId: string) => {
