@@ -79,7 +79,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add wkai/package.json wkai/src-tauri/tauri.conf.json wkai/src-tauri/Cargo.toml
+          git add wkai/package.json wkai/src-tauri/tauri.conf.json wkai/src-tauri/Cargo.toml wkai/src-tauri/Cargo.lock wkai/package-lock.json
           if git diff --cached --quiet; then
             echo "committed=false" >> "$GITHUB_OUTPUT"
             exit 0
