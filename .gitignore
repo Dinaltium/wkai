@@ -270,5 +270,4 @@ __pycache__/
 .turbo/
 
 
-package-lock.json
-yarn.lock
+# package-lock.json and yarn.lock are now tracked for reproducible builds.
