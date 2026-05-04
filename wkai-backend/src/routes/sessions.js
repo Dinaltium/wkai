@@ -14,7 +14,7 @@ const CreateSessionSchema = z.object({
   instructorName:  z.string().min(1).max(100),
   workshopTitle:   z.string().min(1).max(200),
   roomCode:        z.string().length(6).toUpperCase(),
-  sessionPassword: z.string().max(128).optional(),
+  sessionPassword: z.string().max(128).nullish(),
 });
 
 sessionRouter.post("/", async (req, res, next) => {
