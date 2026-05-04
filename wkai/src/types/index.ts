@@ -138,7 +138,9 @@ export type WsEventType =
   | "webrtc-answer"
   | "webrtc-ice-candidate"
   | "webrtc-session-reset"
-  | "webrtc-request-offer";
+  | "webrtc-request-offer"
+  | "student-list"
+  | "session-state";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;

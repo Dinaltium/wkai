@@ -33,12 +33,26 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
           case "file-shared":
             addSharedFile(msg.payload as never);
             break;
-          case "student-joined":
-            setStudentCount((msg.payload as { count: number }).count);
+          case "student-joined": {
+            const p = msg.payload as { count: number; studentId: string; studentName: string; joinedAt: string };
+            setStudentCount(p.count);
+            if (p.studentId && p.studentName) {
+              useAppStore.getState().addStudent({ 
+                studentId: p.studentId, 
+                studentName: p.studentName,
+                joinedAt: p.joinedAt || new Date().toISOString()
+              });
+            }
             break;
+          }
           case "student-left":
             setStudentCount((msg.payload as { count: number }).count);
             break;
+          case "student-list": {
+            const p = msg.payload as { students: { studentId: string; studentName: string }[] };
+            useAppStore.getState().setStudents(p.students);
+            break;
+          }
           case "share-intent-detected":
             // LangGraph intent agent detected "share this file" in audio
             window.dispatchEvent(new CustomEvent("wkai:shareIntent", { detail: msg.payload }));

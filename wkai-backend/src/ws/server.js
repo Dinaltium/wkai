@@ -28,6 +28,7 @@ export function initWebSocketServer(httpServer) {
     const studentId = typeof qs.studentId === "string" && qs.studentId.length > 0
       ? qs.studentId
       : `s_${Math.random().toString(36).slice(2, 8)}`;
+    const studentName = String(qs.studentName ?? "Student").trim();
 
     const isInstructor = role === "instructor";
     const lookupQuery = isInstructor
@@ -61,17 +62,39 @@ export function initWebSocketServer(httpServer) {
     ws.clientKey = clientKey;
     ws.role      = role;
     ws.studentId = studentId;
+    ws.studentName = studentName;
+    ws.joinedAt = new Date().toISOString();
 
     console.log(`[WS] ${role} connected to room ${roomCode} (sessionId: ${sessionId})`);
 
     if (role === "student" && previousSocket !== ws) {
       const count = await incrementStudentCount(sessionId, studentId);
       console.log(`[WS] Student count for ${sessionId}: ${count}, room size: ${rooms.get(sessionId)?.size ?? 0}`);
-      broadcast(sessionId, { type: "student-joined", payload: { count } }, ws);
+      
+      // Broadcast to others (instructor and other students)
+      broadcast(sessionId, { 
+        type: "student-joined", 
+        payload: { count, studentId, studentName, joinedAt: ws.joinedAt } 
+      }, ws);
+
+      // Also send full list to instructor if they are online
+      broadcastToInstructor(sessionId, {
+        type: "student-list",
+        payload: { students: Array.from(room.values())
+          .filter(s => s.role === "student")
+          .map(s => ({ studentId: s.studentId, studentName: s.studentName, joinedAt: s.joinedAt }))
+        }
+      });
     }
 
     const state = await getSessionData(sessionId);
-    if (state) ws.send(JSON.stringify({ type: "session-state", payload: state }));
+    if (state) {
+      const count = await getStudentCount(sessionId);
+      ws.send(JSON.stringify({ 
+        type: "session-state", 
+        payload: { ...state, studentCount: count } 
+      }));
+    }
 
     if (role === "instructor") {
       const count = await getStudentCount(sessionId);
@@ -314,6 +337,15 @@ export function broadcastToStudents(sessionId, msg) {
   const data = JSON.stringify(msg);
   for (const client of clients.values()) {
     if (client.role === "student" && client.readyState === WebSocket.OPEN) client.send(data);
+  }
+}
+
+export function broadcastToInstructor(sessionId, msg) {
+  const clients = rooms.get(sessionId);
+  if (!clients) return;
+  const data = JSON.stringify(msg);
+  for (const client of clients.values()) {
+    if (client.role === "instructor" && client.readyState === WebSocket.OPEN) client.send(data);
   }
 }
 

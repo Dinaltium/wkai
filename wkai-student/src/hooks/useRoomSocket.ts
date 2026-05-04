@@ -10,7 +10,8 @@ export function useRoomSocket(roomCode: string) {
   const studentId = store.studentId;
 
   const connect = useCallback(() => {
-    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}`;
+    const studentName = localStorage.getItem("wkai_student_name") || "Student";
+    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}&studentName=${encodeURIComponent(studentName)}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
@@ -37,10 +38,13 @@ export function useRoomSocket(roomCode: string) {
   function dispatch(msg: WsMessage) {
     switch (msg.type) {
       case "session-state": {
-        const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[] };
+        const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[]; studentCount?: number };
         useStore.getState().setSession(p.session);
         useStore.getState().setGuideBlocks(p.guideBlocks ?? []);
         useStore.getState().setSharedFiles(p.sharedFiles ?? []);
+        if (typeof p.studentCount === "number") {
+          useStore.getState().setStudentCount(p.studentCount);
+        }
         break;
       }
       case "guide-block":
