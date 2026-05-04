@@ -92,7 +92,7 @@ export function initWebSocketServer(httpServer) {
       const count = await getStudentCount(sessionId);
       ws.send(JSON.stringify({ 
         type: "session-state", 
-        payload: { ...state, studentCount: count } 
+        payload: { session: state, studentCount: count } 
       }));
     }
 
