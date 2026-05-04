@@ -15,6 +15,7 @@ export function useRoomSocket(roomCode: string) {
 
     ws.current.onopen = () => {
       useStore.getState().setConnected(true);
+      window.dispatchEvent(new CustomEvent("wkai:socket-open"));
       console.log("[WS] Connected to room", roomCode);
     };
 
@@ -57,6 +58,15 @@ export function useRoomSocket(roomCode: string) {
         break;
       case "error-resolved":
         useStore.getState().setResolution(msg.payload as ErrorResolution);
+        break;
+      case "webrtc-offer":
+      case "webrtc-ice-candidate":
+      case "webrtc-session-reset":
+      case "live-explanation":
+        window.dispatchEvent(new CustomEvent(`wkai:${msg.type}`, { detail: msg.payload }));
+        if (msg.type === "live-explanation") {
+          useStore.getState().setLatestLiveExplanation(msg.payload as any);
+        }
         break;
       case "session-ended":
         useStore.getState().setSessionEnded(true);

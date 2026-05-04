@@ -101,6 +101,13 @@ export function initWebSocketServer(httpServer) {
         case "comprehension-answer":
           handleComprehensionAnswer(ws, msg.payload);
           break;
+        case "webrtc-offer":
+        case "webrtc-answer":
+        case "webrtc-ice-candidate":
+        case "webrtc-request-offer":
+        case "webrtc-session-reset":
+          handleWebRtcSignaling(ws, msg);
+          break;
       }
     });
 
@@ -243,6 +250,34 @@ async function handleComprehensionAnswer(ws, payload) {
       explanation: rows[0].explanation,
     },
   }));
+}
+
+async function handleWebRtcSignaling(ws, msg) {
+  const { sessionId } = ws;
+  const room = rooms.get(sessionId);
+  if (!room) return;
+
+  const payload = msg.payload;
+  const type = msg.type;
+
+  if (ws.role === "instructor") {
+    // Instructor sends to specific student
+    const targetStudentId = payload.targetStudentId || payload.studentId;
+    if (!targetStudentId) return;
+
+    const studentSocket = room.get(`student:${targetStudentId}`);
+    if (studentSocket && studentSocket.readyState === WebSocket.OPEN) {
+      studentSocket.send(JSON.stringify(msg));
+    }
+  } else {
+    // Student sends to instructor
+    const instructorSocket = room.get("instructor");
+    if (instructorSocket && instructorSocket.readyState === WebSocket.OPEN) {
+      // Add studentId to payload so instructor knows who it's from
+      msg.payload = { ...payload, studentId: ws.studentId };
+      instructorSocket.send(JSON.stringify(msg));
+    }
+  }
 }
 
 // ─── Session cleanup ──────────────────────────────────────────────────────────

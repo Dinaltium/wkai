@@ -6,10 +6,10 @@ import { RoomHeader } from "../components/shared/RoomHeader";
 import { TabBar } from "../components/shared/TabBar";
 import { GuideFeed } from "../components/guide/GuideFeed";
 import { FilesPanel } from "../components/files/FilesPanel";
-import { ErrorHelper } from "../components/error/ErrorHelper";
-import { CodeEditor } from "../components/shared/CodeEditor";
-import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
-import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
+import { AIHelperPanel } from "../components/ai/AIHelperPanel";
+import { ScreenPreview } from "../components/guide/ScreenPreview";
+import { MessagePanel } from "../components/messages/MessagePanel";
+import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
 import { joinRoom } from "../lib/api";
 
 export function RoomPage() {
@@ -17,6 +17,7 @@ export function RoomPage() {
   const navigate = useNavigate();
   const { studentId, session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
+  const { remoteStream } = useWebRtcReceiver(send);
   const bootstrappingRef = useRef(!session && !sessionEnded);
 
   useEffect(() => {
@@ -70,6 +71,9 @@ export function RoomPage() {
       <div className="flex-1 overflow-hidden">
         {activeTab === "guide"  && <GuideFeed />}
         {activeTab === "files"  && <FilesPanel />}
+        {activeTab === "ai-helper" && <AIHelperPanel send={send} />}
+        {activeTab === "live"   && <ScreenPreview remoteStream={remoteStream} />}
+        {activeTab === "messages" && <MessagePanel send={send} />}
         {activeTab === "editor" && <CodeEditor />}
         {activeTab === "error"  && <ErrorHelper send={send} />}
       </div>
