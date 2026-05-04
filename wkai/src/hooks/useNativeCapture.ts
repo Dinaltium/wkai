@@ -44,42 +44,50 @@ export function useNativeCapture() {
     addDebugLog("Starting native capture (silent mode)", "info");
 
     const poll = async () => {
-      try {
-        const b64 = await captureScreen();
-        const img = new Image();
-        img.src = `data:image/jpeg;base64,${b64}`;
-        
-        // Wait for image to load
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-        });
+      const b64 = await captureScreen();
+      if (!b64) throw new Error("Empty frame received from native capture");
 
-        if (canvas.width !== img.width || canvas.height !== img.height) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-        }
-        
-        ctx.drawImage(img, 0, 0);
-        
-        // Update store metrics
-        const now = Date.now();
-        const state = useAppStore.getState();
-        setCapture({
-          lastFrameAt: now,
-          framesSent: (state.capture.framesSent || 0) + 1,
-        });
+      const img = new Image();
+      img.src = `data:image/jpeg;base64,${b64}`;
+      
+      // Wait for image to load with timeout
+      await new Promise((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error("Image load timeout")), 2000);
+        img.onload = () => {
+          window.clearTimeout(timeout);
+          resolve(true);
+        };
+        img.onerror = (e) => {
+          window.clearTimeout(timeout);
+          reject(new Error("Image load failed"));
+        };
+      });
 
-      } catch (err) {
-        console.error("[NativeCapture] Frame grab failed:", err);
+      if (canvas.width !== img.width || canvas.height !== img.height) {
+        canvas.width = img.width;
+        canvas.height = img.height;
       }
+      
+      ctx.drawImage(img, 0, 0);
+      
+      // Update store metrics
+      const now = Date.now();
+      const state = useAppStore.getState();
+      setCapture({
+        lastFrameAt: now,
+        framesSent: (state.capture.framesSent || 0) + 1,
+      });
     };
 
     // Grab first frame to ensure stream is ready
-    await poll().catch(err => {
-      addDebugLog(`Initial native capture failed: ${String(err)}`, "error");
+    try {
+      await poll();
+    } catch (err) {
+      const msg = `Initial native capture failed: ${String(err)}`;
+      addDebugLog(msg, "error");
+      setCapture({ isCapturing: false });
       throw err;
-    });
+    }
 
     setCapture({ isCapturing: true });
 
@@ -87,10 +95,21 @@ export function useNativeCapture() {
     const stream = (canvas as any).captureStream(12);
     setSharedDisplayStream(stream);
 
-    // Continue polling
-    pollRef.current = window.setInterval(() => {
-      void poll();
-    }, 1000 / 12);
+    // Continue polling with recursive setTimeout to avoid overlaps
+    const scheduleNext = () => {
+      pollRef.current = window.setTimeout(async () => {
+        try {
+          await poll();
+          scheduleNext();
+        } catch (err) {
+          addDebugLog(`Capture loop error: ${String(err)}`, "error");
+          // Try to recover after a short delay
+          scheduleNext();
+        }
+      }, 1000 / 12);
+    };
+
+    scheduleNext();
 
     addDebugLog("Native capture active (12 FPS)", "success");
     
