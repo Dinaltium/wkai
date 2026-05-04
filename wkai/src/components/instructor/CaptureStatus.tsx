@@ -49,9 +49,11 @@ export function CaptureStatus() {
         </p>
       )}
 
-      <p className="text-xs text-wkai-text-dim">
-        {capture.framesSent} frame{capture.framesSent !== 1 ? "s" : ""} sent
-      </p>
+      {capture.framesSent > 0 && (
+        <p className="text-xs text-wkai-text-dim">
+          {capture.framesSent} frame{capture.framesSent !== 1 ? "s" : ""} sent
+        </p>
+      )}
     </div>
   );
 }

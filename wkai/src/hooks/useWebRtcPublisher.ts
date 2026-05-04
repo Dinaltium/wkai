@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "../store";
-import { useNativeCapture } from "./useNativeCapture";
+import { useBrowserCapture } from "./useBrowserCapture";
 import type {
   WebRtcAnswerPayload,
   WebRtcIceCandidatePayload,
@@ -32,7 +32,7 @@ export function useWebRtcPublisher(
   const students = useAppStore((s) => s.students);
   const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
-  const { startNativeCapture, stopNativeCapture } = useNativeCapture();
+  const { startBrowserCapture, stopBrowserCapture } = useBrowserCapture();
   const createPeerRef = useRef<(studentId: string, forceRestart?: boolean) => Promise<void>>(async () => {});
 
   const ensureStream = async () => {
@@ -45,13 +45,13 @@ export function useWebRtcPublisher(
     hasRequestedStreamRef.current = true;
     
     try {
-      const stream = await startNativeCapture();
-      if (!stream) throw new Error("Native capture failed");
+      const stream = await startBrowserCapture();
+      if (!stream) throw new Error("Browser capture failed");
       
       streamRef.current = stream;
       stream.getVideoTracks().forEach((track) => {
         track.onended = () => {
-          stopNativeCapture();
+          stopBrowserCapture();
           streamRef.current = null;
           hasRequestedStreamRef.current = false;
           send("webrtc-session-reset", { reason: "display-track-ended" });
@@ -60,7 +60,7 @@ export function useWebRtcPublisher(
       });
       return stream;
     } catch (err) {
-      addDebugLog(`Failed to start native capture: ${String(err)}`, "error");
+      addDebugLog(`Failed to start browser capture: ${String(err)}`, "error");
       hasRequestedStreamRef.current = false;
       return null;
     }
