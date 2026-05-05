@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 export function GuidePanel() {
-  const { guideBlocks, capture } = useAppStore();
+  const { guideBlocks } = useAppStore();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to latest block
@@ -24,12 +24,6 @@ export function GuidePanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-wkai-border px-5 py-3">
         <h2 className="text-sm font-medium">Live Guide</h2>
-        {capture.aiProcessing && (
-          <span className="flex items-center gap-1.5 text-xs text-indigo-400">
-            <Loader2 size={12} className="animate-spin" />
-            AI generating…
-          </span>
-        )}
       </div>
 
       <div className="flex-1 overflow-auto px-5 py-4 space-y-3">
