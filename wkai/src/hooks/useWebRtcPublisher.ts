@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "../store";
-import { useBrowserCapture } from "./useBrowserCapture";
 import type {
   WebRtcAnswerPayload,
   WebRtcIceCandidatePayload,
@@ -32,7 +31,6 @@ export function useWebRtcPublisher(
   const students = useAppStore((s) => s.students);
   const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
-  const { startBrowserCapture, stopBrowserCapture } = useBrowserCapture();
   const createPeerRef = useRef<(studentId: string, forceRestart?: boolean) => Promise<void>>(async () => {});
 
   const ensureStream = async () => {
@@ -45,13 +43,18 @@ export function useWebRtcPublisher(
     hasRequestedStreamRef.current = true;
     
     try {
-      const stream = await startBrowserCapture();
-      if (!stream) throw new Error("Browser capture failed");
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: "always" } as any,
+        audio: false,
+      });
       
+      setSharedDisplayStream(stream);
       streamRef.current = stream;
+
       stream.getVideoTracks().forEach((track) => {
         track.onended = () => {
-          stopBrowserCapture();
+          stream.getTracks().forEach((t) => t.stop());
+          setSharedDisplayStream(null);
           streamRef.current = null;
           hasRequestedStreamRef.current = false;
           send("webrtc-session-reset", { reason: "display-track-ended" });
