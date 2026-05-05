@@ -21,22 +21,9 @@ interface AppStore {
   session: Session | null;
   setSession: (session: Session | null) => void;
 
-  // ─── Capture ───────────────────────────────────────────────────────────────
-  capture: CaptureState;
-  setCapture: (partial: Partial<CaptureState>) => void;
-
-  // ─── Guide Content ─────────────────────────────────────────────────────────
-  guideBlocks: GuideBlock[];
-  addGuideBlock: (block: GuideBlock) => void;
-  clearGuide: () => void;
-
-  // ─── Shared Files (already sent to students) ───────────────────────────────
-  sharedFiles: SharedFile[];
-  addSharedFile: (file: SharedFile) => void;
-
-  // ─── Watched Files (local folder — available to share) ────────────────────
-  watchedFiles: WatchedFile[];
-  setWatchedFiles: (files: WatchedFile[]) => void;
+  // ─── Recording ─────────────────────────────────────────────────────────────
+  recording: RecordingState;
+  setRecording: (partial: Partial<RecordingState>) => void;
 
   // ─── Student Count ─────────────────────────────────────────────────────────
   studentCount: number;
@@ -72,6 +59,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   watchFolder:    "",
   backendUrl:     RESOLVED_BACKEND_URL,
   groqApiKey:     "",
+  saveLocalRecording: false,
+  recordingDirectory: "",
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";
@@ -106,14 +95,14 @@ export const useAppStore = create<AppStore>((set) => ({
   session: null,
   setSession: (session) => set({ session }),
 
-  capture: {
-    isCapturing:  false,
-    lastFrameAt:  null,
-    framesSent:   0,
-    aiProcessing: false,
+  recording: {
+    isRecording: false,
+    isPaused: false,
+    duration: 0,
+    isMuted: false,
   },
-  setCapture: (partial) =>
-    set((s) => ({ capture: { ...s.capture, ...partial } })),
+  setRecording: (partial) =>
+    set((s) => ({ recording: { ...s.recording, ...partial } })),
 
   guideBlocks: [],
   addGuideBlock: (block) =>

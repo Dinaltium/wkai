@@ -1,29 +1,29 @@
 import { useAppStore } from "../../store";
 import { clsx } from "clsx";
-import { Cpu, Camera } from "lucide-react";
+import { Radio, Circle } from "lucide-react";
 
 export function CaptureStatus() {
-  const { capture, studentCount } = useAppStore();
+  const { streamingToStudents, recording, studentCount } = useAppStore();
 
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
-        Status
+        Live Status
       </p>
 
       <StatusRow
-        icon={<Camera size={12} />}
-        label="Screen capture"
-        active={capture.isCapturing}
+        icon={<Radio size={12} />}
+        label="Streaming"
+        active={streamingToStudents}
         activeText="Live"
-        idleText="Stopped"
+        idleText="Offline"
       />
       <StatusRow
-        icon={<Cpu size={12} />}
-        label="AI processing"
-        active={capture.aiProcessing}
-        activeText="Running"
-        idleText="Waiting"
+        icon={<Circle size={12} />}
+        label="Recording"
+        active={recording.isRecording}
+        activeText={recording.isPaused ? "Paused" : "Active"}
+        idleText="Stopped"
       />
 
       <div className="pt-1 flex items-center justify-between text-xs text-wkai-text-dim">
@@ -37,23 +37,6 @@ export function CaptureStatus() {
           {studentCount}
         </span>
       </div>
-
-      {capture.lastFrameAt && (
-        <p className="text-xs text-wkai-text-dim">
-          Last frame:{" "}
-          {new Date(capture.lastFrameAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          })}
-        </p>
-      )}
-
-      {capture.framesSent > 0 && (
-        <p className="text-xs text-wkai-text-dim">
-          {capture.framesSent} frame{capture.framesSent !== 1 ? "s" : ""} sent
-        </p>
-      )}
     </div>
   );
 }

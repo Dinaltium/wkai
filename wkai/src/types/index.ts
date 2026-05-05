@@ -79,13 +79,6 @@ export interface InstructorMessage {
   replied: boolean;
 }
 
-export interface CaptureState {
-  isCapturing: boolean;
-  lastFrameAt: string | null;
-  framesSent: number;
-  aiProcessing: boolean;
-}
-
 export interface WebRtcOfferPayload {
   sdp: RTCSessionDescriptionInit;
   targetStudentId?: string;
@@ -156,4 +149,13 @@ export interface AppSettings {
   watchFolder: string;
   backendUrl: string;
   groqApiKey: string;
+  saveLocalRecording: boolean;
+  recordingDirectory: string;
+}
+
+export interface RecordingState {
+  isRecording: boolean;
+  isPaused: boolean;
+  duration: number; // seconds
+  isMuted: boolean;
 }

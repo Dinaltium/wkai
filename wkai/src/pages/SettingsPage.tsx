@@ -91,6 +91,53 @@ export function SettingsPage() {
           </Field>
         </section>
 
+        {/* Recording */}
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+            Recording
+          </h2>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-xs font-medium">Save to system</p>
+              <p className="text-[10px] text-wkai-text-dim">Simultaneously save recordings to your local drive</p>
+            </div>
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-wkai-border bg-wkai-surface text-indigo-500 focus:ring-indigo-500"
+              checked={settings.saveLocalRecording}
+              onChange={(e) => updateSettings({ saveLocalRecording: e.target.checked })}
+            />
+          </div>
+
+          {settings.saveLocalRecording && (
+            <Field label="Save Location">
+              <div className="flex gap-2">
+                <input
+                  className="input flex-1 text-xs"
+                  readOnly
+                  value={settings.recordingDirectory || "No location selected"}
+                />
+                <button 
+                  className="btn-secondary whitespace-nowrap text-xs py-1"
+                  onClick={async () => {
+                    const { open } = await import("@tauri-apps/api/dialog");
+                    const selected = await open({
+                      directory: true,
+                      multiple: false,
+                      title: "Select Recording Directory"
+                    });
+                    if (typeof selected === "string") {
+                      updateSettings({ recordingDirectory: selected });
+                    }
+                  }}
+                >
+                  Pick Folder
+                </button>
+              </div>
+            </Field>
+          )}
+        </section>
+
         <section className="card space-y-5 p-4">
           <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
             Testing

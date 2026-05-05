@@ -11,7 +11,6 @@ import {
   getTranscript,
 } from "../db/redis.js";
 import { query } from "../db/client.js";
-import { processScreenFrame } from "../ai/pipeline.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { detectShareIntent } from "../ai/graphs/intentAgent.js";
 
@@ -106,10 +105,7 @@ export function initWebSocketServer(httpServer) {
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       switch (msg.type) {
-        case "screen-frame":
-          if (ws.role !== "instructor") break;
-          handleScreenFrame(ws, msg.payload);
-          break;
+
         case "audio-transcript":
           if (ws.role !== "instructor") break;
           handleAudioTranscript(ws, msg.payload);
@@ -157,44 +153,7 @@ export function initWebSocketServer(httpServer) {
 
 // ─── Message Handlers ─────────────────────────────────────────────────────────
 
-async function handleScreenFrame(ws, payload) {
-  const { sessionId } = ws;
-  const { frameB64 } = payload;
 
-  try {
-    // Pull latest transcript from Redis (written by audio-transcript handler)
-    const transcript = await getTranscript(sessionId);
-
-    // Run the full LangGraph screen analysis pipeline
-    const result = await processScreenFrame(sessionId, frameB64, transcript ?? "");
-
-    for (const block of result.guideBlocks ?? []) {
-      const { rows } = await query(
-        `INSERT INTO guide_blocks (session_id, type, title, content, code, language, locked)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [sessionId, block.type, block.title ?? null, block.content,
-         block.code ?? null, block.language ?? null, block.locked ?? false]
-      );
-      broadcast(sessionId, {
-        type: "guide-block",
-        payload: formatGuideBlock(rows[0]),
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (result.comprehensionQuestion) {
-      const q = result.comprehensionQuestion;
-      const { rows } = await query(
-        `INSERT INTO comprehension_questions (session_id, question, options, correct_index, explanation)
-         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-        [sessionId, q.question, JSON.stringify(q.options), q.correctIndex, q.explanation]
-      );
-      broadcast(sessionId, { type: "comprehension-question", payload: rows[0] });
-    }
-  } catch (err) {
-    console.error("[WS] Screen frame pipeline error:", err.message);
-  }
-}
 
 async function handleAudioTranscript(ws, payload) {
   const { sessionId } = ws;
