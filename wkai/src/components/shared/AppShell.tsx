@@ -9,7 +9,7 @@ import { UpdateManager } from "./UpdateManager";
 export function AppShell() {
   useTauriEvents(); // wire up all Tauri event listeners
 
-  const { session, capture, studentCount, debugPanelOpen } = useAppStore();
+  const { session, streamingToStudents, recording, studentCount, debugPanelOpen } = useAppStore();
   const location = useLocation();
   const inSession = !!session;
 
@@ -63,10 +63,20 @@ export function AppShell() {
                   <span
                     className={clsx(
                       "h-1.5 w-1.5 rounded-full",
-                      capture.isCapturing ? "bg-green-400 animate-pulse" : "bg-gray-500"
+                      streamingToStudents ? "bg-indigo-400 animate-pulse" : "bg-gray-500"
                     )}
                   />
-                  {capture.isCapturing ? "Capturing" : "Idle"}
+                  {streamingToStudents ? "Streaming" : "Offline"}
+                </span>
+                <span className="text-wkai-border">|</span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={clsx(
+                      "h-1.5 w-1.5 rounded-full",
+                      recording.isRecording ? "bg-red-500 animate-pulse" : "bg-gray-500"
+                    )}
+                  />
+                  {recording.isRecording ? (recording.isPaused ? "Paused" : "Recording") : "Not Recording"}
                 </span>
                 <span className="text-wkai-border">|</span>
                 <span>

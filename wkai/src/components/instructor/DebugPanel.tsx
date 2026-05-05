@@ -23,7 +23,7 @@ export function DebugPanel() {
     debugLogs,
     clearDebugLogs,
     setDebugPanelOpen,
-    capture,
+    recording,
     session,
     streamingToStudents,
     studentCount,
@@ -59,11 +59,9 @@ export function DebugPanel() {
 
       <div className="space-y-1 border-b border-wkai-border px-3 py-2">
         <StatusRow label="WebSocket" value={session ? "Connected" : "Disconnected"} active={!!session} />
-        <StatusRow label="Screen capture" value={capture.isCapturing ? "Active" : "Stopped"} active={capture.isCapturing} />
-        <StatusRow label="AI processing" value={capture.aiProcessing ? "Running" : "Idle"} active={capture.aiProcessing} />
-        <StatusRow label="Stream to students" value={streamingToStudents ? "On" : "Off"} active={streamingToStudents} />
+        <StatusRow label="Live Stream" value={streamingToStudents ? "On" : "Off"} active={streamingToStudents} />
+        <StatusRow label="Recording" value={recording.isRecording ? (recording.isPaused ? "Paused" : "Active") : "Stopped"} active={recording.isRecording} />
         <StatusRow label="Students online" value={String(studentCount)} active={studentCount > 0} />
-        <StatusRow label="Frames sent" value={String(capture.framesSent ?? 0)} active={true} />
       </div>
 
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2 font-mono text-xs">

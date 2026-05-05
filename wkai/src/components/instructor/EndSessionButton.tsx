@@ -7,7 +7,7 @@ import { endSession } from "../../lib/tauri";
 export function EndSessionButton({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const { setSession, setCapture, clearGuide } = useAppStore();
+  const { setSession, clearGuide } = useAppStore();
   const navigate = useNavigate();
 
   async function handleEnd() {
@@ -23,7 +23,6 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
       const { settings } = useAppStore.getState();
       await endSession(sessionId, settings.backendUrl);
       setSession(null);
-      setCapture({ isCapturing: false, framesSent: 0, lastFrameAt: null });
       clearGuide();
       navigate("/");
     } catch (err) {
