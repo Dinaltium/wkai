@@ -25,6 +25,7 @@ tauri = { version = "2.11.0", features = [
 
 # Tauri plugins
 tauri-plugin-fs = "2.5.1"
+tauri-plugin-dialog = "2.5.1"
 tauri-plugin-shell = "2.3.5"
 tauri-plugin-notification = "2.3.3"
 

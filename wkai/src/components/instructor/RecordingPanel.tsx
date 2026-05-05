@@ -99,16 +99,14 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
         // Handle local saving if enabled
         if (settings.saveLocalRecording && settings.recordingDirectory) {
           try {
-            const { writeBinaryFile, join } = await import("@tauri-apps/api/path").then(async (p) => {
-              const fs = await import("@tauri-apps/api/fs");
-              return { writeBinaryFile: fs.writeBinaryFile, join: p.join };
-            });
+            const { join } = await import("@tauri-apps/api/path");
+            const { writeFile } = await import("@tauri-apps/plugin-fs");
             
             const arrayBuffer = await blob.arrayBuffer();
             const uint8Array = new Uint8Array(arrayBuffer);
             const fullPath = await join(settings.recordingDirectory, filename);
             
-            await writeBinaryFile(fullPath, uint8Array);
+            await writeFile(fullPath, uint8Array);
             addDebugLog(`Recording saved to system: ${fullPath}`, "success");
           } catch (err) {
             console.error("Local save failed:", err);

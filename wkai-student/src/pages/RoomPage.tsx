@@ -11,6 +11,10 @@ import { ScreenPreview } from "../components/guide/ScreenPreview";
 import { MessagePanel } from "../components/messages/MessagePanel";
 import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
 import { joinRoom } from "../lib/api";
+import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
+import { CodeEditor } from "../components/shared/CodeEditor";
+import { ErrorHelper } from "../components/error/ErrorHelper";
+import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();

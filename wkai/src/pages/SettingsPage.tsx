@@ -120,7 +120,7 @@ export function SettingsPage() {
                 <button 
                   className="btn-secondary whitespace-nowrap text-xs py-1"
                   onClick={async () => {
-                    const { open } = await import("@tauri-apps/api/dialog");
+                    const { open } = await import("@tauri-apps/plugin-dialog");
                     const selected = await open({
                       directory: true,
                       multiple: false,
