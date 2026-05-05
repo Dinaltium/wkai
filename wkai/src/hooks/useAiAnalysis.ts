@@ -32,8 +32,27 @@ export function useAiAnalysis(send: (type: string, payload: any) => void) {
       try {
         setCapture({ aiProcessing: true });
         
-        // Grab a fresh frame specifically for AI (can be lower quality/resolution)
-        const b64 = await captureScreen();
+        let b64 = "";
+        if (currentState.sharedDisplayStream) {
+          // Grab frame from the active WebRTC stream (Zero OS stutter!)
+          const stream = currentState.sharedDisplayStream;
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            const imageCapture = new (window as any).ImageCapture(videoTrack);
+            const bitmap = await imageCapture.grabFrame();
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(bitmap, 0, 0);
+            b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+          }
+        }
+        
+        // Fallback to Rust native capture if WebRTC is not active
+        if (!b64) {
+          b64 = await captureScreen();
+        }
         
         send("screen-frame", {
           sessionId: currentState.session.id,

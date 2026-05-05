@@ -36,8 +36,20 @@ export function useBrowserCapture() {
       setSharedDisplayStream(stream);
       setCapture({ isCapturing: true, framesSent: 0 });
 
+      // Attach to a hidden video element to prevent WebView2 from throttling/freezing the stream
+      const hiddenVideo = document.createElement("video");
+      hiddenVideo.autoplay = true;
+      hiddenVideo.muted = true;
+      hiddenVideo.playsInline = true;
+      hiddenVideo.srcObject = stream;
+      hiddenVideo.style.display = "none";
+      document.body.appendChild(hiddenVideo);
+
       stream.getVideoTracks()[0].onended = () => {
         stopBrowserCapture();
+        if (hiddenVideo.parentNode) {
+          hiddenVideo.parentNode.removeChild(hiddenVideo);
+        }
       };
 
       addDebugLog("Browser capture active (High FPS)", "success");
