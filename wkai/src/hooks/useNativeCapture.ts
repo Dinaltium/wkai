@@ -93,6 +93,10 @@ export function useNativeCapture() {
     [startRenderLoop, stopRenderLoop]
   );
 
+  const getStream = useCallback((fps = 30) => {
+    return canvasRef.current ? canvasRef.current.captureStream(fps) : null;
+  }, []);
+
   // Initialize platform and event listeners
   useEffect(() => {
     const unlisteners: UnlistenFn[] = [];
@@ -260,5 +264,6 @@ export function useNativeCapture() {
     refreshStatus,
     canvasRef,
     attachCanvas,
+    getStream,
   };
 }

@@ -6,9 +6,8 @@ export function ShareToggle() {
 
   function handleToggle() {
     const next = !streamingToStudents;
-    if (next && !sharedDisplayStream) {
-      window.dispatchEvent(new Event("wkai:request-stream"));
-    }
+    // Removed browser display capture request (wkai:request-stream)
+    // We now rely solely on the Rust native capture pipeline.
     setStreamingToStudents(next);
   }
 

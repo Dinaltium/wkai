@@ -57,17 +57,8 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       let display = sharedDisplayStream;
       
       if (!display) {
-        // If not already sharing, we need to request the stream
-        // We trigger the event that useWebRtcPublisher listens to
-        window.dispatchEvent(new Event("wkai:request-stream"));
-        
-        // Wait a bit for the stream to be acquired
-        let attempts = 0;
-        while (!display && attempts < 10) {
-          await new Promise(r => setTimeout(r, 500));
-          display = useAppStore.getState().sharedDisplayStream;
-          attempts++;
-        }
+        addDebugLog("Native capture stream not active. Please select a display to capture.", "error");
+        throw new Error("Could not acquire display stream (no native capture source)");
       }
       
       if (!display) throw new Error("Could not acquire display stream");

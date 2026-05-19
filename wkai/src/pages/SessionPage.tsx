@@ -14,6 +14,12 @@ import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
 import { RecordingPanel } from "../components/instructor/RecordingPanel";
 import { useWebRtcPublisher } from "../hooks/useWebRtcPublisher";
+import { useNativeCapture } from "../hooks/useNativeCapture";
+import { useCaptureDevices } from "../hooks/useCaptureDevices";
+import { DeviceSelector } from "../components/nativeCapture/DeviceSelector";
+import { CapturePreview } from "../components/nativeCapture/CapturePreview";
+import type { CaptureTarget } from "../types/nativeCapture";
+import { useEffect } from "react";
 export function SessionPage() {
   const { session, settings, studentCount } = useAppStore();
   const { send, on, off } = useWebSocket({
@@ -23,6 +29,41 @@ export function SessionPage() {
   useWebRtcPublisher(session?.id ?? null, send, on, off);
 
   const [leftTab, setLeftTab] = useState<"students" | "inbox">("students");
+  const [selectedTarget, setSelectedTarget] = useState<CaptureTarget | null>(null);
+  const capture = useNativeCapture();
+  const devices = useCaptureDevices();
+  const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
+
+  // Auto-start capture when target is selected
+  useEffect(() => {
+    if (selectedTarget) {
+      const fps = settings.captureFramerate === "auto" ? 30 : parseInt(String(settings.captureFramerate));
+      capture.startCapture(selectedTarget, {
+        fps,
+        quality: settings.captureQuality,
+        preview_width: 1280
+      }, {
+        saveLocal: settings.saveLocalRecording,
+        dir: settings.recordingDirectory || "",
+        format: settings.recordingFormat || "mp4"
+      }).then(() => {
+        const stream = capture.getStream(fps);
+        setSharedDisplayStream(stream);
+      });
+    } else {
+      capture.stopCapture().then(() => {
+        setSharedDisplayStream(null);
+      });
+    }
+  }, [selectedTarget]); // Intentionally omitting settings so it doesn't restart on setting change
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      capture.stopCapture();
+      setSharedDisplayStream(null);
+    };
+  }, []);
 
   if (!session) {
     return (
@@ -41,6 +82,16 @@ export function SessionPage() {
         </div>
         <div className="border-b border-wkai-border p-4">
           <CaptureStatus />
+        </div>
+        <div className="border-b border-wkai-border p-4">
+          <DeviceSelector
+            monitors={devices.monitors}
+            windows={devices.windows}
+            selectedTarget={selectedTarget}
+            onSelect={setSelectedTarget}
+            isLoading={devices.isLoading}
+            onRefresh={devices.refreshDevices}
+          />
         </div>
         <div className="border-b border-wkai-border p-4">
           <ShareToggle />
@@ -91,6 +142,15 @@ export function SessionPage() {
       <ShareIntentToast sessionId={session.id} />
 
       <StudentJoinToast />
+
+      {/* Hidden Native Capture Renderer */}
+      <div className="hidden">
+        <CapturePreview
+          canvasRef={capture.canvasRef}
+          attachCanvas={capture.attachCanvas}
+          status={capture.status.status}
+        />
+      </div>
     </div>
   );
 }
