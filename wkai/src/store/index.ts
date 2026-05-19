@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type {
   Session,
-  CaptureState,
+  RecordingState,
   GuideBlock,
   SharedFile,
   WatchedFile,
@@ -61,6 +61,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   groqApiKey:     "",
   saveLocalRecording: false,
   recordingDirectory: "",
+  recordingFormat: "mp4",
+  captureFramerate: "auto" as const,
+  captureQuality: "auto" as const,
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";

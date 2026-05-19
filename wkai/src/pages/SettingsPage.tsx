@@ -91,6 +91,50 @@ export function SettingsPage() {
           </Field>
         </section>
 
+        {/* Capture */}
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+            Capture
+          </h2>
+          <Field label="Framerate">
+            <select
+              className="input text-xs"
+              value={String(settings.captureFramerate)}
+              onChange={(e) => {
+                const v = e.target.value;
+                updateSettings({
+                  captureFramerate:
+                    v === "auto"
+                      ? "auto"
+                      : (Number(v) as 15 | 24 | 30 | 60),
+                });
+              }}
+            >
+              <option value="auto">Auto</option>
+              <option value="15">15 fps</option>
+              <option value="24">24 fps</option>
+              <option value="30">30 fps</option>
+              <option value="60">60 fps</option>
+            </select>
+          </Field>
+          <Field label="Quality">
+            <select
+              className="input text-xs"
+              value={settings.captureQuality}
+              onChange={(e) =>
+                updateSettings({
+                  captureQuality: e.target.value as "low" | "medium" | "high" | "auto",
+                })
+              }
+            >
+              <option value="auto">Auto</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </Field>
+        </section>
+
         {/* Recording */}
         <section className="card space-y-4 p-4">
           <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
@@ -109,33 +153,49 @@ export function SettingsPage() {
             />
           </div>
 
-          {settings.saveLocalRecording && (
-            <Field label="Save Location">
-              <div className="flex gap-2">
-                <input
-                  className="input flex-1 text-xs"
-                  readOnly
-                  value={settings.recordingDirectory || "No location selected"}
-                />
-                <button 
-                  className="btn-secondary whitespace-nowrap text-xs py-1"
-                  onClick={async () => {
-                    const { open } = await import("@tauri-apps/plugin-dialog");
-                    const selected = await open({
-                      directory: true,
-                      multiple: false,
-                      title: "Select Recording Directory"
-                    });
-                    if (typeof selected === "string") {
-                      updateSettings({ recordingDirectory: selected });
-                    }
-                  }}
-                >
-                  Pick Folder
-                </button>
-              </div>
-            </Field>
-          )}
+          <Field label="Save Location">
+            <div className="flex gap-2">
+              <input
+                className={`input flex-1 text-xs ${!settings.saveLocalRecording ? "opacity-50 cursor-not-allowed" : ""}`}
+                readOnly
+                disabled={!settings.saveLocalRecording}
+                value={settings.recordingDirectory || "No location selected"}
+              />
+              <button
+                className={`btn-secondary whitespace-nowrap text-xs py-1 ${!settings.saveLocalRecording ? "opacity-50 cursor-not-allowed" : ""}`}
+                disabled={!settings.saveLocalRecording}
+                onClick={async () => {
+                  const { open } = await import("@tauri-apps/plugin-dialog");
+                  const selected = await open({
+                    directory: true,
+                    multiple: false,
+                    title: "Select Recording Directory"
+                  });
+                  if (typeof selected === "string") {
+                    updateSettings({ recordingDirectory: selected });
+                  }
+                }}
+              >
+                Pick Folder
+              </button>
+            </div>
+          </Field>
+
+          <Field label="Recording Format">
+            <select
+              className={`input text-xs ${!settings.saveLocalRecording ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={!settings.saveLocalRecording}
+              value={settings.recordingFormat}
+              onChange={(e) =>
+                updateSettings({
+                  recordingFormat: e.target.value as "mp4" | "webm",
+                })
+              }
+            >
+              <option value="mp4">MP4</option>
+              <option value="webm">WebM</option>
+            </select>
+          </Field>
         </section>
 
         <section className="card space-y-5 p-4">

@@ -151,6 +151,9 @@ export interface AppSettings {
   groqApiKey: string;
   saveLocalRecording: boolean;
   recordingDirectory: string;
+  recordingFormat: "mp4" | "webm";
+  captureFramerate: 15 | 24 | 30 | 60 | "auto";
+  captureQuality: "low" | "medium" | "high" | "auto";
 }
 
 export interface RecordingState {
