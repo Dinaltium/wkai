@@ -71,3 +71,19 @@ pub async fn get_capture_metrics(state: ManagerState<'_>) -> Result<CaptureMetri
         .get_metrics()
         .map_err(|e| e.to_string())
 }
+
+/// Append a video chunk to a recording file on disk.
+#[tauri::command]
+pub async fn append_to_recording(path: String, chunk: Vec<u8>) -> Result<(), String> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("Failed to open file: {}", e))?;
+    
+    file.write_all(&chunk)
+        .map_err(|e| format!("Failed to write chunk: {}", e))?;
+        
+    Ok(())
+}

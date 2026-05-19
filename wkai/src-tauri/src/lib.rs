@@ -40,6 +40,7 @@ pub fn run() {
             commands::native_capture::stop_native_capture,
             commands::native_capture::get_capture_status,
             commands::native_capture::get_capture_metrics,
+            commands::native_capture::append_to_recording,
         ])
 
         // Setup system tray

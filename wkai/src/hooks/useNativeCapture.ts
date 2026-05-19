@@ -164,14 +164,55 @@ export function useNativeCapture() {
     };
   }, [stopRenderLoop]);
 
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
   // Start capture
   const startCapture = useCallback(
-    async (target: CaptureTarget, config: CaptureConfig) => {
+    async (
+      target: CaptureTarget, 
+      config: CaptureConfig,
+      recordingOptions?: {
+        saveLocal: boolean;
+        dir: string;
+        format: "mp4" | "webm";
+      }
+    ) => {
       setIsLoading(true);
       setError(null);
       try {
         await invoke("start_native_capture", { target, config });
         startRenderLoop();
+
+        if (recordingOptions?.saveLocal && recordingOptions.dir && canvasRef.current) {
+          const ext = recordingOptions.format === "mp4" ? "mp4" : "webm";
+          let mimeType = "video/webm";
+          if (ext === "mp4" && MediaRecorder.isTypeSupported("video/mp4")) {
+            mimeType = "video/mp4";
+          }
+          
+          const fps = config.fps || 30;
+          const stream = canvasRef.current.captureStream(fps);
+          const recorder = new MediaRecorder(stream, { mimeType });
+          
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const dir = recordingOptions.dir.replace(/[\\/]$/, "");
+          const filePath = `${dir}/wkai_recording_${timestamp}.${ext}`;
+
+          recorder.ondataavailable = async (e) => {
+            if (e.data.size > 0) {
+              const buffer = await e.data.arrayBuffer();
+              const chunk = Array.from(new Uint8Array(buffer));
+              try {
+                await invoke("append_to_recording", { path: filePath, chunk });
+              } catch (err) {
+                console.error("Failed to write recording chunk:", err);
+              }
+            }
+          };
+
+          recorder.start(2000); // chunk every 2 seconds
+          mediaRecorderRef.current = recorder;
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -187,6 +228,10 @@ export function useNativeCapture() {
     try {
       await invoke("stop_native_capture");
       frameRef.current = null;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

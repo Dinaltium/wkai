@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { useNativeCapture } from "../hooks/useNativeCapture";
 import { useCaptureDevices } from "../hooks/useCaptureDevices";
 import { useCaptureMetrics } from "../hooks/useCaptureMetrics";
+import { useAppStore } from "../store";
 
 import { CapturePreview } from "../components/nativeCapture/CapturePreview";
 import { DeviceSelector } from "../components/nativeCapture/DeviceSelector";
@@ -34,6 +35,7 @@ export function NativeCaptureTest() {
   const capture = useNativeCapture();
   const devices = useCaptureDevices();
   const metricsHook = useCaptureMetrics();
+  const { settings } = useAppStore();
 
   const [selectedTarget, setSelectedTarget] = useState<CaptureTarget | null>(
     null
@@ -71,6 +73,10 @@ export function NativeCaptureTest() {
         fps: fpsValue,
         quality,
         preview_width: 1280,
+      }, {
+        saveLocal: settings.saveLocalRecording,
+        dir: settings.recordingDirectory || "",
+        format: settings.recordingFormat || "mp4"
       });
       addLog("Capture started successfully", "success");
     } catch (e) {
