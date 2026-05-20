@@ -5,11 +5,11 @@ import { clsx } from "clsx";
 
 function pickMimeType() {
   const preferred = [
-    "video/mp4;codecs=h264",
-    "video/mp4",
     "video/webm;codecs=vp9",
     "video/webm;codecs=vp8",
     "video/webm",
+    "video/mp4;codecs=h264",
+    "video/mp4",
   ];
   for (const mime of preferred) {
     if (MediaRecorder.isTypeSupported(mime)) return mime;
