@@ -42,8 +42,19 @@ export function useNativeCapture() {
     []
   );
 
+  const streamRef = useRef<MediaStream | null>(null);
+  const targetFpsRef = useRef<number>(30);
+  const onStreamReadyRef = useRef<((stream: MediaStream) => void) | null>(null);
+
   const getStream = useCallback((fps = 30) => {
-    return canvasRef.current ? canvasRef.current.captureStream(fps) : null;
+    return new Promise<MediaStream | null>((resolve) => {
+      targetFpsRef.current = fps;
+      if (streamRef.current) {
+        resolve(streamRef.current);
+      } else {
+        onStreamReadyRef.current = resolve as (stream: MediaStream) => void;
+      }
+    });
   }, []);
 
   // Initialize platform and event listeners
@@ -84,6 +95,13 @@ export function useNativeCapture() {
                     canvasRef.current.width,
                     canvasRef.current.height
                   );
+                  if (!streamRef.current) {
+                    streamRef.current = canvasRef.current.captureStream(targetFpsRef.current);
+                    if (onStreamReadyRef.current) {
+                      onStreamReadyRef.current(streamRef.current);
+                      onStreamReadyRef.current = null;
+                    }
+                  }
                 }
               };
               img.src = `data:image/jpeg;base64,${event.payload.data}`;
@@ -128,6 +146,10 @@ export function useNativeCapture() {
 
     return () => {
       unlisteners.forEach((fn) => fn());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
     };
   }, []);
 
@@ -157,27 +179,29 @@ export function useNativeCapture() {
           }
           
           const fps = config.fps || 30;
-          const stream = canvasRef.current.captureStream(fps);
-          const recorder = new MediaRecorder(stream, { mimeType });
-          
-          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-          const dir = recordingOptions.dir.replace(/[\\/]$/, "");
-          const filePath = `${dir}/wkai_recording_${timestamp}.${ext}`;
+          getStream(fps).then((stream) => {
+            if (!stream) return;
+            const recorder = new MediaRecorder(stream, { mimeType });
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const dir = recordingOptions.dir.replace(/[\\/]$/, "");
+            const filePath = `${dir}/wkai_recording_${timestamp}.${ext}`;
 
-          recorder.ondataavailable = async (e) => {
-            if (e.data.size > 0) {
-              const buffer = await e.data.arrayBuffer();
-              const chunk = Array.from(new Uint8Array(buffer));
-              try {
-                await invoke("append_to_recording", { path: filePath, chunk });
-              } catch (err) {
-                console.error("Failed to write recording chunk:", err);
+            recorder.ondataavailable = async (e) => {
+              if (e.data.size > 0) {
+                const buffer = await e.data.arrayBuffer();
+                const chunk = Array.from(new Uint8Array(buffer));
+                try {
+                  await invoke("append_to_recording", { path: filePath, chunk });
+                } catch (err) {
+                  console.error("Failed to write recording chunk:", err);
+                }
               }
-            }
-          };
+            };
 
-          recorder.start(2000); // chunk every 2 seconds
-          mediaRecorderRef.current = recorder;
+            recorder.start(2000); // chunk every 2 seconds
+            mediaRecorderRef.current = recorder;
+          });
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -193,6 +217,10 @@ export function useNativeCapture() {
     setIsLoading(true);
     try {
       await invoke("stop_native_capture");
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current = null;

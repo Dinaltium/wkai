@@ -49,8 +49,11 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
             setStudentCount((msg.payload as { count: number }).count);
             break;
           case "student-list": {
-            const p = msg.payload as { students: { studentId: string; studentName: string }[] };
-            useAppStore.getState().setStudents(p.students);
+            const p = msg.payload as { students: { studentId: string; studentName: string; joinedAt?: string }[] };
+            useAppStore.getState().setStudents(p.students.map(s => ({
+              ...s,
+              joinedAt: s.joinedAt || new Date().toISOString()
+            })));
             break;
           }
           case "share-intent-detected":

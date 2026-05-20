@@ -46,8 +46,8 @@ export function SessionPage() {
         saveLocal: settings.saveLocalRecording,
         dir: settings.recordingDirectory || "",
         format: settings.recordingFormat || "mp4"
-      }).then(() => {
-        const stream = capture.getStream(fps);
+      }).then(async () => {
+        const stream = await capture.getStream(fps);
         setSharedDisplayStream(stream);
       });
     } else {
