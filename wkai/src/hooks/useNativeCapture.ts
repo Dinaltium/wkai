@@ -44,7 +44,7 @@ export function useNativeCapture() {
 
   const streamRef = useRef<MediaStream | null>(null);
   const targetFpsRef = useRef<number>(30);
-  const onStreamReadyRef = useRef<((stream: MediaStream) => void) | null>(null);
+  const onStreamReadyRef = useRef<((stream: MediaStream) => void)[]>([]);
 
   const getStream = useCallback((fps = 30) => {
     return new Promise<MediaStream | null>((resolve) => {
@@ -52,7 +52,7 @@ export function useNativeCapture() {
       if (streamRef.current) {
         resolve(streamRef.current);
       } else {
-        onStreamReadyRef.current = resolve as (stream: MediaStream) => void;
+        onStreamReadyRef.current.push(resolve as (stream: MediaStream) => void);
       }
     });
   }, []);
@@ -97,9 +97,9 @@ export function useNativeCapture() {
                   );
                   if (!streamRef.current) {
                     streamRef.current = canvasRef.current.captureStream(targetFpsRef.current);
-                    if (onStreamReadyRef.current) {
-                      onStreamReadyRef.current(streamRef.current);
-                      onStreamReadyRef.current = null;
+                    if (onStreamReadyRef.current.length > 0) {
+                      onStreamReadyRef.current.forEach(resolve => resolve(streamRef.current!));
+                      onStreamReadyRef.current = [];
                     }
                   }
                 }
