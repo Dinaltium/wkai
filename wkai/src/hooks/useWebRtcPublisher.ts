@@ -100,6 +100,12 @@ export function useWebRtcPublisher(
   }, [sessionId, streamingToStudents, students]);
 
   useEffect(() => {
+    if (sessionId && streamingToStudents && sharedDisplayStream) {
+      void Promise.all(students.map((s) => createPeerRef.current(s.studentId, true)));
+    }
+  }, [sharedDisplayStream]);
+
+  useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {
       const studentId = payload.studentId;
       const peer = peersRef.current.get(studentId);

@@ -143,8 +143,8 @@ export function SessionPage() {
 
       <StudentJoinToast />
 
-      {/* Hidden Native Capture Renderer */}
-      <div className="hidden">
+      {/* Visually Hidden Native Capture Renderer (must be in DOM for requestAnimationFrame) */}
+      <div className="fixed bottom-0 right-0 w-[1px] h-[1px] opacity-0 pointer-events-none overflow-hidden">
         <CapturePreview
           canvasRef={capture.canvasRef}
           attachCanvas={capture.attachCanvas}

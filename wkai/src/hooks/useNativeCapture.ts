@@ -34,63 +34,12 @@ export function useNativeCapture() {
   // Canvas rendering refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef(new Image());
-  const frameRef = useRef<string | null>(null);
-  const animFrameRef = useRef<number>(0);
-  const isRenderingRef = useRef(false);
-
-  // Animation loop — draws the latest frame to canvas
-  const renderLoop = useCallback(() => {
-    const frame = frameRef.current;
-    const canvas = canvasRef.current;
-    if (frame && canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        const img = imgRef.current;
-        img.onload = () => {
-          if (canvasRef.current) {
-            ctx.drawImage(
-              img,
-              0,
-              0,
-              canvasRef.current.width,
-              canvasRef.current.height
-            );
-          }
-        };
-        img.src = `data:image/jpeg;base64,${frame}`;
-        frameRef.current = null; // consumed
-      }
-    }
-    animFrameRef.current = requestAnimationFrame(renderLoop);
-  }, []);
-
-  // Start the render loop
-  const startRenderLoop = useCallback(() => {
-    if (!isRenderingRef.current) {
-      isRenderingRef.current = true;
-      animFrameRef.current = requestAnimationFrame(renderLoop);
-    }
-  }, [renderLoop]);
-
-  // Stop the render loop
-  const stopRenderLoop = useCallback(() => {
-    if (isRenderingRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      isRenderingRef.current = false;
-    }
-  }, []);
-
   // Attach canvas for rendering
   const attachCanvas = useCallback(
     (canvas: HTMLCanvasElement | null) => {
       canvasRef.current = canvas;
-      if (canvas) {
-        startRenderLoop();
-      } else {
-        stopRenderLoop();
-      }
     },
-    [startRenderLoop, stopRenderLoop]
+    []
   );
 
   const getStream = useCallback((fps = 30) => {
@@ -113,8 +62,6 @@ export function useNativeCapture() {
       const unFrame = await listen<FramePayload>(
         "native-capture:frame",
         (event) => {
-          frameRef.current = event.payload.data;
-          // Update canvas size to match frame if needed
           const canvas = canvasRef.current;
           if (canvas) {
             if (
@@ -123,6 +70,23 @@ export function useNativeCapture() {
             ) {
               canvas.width = event.payload.width;
               canvas.height = event.payload.height;
+            }
+            
+            const ctx = canvas.getContext("2d", { alpha: false });
+            if (ctx) {
+              const img = imgRef.current;
+              img.onload = () => {
+                if (canvasRef.current) {
+                  ctx.drawImage(
+                    img,
+                    0,
+                    0,
+                    canvasRef.current.width,
+                    canvasRef.current.height
+                  );
+                }
+              };
+              img.src = `data:image/jpeg;base64,${event.payload.data}`;
             }
           }
         }
@@ -164,9 +128,8 @@ export function useNativeCapture() {
 
     return () => {
       unlisteners.forEach((fn) => fn());
-      stopRenderLoop();
     };
-  }, [stopRenderLoop]);
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -185,7 +148,6 @@ export function useNativeCapture() {
       setError(null);
       try {
         await invoke("start_native_capture", { target, config });
-        startRenderLoop();
 
         if (recordingOptions?.saveLocal && recordingOptions.dir && canvasRef.current) {
           const ext = recordingOptions.format === "mp4" ? "mp4" : "webm";
@@ -223,7 +185,7 @@ export function useNativeCapture() {
         setIsLoading(false);
       }
     },
-    [startRenderLoop]
+    []
   );
 
   // Stop capture
@@ -231,7 +193,6 @@ export function useNativeCapture() {
     setIsLoading(true);
     try {
       await invoke("stop_native_capture");
-      frameRef.current = null;
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current = null;
