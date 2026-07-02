@@ -30,6 +30,11 @@ wkai-backend/.env.local
 !.env.example
 !wkai-backend/.env.example
 
+# Spike local creds + benchmark output artifacts
+spike/livekit.local.ps1
+spike/out_*.mp4
+spike/*.log
+
 # Firebase service account key (contains private credentials)
 firebase-service-account.json
 firebase-adminsdk*.json
