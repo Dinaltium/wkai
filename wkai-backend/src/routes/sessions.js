@@ -1,12 +1,23 @@
 import { Router } from "express";
 import { z } from "zod";
-import { scryptSync, timingSafeEqual, randomBytes } from "node:crypto";
+import { scryptSync, timingSafeEqual, randomBytes, randomUUID } from "node:crypto";
 import { query } from "../db/client.js";
 import { setSessionData, deleteSessionData, clearStudentConnections } from "../db/redis.js";
 import { broadcast, cleanupSession } from "../ws/server.js";
 import { clearSessionMemory } from "../ai/memory.js";
+import { rateLimit } from "../middleware/rateLimit.js";
+import {
+  issueInstructorToken,
+  issueStudentJoinToken,
+  requireSessionToken,
+} from "../auth/sessionAccess.js";
 
 export const sessionRouter = Router();
+
+// Throttle room-code guessing: join is the brute-force surface (6-char code).
+const joinLimiter = rateLimit({ windowMs: 60_000, max: 10, name: "join attempts" });
+// Session creation is cheaper to abuse but still worth a looser cap.
+const createLimiter = rateLimit({ windowMs: 60_000, max: 20, name: "session creations" });
 
 // ─── POST /api/sessions — Create a new session ────────────────────────────────
 
@@ -17,7 +28,7 @@ const CreateSessionSchema = z.object({
   sessionPassword: z.string().max(128).nullish(),
 });
 
-sessionRouter.post("/", async (req, res, next) => {
+sessionRouter.post("/", createLimiter, async (req, res, next) => {
   try {
     const body = CreateSessionSchema.parse(req.body);
     const passwordHash = body.sessionPassword ? hashPassword(body.sessionPassword) : null;
@@ -39,7 +50,14 @@ sessionRouter.post("/", async (req, res, next) => {
       startedAt:      session.started_at,
     });
 
-    res.status(201).json({ session: formatSession(session) });
+    // Token proving ownership of this session — required for the instructor's WS
+    // connection and privileged routes (end/memory).
+    const instructorToken = issueInstructorToken({
+      sessionId: session.id,
+      roomCode:  session.room_code,
+    });
+
+    res.status(201).json({ session: formatSession(session), instructorToken });
   } catch (err) {
     next(err);
   }
@@ -47,10 +65,10 @@ sessionRouter.post("/", async (req, res, next) => {
 
 // ─── POST /api/sessions/:roomCode/join ────────────────────────────────────────
 
-sessionRouter.post("/:roomCode/join", async (req, res, next) => {
+sessionRouter.post("/:roomCode/join", joinLimiter, async (req, res, next) => {
   try {
     const roomCode = req.params.roomCode.toUpperCase();
-    const { studentId, studentName, sessionPassword } = req.body;
+    const { studentName, sessionPassword } = req.body;
 
     const { rows } = await query(
       "SELECT * FROM sessions WHERE room_code = $1",
@@ -79,10 +97,25 @@ sessionRouter.post("/:roomCode/join", async (req, res, next) => {
       query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [session.id]),
     ]);
 
+    // Server-assigned identity (not client-supplied) baked into a signed token.
+    // The student presents this token on the WS connection; the server derives
+    // studentId/studentName from it, so neither can be spoofed.
+    const assignedStudentId = randomUUID();
+    const safeName = String(studentName ?? "Student").trim().slice(0, 60) || "Student";
+    const joinToken = issueStudentJoinToken({
+      sessionId:   session.id,
+      roomCode:    session.room_code,
+      studentId:   assignedStudentId,
+      studentName: safeName,
+    });
+
     res.json({
       session:     formatSession(session),
       guideBlocks: blocks.rows.map(formatGuideBlock),
       sharedFiles: files.rows.map(formatSharedFile),
+      joinToken,
+      studentId:   assignedStudentId,
+      studentName: safeName,
     });
   } catch (err) {
     next(err);
@@ -115,7 +148,7 @@ sessionRouter.get("/:roomCode", async (req, res, next) => {
 
 // ─── PATCH /api/sessions/:id/end ─────────────────────────────────────────────
 
-sessionRouter.patch("/:id/end", async (req, res, next) => {
+sessionRouter.patch("/:id/end", requireSessionToken({ requiredRole: "instructor" }), async (req, res, next) => {
   try {
     const { rows } = await query(
       `UPDATE sessions SET status = 'ended', ended_at = NOW()
@@ -148,7 +181,7 @@ sessionRouter.patch("/:id/end", async (req, res, next) => {
 
 // ─── GET /api/sessions/:id/guide ─────────────────────────────────────────────
 
-sessionRouter.get("/:id/guide", async (req, res, next) => {
+sessionRouter.get("/:id/guide", requireSessionToken(), async (req, res, next) => {
   try {
     const { rows } = await query(
       "SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC",
@@ -163,7 +196,7 @@ sessionRouter.get("/:id/guide", async (req, res, next) => {
 // ─── GET /api/sessions/:id/memory — Inspect LangChain session memory ─────────
 // Useful for debugging what the AI "remembers" about a session
 
-sessionRouter.get("/:id/memory", async (req, res, next) => {
+sessionRouter.get("/:id/memory", requireSessionToken({ requiredRole: "instructor" }), async (req, res, next) => {
   try {
     const { getSessionMemory } = await import("../ai/memory.js");
     const memory   = getSessionMemory(req.params.id);

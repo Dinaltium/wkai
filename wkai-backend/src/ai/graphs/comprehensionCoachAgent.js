@@ -52,7 +52,10 @@ async function generateQuestionNode(state) {
       })
     );
     return { question: await parser.parse(String(result.content ?? "")) };
-  } catch {
+  } catch (err) {
+    // Return null (caller treats "no question this round" as valid) but never
+    // fail silently — a spike in parse/generation failures should be visible.
+    console.warn("[ComprehensionCoach] question generation failed:", err?.message ?? err);
     return { question: null };
   }
 }
