@@ -28,7 +28,9 @@ src/ai/
 │   ├── QuizAgent.js
 │   ├── DebugAgent.js
 │   ├── IntentAgent.js
-│   └── MessageAgent.js
+│   ├── MessageAgent.js
+│   ├── ColabAgent.js       Google Colab notebook assist
+│   └── UrlAccessAgent.js   URL reachability / import diagnostics
 ├── groqClient.js          LangChain ChatGroq instances + raw Groq SDK for Whisper
 ├── memory.js              Redis-backed LangChain chat history per session
 ├── prompts.js             ChatPromptTemplates + Zod-based StructuredOutputParsers
@@ -38,6 +40,8 @@ src/ai/
     ├── errorAgent.js      LangGraph: error diagnosis agent (retry loop)
     ├── transcriptExplainerAgent.js
     ├── comprehensionCoachAgent.js
+    ├── messageAgent.js    LangGraph: student Q&A assistant
+    ├── colabAssistAgent.js LangGraph: Colab debugging helper
     └── intentAgent.js     LangGraph: file share intent detection
 ```
 
@@ -211,24 +215,31 @@ npm run dev
 
 | Method | Path | Description |
 |---|---|---|
-| POST | /api/sessions | Create session + Redis cache |
-| POST | /api/sessions/:roomCode/join | Password validation + issue signed join token |
-| GET | /api/sessions/:roomCode | Fetch room state using join token |
-| PATCH | /api/sessions/:id/end | End session + cleanup memory + WS notify |
-| GET | /api/sessions/:id/guide | Fetch all guide blocks |
-| GET | /api/sessions/:id/memory | Debug: inspect LangChain session memory |
+| POST | /api/sessions | Create session + Redis cache; returns `instructorToken` (rate-limited) |
+| POST | /api/sessions/:roomCode/join | Password check; server-assigns `studentId` + returns signed `joinToken` (rate-limited) |
+| GET | /api/sessions/:roomCode | Validate room code (public) |
+| PATCH | /api/sessions/:id/end | End session + cleanup — **requires instructor token** |
+| GET | /api/sessions/:id/guide | Fetch all guide blocks — **requires session token** |
+| GET | /api/sessions/:id/memory | Debug: inspect LangChain session memory — **requires instructor token** |
 | POST | /api/ai/transcribe | Groq Whisper audio → text |
 | POST | /api/ai/diagnose | LangGraph error agent |
 | POST | /api/ai/intent | LangGraph intent detection |
+| POST | /api/ai/colab-assist | Colab-assist agent (analyzes pasted notebook/output) |
 | GET  | /api/ai/agents | Agent health + metrics snapshot |
 | POST | /api/files/upload | Upload to Cloudinary |
+| POST | /api/files/upload-session-material | Upload session material to Cloudinary |
+| POST | /api/files/import-url | Fetch/scrape files from a URL |
 | POST | /api/run | Sandboxed code execution (python3/node/bash) |
 
 ---
 
 ## WebSocket — ws://localhost:4000/ws
 
-Connect with: `?session=ROOMCODE&role=instructor|student&studentId=OPTIONAL&joinToken=...`
+**Auth (required):** connect with `?token=<signed token>`. The instructor uses the
+`instructorToken` from session-create; students use the `joinToken` from `/join`.
+Role, `sessionId`, `studentId`, and `studentName` are all derived from the verified
+token — no other query params are trusted (closes role/identity spoofing). A
+connection without a valid token is rejected.
 
 | Message Type | Direction | Description |
 |---|---|---|
@@ -238,13 +249,18 @@ Connect with: `?session=ROOMCODE&role=instructor|student&studentId=OPTIONAL&join
 | comprehension-answer | student → server | Student's answer index |
 | comprehension-result | server → student | Correct/wrong + explanation |
 | file-shared | server → students | Cloudinary URL broadcast |
-| student-error | student → server | Error text → LangGraph error agent |
-| error-resolved | server → student | Diagnosis + fix command |
+| student-error | student → server | Error text → LangGraph error agent (queued per session) |
+| error-resolved | server → student | Diagnosis + fix command (graceful fallback on failure) |
 | student-joined | server → room | Updated student count |
 | student-left | server → room | Updated student count |
+| student-list | server → instructor | Full student roster on join |
 | session-ended | server → room | Instructor ended session |
 | session-state | server → new client | Full state on connect |
 | share-intent-detected | server → instructor | LangGraph detected share intent |
+| webrtc-offer / webrtc-answer | instructor ↔ student | WebRTC SDP relay (targeted) |
+| webrtc-ice-candidate | instructor ↔ student | WebRTC ICE candidate relay |
+| webrtc-request-offer | student → server | Student asks instructor to (re)offer |
+| webrtc-session-reset | instructor → students | Reset live stream (e.g. stream toggled off) |
 
 ---
 

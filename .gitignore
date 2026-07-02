@@ -26,6 +26,10 @@
 wkai-backend/.env
 wkai-backend/.env.local
 
+# ...but DO track example templates (no secrets, needed for onboarding)
+!.env.example
+!wkai-backend/.env.example
+
 # Firebase service account key (contains private credentials)
 firebase-service-account.json
 firebase-adminsdk*.json
