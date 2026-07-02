@@ -19,9 +19,10 @@ export async function createSession(
 
 export async function endSession(
   sessionId: string,
-  backendUrl: string
+  backendUrl: string,
+  instructorToken?: string
 ): Promise<void> {
-  return invoke("end_session", { sessionId, backendUrl });
+  return invoke("end_session", { sessionId, backendUrl, instructorToken });
 }
 
 export async function getSessionStatus(

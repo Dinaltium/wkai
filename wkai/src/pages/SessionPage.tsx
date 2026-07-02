@@ -25,6 +25,7 @@ export function SessionPage() {
   const { send, on, off } = useWebSocket({
     sessionId: session?.id ?? null,
     backendUrl: settings.backendUrl,
+    token: session?.instructorToken,
   });
   useWebRtcPublisher(session?.id ?? null, send, on, off);
 
@@ -46,8 +47,8 @@ export function SessionPage() {
         saveLocal: settings.saveLocalRecording,
         dir: settings.recordingDirectory || "",
         format: settings.recordingFormat || "mp4"
-      }).then(async () => {
-        const stream = await capture.getStream(fps);
+      }).then(() => {
+        const stream = capture.getStream(fps);
         setSharedDisplayStream(stream);
       });
     } else {
@@ -143,8 +144,8 @@ export function SessionPage() {
 
       <StudentJoinToast />
 
-      {/* Visually Hidden Native Capture Renderer (must be in DOM for requestAnimationFrame) */}
-      <div className="fixed bottom-0 right-0 w-[1px] h-[1px] opacity-0 pointer-events-none overflow-hidden">
+      {/* Hidden Native Capture Renderer */}
+      <div className="hidden">
         <CapturePreview
           canvasRef={capture.canvasRef}
           attachCanvas={capture.attachCanvas}

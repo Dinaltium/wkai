@@ -9,6 +9,8 @@ export interface Session {
   workshopTitle: string;
   startedAt: string;
   status: SessionStatus;
+  /** Signed session-ownership token — sent on the WS connection and end-session call. */
+  instructorToken?: string;
 }
 
 // ─── AI Guide Content ────────────────────────────────────────────────────────
