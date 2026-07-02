@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "../store";
 import type {
   WebRtcAnswerPayload,
@@ -98,12 +98,6 @@ export function useWebRtcPublisher(
       if (!activeIds.has(studentId)) closePeer(studentId);
     });
   }, [sessionId, streamingToStudents, students]);
-
-  useEffect(() => {
-    if (sessionId && streamingToStudents && sharedDisplayStream) {
-      void Promise.all(students.map((s) => createPeerRef.current(s.studentId, true)));
-    }
-  }, [sharedDisplayStream]);
 
   useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {

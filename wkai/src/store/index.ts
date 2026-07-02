@@ -37,15 +37,6 @@ interface AppStore {
   sharedDisplayStream: MediaStream | null;
   setSharedDisplayStream: (stream: MediaStream | null) => void;
 
-  // ─── Content ───────────────────────────────────────────────────────────────
-  guideBlocks: GuideBlock[];
-  addGuideBlock: (block: GuideBlock) => void;
-  clearGuide: () => void;
-  sharedFiles: SharedFile[];
-  addSharedFile: (file: SharedFile) => void;
-  watchedFiles: WatchedFile[];
-  setWatchedFiles: (files: WatchedFile[]) => void;
-
   // ─── Debug Console ─────────────────────────────────────────────────────────
   debugLogs: DebugLogEntry[];
   addDebugLog: (message: string, level?: DebugLogLevel) => void;

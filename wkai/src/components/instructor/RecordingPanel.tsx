@@ -1,13 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Download, Loader2, Square, Play, Pause, Mic, MicOff } from "lucide-react";
 import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 
+function pickMimeType() {
+  const preferred = [
+    "video/mp4;codecs=h264",
+    "video/mp4",
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+  ];
+  for (const mime of preferred) {
+    if (MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return "";
+}
 
 export function RecordingPanel({ roomCode }: { roomCode: string }) {
   const { 
     addDebugLog, 
     sharedDisplayStream, 
+    setSharedDisplayStream,
     recording,
     setRecording,
     settings
@@ -20,6 +34,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const mimeType = useMemo(() => pickMimeType(), []);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -42,14 +57,16 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       let display = sharedDisplayStream;
       
       if (!display) {
-        addDebugLog("Native capture stream not active. Please select a display.", "error");
-        return;
+        addDebugLog("Native capture stream not active. Please select a display to capture.", "error");
+        throw new Error("Could not acquire display stream (no native capture source)");
       }
+      
+      if (!display) throw new Error("Could not acquire display stream");
 
-      addDebugLog(`Starting recording. Tracks: ${display.getVideoTracks().length}`, "info");
-
-      // Omit mimeType completely to let the browser pick the safest default
-      const recorder = new MediaRecorder(display);
+      const recorder = new MediaRecorder(
+        display,
+        mimeType ? { mimeType } : undefined
+      );
       
       chunksRef.current = [];
       recorder.ondataavailable = (event) => {
@@ -57,7 +74,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       };
       
       recorder.onstop = async () => {
-        const mime = recorder.mimeType || "video/webm";
+        const mime = recorder.mimeType || mimeType || "video/webm";
         const blob = new Blob(chunksRef.current, { type: mime });
         const ext = mime.includes("mp4") ? "mp4" : "webm";
         const filename = `wkai-recording-${roomCode}-${Date.now()}.${ext}`;
@@ -70,6 +87,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
         
         addDebugLog(`Recording stopped. Size: ${Math.round(blob.size / 1024)} KB`, "success");
 
+        // Handle local saving if enabled
         if (settings.saveLocalRecording && settings.recordingDirectory) {
           try {
             const { join } = await import("@tauri-apps/api/path");
@@ -80,10 +98,10 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
             const fullPath = await join(settings.recordingDirectory, filename);
             
             await writeFile(fullPath, uint8Array);
-            addDebugLog(`Saved to: ${fullPath}`, "success");
+            addDebugLog(`Recording saved to system: ${fullPath}`, "success");
           } catch (err) {
             console.error("Local save failed:", err);
-            addDebugLog(`Local save failed: ${String(err)}`, "error");
+            addDebugLog(`Failed to save recording locally: ${String(err)}`, "error");
           }
         }
 
@@ -94,9 +112,9 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
       setRecording({ isRecording: true, isPaused: false, duration: 0 });
-      addDebugLog(`Recording started (${recorder.mimeType})`, "success");
-    } catch (err: any) {
-      addDebugLog(`Recording error: ${err?.name || "Error"} - ${err?.message || String(err)}`, "error");
+      addDebugLog("Recording started", "success");
+    } catch (err) {
+      addDebugLog(`Recording start failed: ${String(err)}`, "error");
     } finally {
       setStarting(false);
     }
