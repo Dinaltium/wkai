@@ -134,7 +134,8 @@ Three config groups, surfaced in the instructor Settings UI. Record and Stream a
 ## 8. Phased Plan (Windows-first)
 
 - **Phase 0 — Spike**: probe available hw encoders; benchmark WGC+NVENC vs GDI+x264 (CPU%, latency, quality); confirm FFmpeg build has `-f whip`; pick the Rust→FFmpeg frame handoff (pipe vs shared mem). Lock the SFU choice here.
-- **Phase 1 — Native record (Windows)**: Rust WGC/GDI capture → FFmpeg via pipe → mp4/mkv to disk, GPU+CPU selectable, with the Recording config surface. **Delete** `MediaRecorder` from `RecordingPanel.tsx`/`useNativeCapture.ts`.
+- **Phase 1a — Native record, FFmpeg-direct (Windows)**: DONE (scaffold, review-only). `src-tauri/src/recording/` (config + ffmpeg arg-builder + `start_recording`/`stop_recording`/`recording_status` commands) drives FFmpeg to capture (gdigrab/ddagrab) + encode (nvenc/x264, both spike-validated) + mux to mp4/mkv with graceful finalize. TS bridge in `wkai/src/lib/tauri.ts`. Needs local `cargo build` + wiring `RecordingPanel.tsx` to call these instead of browser `MediaRecorder`.
+- **Phase 1b — Native record, Rust-capture pipe (Windows)**: replace the FFmpeg capture INPUT with raw frames piped from a Rust WGC/DXGI capture (OBS-grade source control), keeping the same encode/mux tail. **Delete** `MediaRecorder` from `RecordingPanel.tsx`/`useNativeCapture.ts`.
 - **Phase 2 — Native stream (Windows)**: add the `split` stream chain → FFmpeg WHIP push → stand up the SFU → student subscribes. **Delete** `canvas.captureStream` + the `useWebRtcPublisher` mesh.
 - **Phase 3 — Config + UX polish**: full OBS-like settings panels, live metrics (fps/bitrate/dropped), Performance-mode presets, adaptive/simulcast.
 - **Phase 4 / 5 — macOS then Linux**: ScreenCaptureKit + VideoToolbox / PipeWire + VAAPI, same FFmpeg encode/WHIP tail. (Later, per your call.)
