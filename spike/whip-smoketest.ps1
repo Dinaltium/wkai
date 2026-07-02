@@ -63,7 +63,8 @@ $ffArgs = @(
   "-t","$Seconds",
   "-c:v","libx264","-preset","veryfast","-tune","zerolatency","-b:v","$Bitrate","-g","$gop","-pix_fmt","yuv420p",
   "-c:a","libopus","-b:a","64k",
-  "-authorization","Bearer $token",
+  # Pass the RAW token - ffmpeg's whip muxer prepends "Bearer " itself.
+  "-authorization","$token",
   "-f","whip",$WhipUrl
 )
 
@@ -71,5 +72,7 @@ $ffArgs = @(
 if ($LASTEXITCODE -eq 0) { Write-Host "`nWHIP push completed. Confirm you saw video in the LiveKit room." -ForegroundColor Green }
 else {
   Write-Host "`nWHIP push failed (exit $LASTEXITCODE)." -ForegroundColor Red
-  Write-Host "If it was a 401/auth error, the token/secret is off. If 404, check the WHIP URL in your LiveKit dashboard and pass -WhipUrl." -ForegroundColor Yellow
+  Write-Host "If 401 persists: run  ffmpeg -hide_banner -h muxer=whip  to confirm the auth option name on this build" -ForegroundColor Yellow
+  Write-Host "(it should be 'authorization' taking the raw token; some builds use 'bearer_token' or want the token in the URL as ?access_token=)." -ForegroundColor Yellow
+  Write-Host "If 404: verify the WHIP URL in the LiveKit dashboard and pass -WhipUrl." -ForegroundColor Yellow
 }
