@@ -44,8 +44,8 @@ function extractTokenCost(result) {
 }
 
 export function createBaseAgent({ name, version, tags = [], invoke, healthCheck }) {
-  if (!name || typeof invoke !== "function" || typeof healthCheck !== "function") {
-    throw new Error("createBaseAgent requires name, invoke, and healthCheck");
+  if (!name || typeof invoke !== "function") {
+    throw new Error("createBaseAgent requires name and invoke");
   }
 
   const agent = {
@@ -112,7 +112,41 @@ export function createBaseAgent({ name, version, tags = [], invoke, healthCheck 
       if (!enabled) {
         return { status: "disabled", enabled: false, name, version: this.version, tags };
       }
-      return healthCheck();
+
+      // Real signal derived from config + observed runtime metrics — no extra API
+      // call (which would burn tokens / risk rate limits on every health poll).
+      const m = getOrInitMetrics(name);
+      let status;
+      let detail;
+      if (!process.env.GROQ_API_KEY) {
+        status = "unconfigured";
+        detail = "GROQ_API_KEY is not set";
+      } else if (m.calls >= 3 && m.errorRate >= 0.5) {
+        status = "degraded";
+        detail = `error rate ${(m.errorRate * 100).toFixed(0)}% over ${m.calls} calls; last: ${m.lastError ?? "n/a"}`;
+      } else {
+        status = "healthy";
+      }
+
+      // Merge any agent-specific fields (optional) but let the derived status win.
+      const agentInfo = typeof healthCheck === "function" ? await healthCheck() : {};
+      return {
+        ...agentInfo,
+        status,
+        ...(detail ? { detail } : {}),
+        enabled: true,
+        name,
+        version: this.version,
+        tags,
+        metrics: {
+          calls: m.calls,
+          errors: m.errors,
+          errorRate: m.errorRate,
+          lastLatencyMs: m.lastLatencyMs,
+          lastInvokedAt: m.lastInvokedAt,
+          lastError: m.lastError,
+        },
+      };
     },
     getMetrics() {
       return { ...getOrInitMetrics(name) };
