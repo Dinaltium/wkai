@@ -15,19 +15,22 @@ export interface JoinRoomResponse {
   session: Session;
   guideBlocks: GuideBlock[];
   sharedFiles: SharedFile[];
-  joinToken?: string;
+  /** Signed token carrying the server-assigned identity; presented on the WS connection. */
+  joinToken: string;
+  /** Server-assigned student id (not client-chosen — prevents impersonation). */
+  studentId: string;
+  studentName: string;
 }
 
-/** Validate a room code and fetch its current state. */
+/** Join a room. The server assigns the studentId and returns a signed join token. */
 export async function joinRoom(
   roomCode: string,
-  studentId: string,
   studentName: string,
   sessionPassword?: string
 ): Promise<JoinRoomResponse> {
   const { data } = await api.post<JoinRoomResponse>(
     `/api/sessions/${roomCode.toUpperCase()}/join`,
-    { studentId, studentName, sessionPassword }
+    { studentName, sessionPassword }
   );
   return data;
 }

@@ -6,12 +6,18 @@ const BACKEND_WS = import.meta.env.VITE_BACKEND_WS ?? "ws://localhost:4000";
 
 export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);
-  const store = useStore.getState();
-  const studentId = store.studentId;
+  const shouldReconnect = useRef(true);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const joinToken = useStore((s) => s.joinToken);
 
   const connect = useCallback(() => {
-    const studentName = localStorage.getItem("wkai_student_name") || "Student";
-    const url = `${BACKEND_WS}/ws?session=${roomCode}&role=student&studentId=${studentId}&studentName=${encodeURIComponent(studentName)}`;
+    // Identity + role are carried by the signed join token; the server derives
+    // everything from it, so we send nothing else.
+    if (!joinToken) {
+      console.error("[WS] No join token — cannot connect. Rejoin the room.");
+      return;
+    }
+    const url = `${BACKEND_WS}/ws?token=${encodeURIComponent(joinToken)}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
@@ -28,12 +34,17 @@ export function useRoomSocket(roomCode: string) {
 
     ws.current.onclose = () => {
       useStore.getState().setConnected(false);
+      // Auto-reconnect (e.g. after a backend restart/redeploy) unless the session
+      // ended or the component unmounted.
+      if (shouldReconnect.current && !useStore.getState().sessionEnded) {
+        reconnectTimer.current = setTimeout(connect, 3000);
+      }
     };
 
     ws.current.onerror = (err) => {
       console.error("[WS] Socket error", err);
     };
-  }, [roomCode, studentId]);
+  }, [roomCode, joinToken]);
 
   function dispatch(msg: WsMessage) {
     switch (msg.type) {
@@ -73,6 +84,7 @@ export function useRoomSocket(roomCode: string) {
         }
         break;
       case "session-ended":
+        shouldReconnect.current = false;
         useStore.getState().setSessionEnded(true);
         useStore.getState().setConnected(false);
         ws.current?.close();
@@ -90,8 +102,11 @@ export function useRoomSocket(roomCode: string) {
   }, []);
 
   useEffect(() => {
+    shouldReconnect.current = true;
     connect();
     return () => {
+      shouldReconnect.current = false;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       ws.current?.close();
     };
   }, [connect]);

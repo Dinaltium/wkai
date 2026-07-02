@@ -6,7 +6,7 @@ import { useStore } from "../store";
 
 export function JoinPage() {
   const navigate = useNavigate();
-  const { studentId, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
 
   const [name, setName] = useState(localStorage.getItem("wkai_student_name") || "");
   // 6 individual digit/letter inputs
@@ -54,11 +54,13 @@ export function JoinPage() {
     setError(null);
     try {
       localStorage.setItem("wkai_student_name", name);
-      const data = await joinRoom(roomCode, studentId, name);
+      const data = await joinRoom(roomCode, name);
       if (data.session.status === "ended") {
         setError("This session has already ended.");
         return;
       }
+      // Persist the server-assigned identity + signed token for the WS connection.
+      setAuth(data.studentId, data.joinToken);
       setSession(data.session);
       setGuideBlocks(data.guideBlocks);
       setSharedFiles(data.sharedFiles);
