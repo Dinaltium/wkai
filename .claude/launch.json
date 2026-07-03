@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "student",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "wkai-student", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

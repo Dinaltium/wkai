@@ -142,7 +142,7 @@ export function JoinPage() {
 
       <p className="mt-8 text-xs text-wkai-text-dim text-center max-w-xs">
         WKAI automatically generates a step-by-step guide of everything your
-        instructor is teaching — in real time.
+        instructor is teaching, in real time.
       </p>
     </div>
   );
