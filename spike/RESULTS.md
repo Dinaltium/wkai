@@ -25,10 +25,20 @@ on-GPU cuda hwmap variant failed (d3d11->cuda mapping quirk in the ffmpeg filter
 chain) — irrelevant: the app captures in Rust (WGC/DXGI) and pipes NV12 to nvenc,
 which corresponds to the working "download" path. NVENC + x264 both real-time.
 
-## 3. WHIP -> LiveKit (whip-smoketest.ps1)
-- First run: 401 Unauthorized — caused by a double "Bearer" prefix in the script
-  (fixed: pass raw token to ffmpeg -authorization). Re-test pending.
-- WHIP URL confirmed reachable: https://wkai-b7994j63.livekit.cloud/whip
+## 3. Egress -> LiveKit
+- WHIP (ffmpeg -f whip): auth + WebRTC negotiation + LiveKit session all succeed,
+  but ffmpeg's WHIP muxer rejects LiveKit's TCP ICE candidates ("Protocol tcp is
+  not supported by RTC") — known unfixed ffmpeg limitation. WHIP via ffmpeg is a
+  dead end against LiveKit Cloud.
+- **RTMP ingress: WORKS.** `rtmp-smoketest.ps1` pushed 30s of desktop (H.264/AAC)
+  to an RTMP ingress; LiveKit accepted and transcodes to WebRTC. Real-time after
+  a brief connect ramp (a few dropped frames during ramp, then stable). This is
+  the v1 egress path. LiveKit Rust SDK publish is the sub-second upgrade path.
+
+## SPIKE COMPLETE (2026-07-03)
+All unknowns resolved. Encoders validated, capture works, egress proven (RTMP).
+Ready for Phase 1 (native record - scaffold committed) and Phase 2 (stream via
+RTMP ingress + LiveKit room subscribe on the student side).
 
 ## Decisions this unblocks
 - Default "Quality" mode: **GPU capture (Rust WGC/DXGI) + NVENC** (h264 for
