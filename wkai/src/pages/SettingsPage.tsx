@@ -54,10 +54,10 @@ export function SettingsPage() {
             <div className="rounded-lg bg-wkai-bg border border-wkai-border p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Network size={12} className="text-indigo-400" />
+                  <Network size={12} className="text-teal-400" />
                   <span className="text-xs text-wkai-text-dim">Instructor IP</span>
                 </div>
-                <span className="font-mono text-xs text-indigo-400">{networkInfo.localIp}</span>
+                <span className="font-mono text-xs text-teal-400">{networkInfo.localIp}</span>
               </div>
               {networkInfo.studentUrl && (
                 <div className="flex items-center justify-between">
@@ -147,7 +147,7 @@ export function SettingsPage() {
             </div>
             <input
               type="checkbox"
-              className="w-4 h-4 rounded border-wkai-border bg-wkai-surface text-indigo-500 focus:ring-indigo-500"
+              className="w-4 h-4 rounded border-wkai-border bg-wkai-surface text-teal-500 focus:ring-teal-500"
               checked={settings.saveLocalRecording}
               onChange={(e) => updateSettings({ saveLocalRecording: e.target.checked })}
             />

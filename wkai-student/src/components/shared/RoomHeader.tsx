@@ -31,7 +31,7 @@ export function RoomHeader() {
           {studentCount}
         </span>
 
-        <span className="font-mono text-xs font-bold tracking-widest text-indigo-400">
+        <span className="font-mono text-xs font-bold tracking-widest text-teal-400">
           {session?.roomCode}
         </span>
 
@@ -54,7 +54,7 @@ export function RoomHeader() {
             type="checkbox"
             checked={backgroundLiveEnabled}
             onChange={(e) => setBackgroundLiveEnabled(e.target.checked)}
-            className="accent-indigo-500"
+            className="accent-teal-500"
           />
           Bg Live
         </label>

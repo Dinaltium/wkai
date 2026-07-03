@@ -30,14 +30,14 @@ export function TabBar({ sessionEnded = false }: Props) {
           className={clsx(
             "relative flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors",
             activeTab === tab.id
-              ? "border-b-2 border-indigo-400 text-indigo-400"
+              ? "border-b-2 border-teal-400 text-teal-400"
               : "text-wkai-text-dim hover:text-wkai-text"
           )}
         >
           {tab.icon}
           {tab.label}
           {tab.id === "files" && newFileCount > 0 && (
-            <span className="absolute right-2 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-500 px-1 text-[10px] font-bold text-white">
+            <span className="absolute right-2 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[10px] font-bold text-white">
               {newFileCount}
             </span>
           )}

@@ -116,7 +116,7 @@ export function ErrorHelper({ send }: Props) {
         {errorDiagnosing && (
           <div className="flex flex-col items-center gap-3 py-10 text-center">
             <div className="relative flex h-12 w-12 items-center justify-center">
-              <Loader2 size={28} className="animate-spin text-indigo-400" />
+              <Loader2 size={28} className="animate-spin text-teal-400" />
             </div>
             <p className="text-sm font-medium text-wkai-text">Analysing error…</p>
             <p className="text-xs text-wkai-text-dim">
@@ -216,7 +216,7 @@ function ResolutionCard({
           <ol className="space-y-2">
             {resolution.fixSteps.map((step, i) => (
               <li key={i} className="flex gap-3 text-sm">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-400">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-500/20 text-xs font-bold text-teal-400">
                   {i + 1}
                 </span>
                 <span className="text-wkai-text leading-relaxed">{step}</span>

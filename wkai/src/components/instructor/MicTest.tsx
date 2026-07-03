@@ -103,7 +103,7 @@ export function MicTest() {
         <div className="space-y-1.5">
           <div className="h-2 rounded-full bg-wkai-border overflow-hidden">
             <div
-              className="h-full rounded-full bg-indigo-400 transition-all duration-75"
+              className="h-full rounded-full bg-teal-400 transition-all duration-75"
               style={{ width: `${level}%` }}
             />
           </div>

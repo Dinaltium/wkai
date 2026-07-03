@@ -63,7 +63,7 @@ export function AppShell() {
                   <span
                     className={clsx(
                       "h-1.5 w-1.5 rounded-full",
-                      streamingToStudents ? "bg-indigo-400 animate-pulse" : "bg-gray-500"
+                      streamingToStudents ? "bg-teal-400 animate-pulse" : "bg-gray-500"
                     )}
                   />
                   {streamingToStudents ? "Streaming" : "Offline"}
@@ -83,7 +83,7 @@ export function AppShell() {
                   {studentCount} student{studentCount !== 1 ? "s" : ""}
                 </span>
                 <span className="text-wkai-border">|</span>
-                <span className="font-mono text-indigo-400">
+                <span className="font-mono text-teal-400">
                   {session?.roomCode}
                 </span>
               </>
@@ -120,7 +120,7 @@ function NavItem({
         clsx(
           "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
           isActive
-            ? "bg-indigo-500/20 text-indigo-400"
+            ? "bg-teal-500/20 text-teal-400"
             : "text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text"
         )
       }

@@ -70,7 +70,7 @@ export function CodeEditor() {
                   key={l.id}
                   onClick={() => handleLangChange(l.id)}
                   className={`w-full px-3 py-2 text-left text-xs hover:bg-wkai-border transition-colors ${
-                    l.id === langId ? "text-indigo-400 font-medium" : "text-wkai-text"
+                    l.id === langId ? "text-teal-400 font-medium" : "text-wkai-text"
                   }`}
                 >
                   {l.label}

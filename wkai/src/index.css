@@ -4,12 +4,12 @@
 
 @layer base {
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface-2: #20253a;
-    --border: #2a2d3a;
-    --accent: #6366f1;
-    --accent-dim: rgba(99, 102, 241, 0.15);
+    --bg: #0c0c0e;
+    --surface: #18181b;
+    --surface-2: #232327;
+    --border: #2c2c31;
+    --accent: #14b8a6;
+    --accent-dim: rgba(20, 184, 166, 0.15);
     --success: #22c55e;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -76,10 +76,10 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-wkai-bg;
+    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-wkai-bg;
   }
   .btn-primary {
-    @apply btn bg-indigo-500 text-white hover:bg-indigo-600 active:scale-95;
+    @apply btn bg-teal-500 text-teal-950 font-semibold hover:bg-teal-400 active:scale-95;
   }
   .btn-ghost {
     @apply btn bg-transparent text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text;
@@ -94,7 +94,7 @@
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
   }
   .input {
-    @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors;
+    @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30 transition-colors;
   }
   .pulse-dot {
     @apply relative inline-flex h-2 w-2;

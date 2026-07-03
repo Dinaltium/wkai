@@ -82,7 +82,7 @@ export function ComprehensionModal({ send }: Props) {
                 else if (isSelected && !isCorrectOpt) stateClass = "border-red-500 bg-red-500/10";
                 else stateClass = "border-wkai-border bg-wkai-bg opacity-50";
               } else if (isSelected) {
-                stateClass = "border-indigo-400 bg-indigo-500/10";
+                stateClass = "border-teal-400 bg-teal-500/10";
               }
 
               return (
@@ -98,7 +98,7 @@ export function ComprehensionModal({ send }: Props) {
                   {/* Option letter */}
                   <span className={clsx(
                     "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
-                    isSelected && !submitted ? "border-indigo-400 text-indigo-400 bg-indigo-500/10" : "border-wkai-border text-wkai-text-dim"
+                    isSelected && !submitted ? "border-teal-400 text-teal-400 bg-teal-500/10" : "border-wkai-border text-wkai-text-dim"
                   )}>
                     {String.fromCharCode(65 + i)}
                   </span>

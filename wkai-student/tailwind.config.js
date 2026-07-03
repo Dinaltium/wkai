@@ -5,11 +5,11 @@ export default {
     extend: {
       colors: {
         wkai: {
-          bg:         "#0f1117",
-          surface:    "#1a1d27",
-          surface2:   "#20253a",
-          border:     "#2a2d3a",
-          accent:     "#6366f1",
+          bg:         "#0c0c0e",
+          surface:    "#18181b",
+          surface2:   "#232327",
+          border:     "#2c2c31",
+          accent:     "#14b8a6",
           success:    "#22c55e",
           warning:    "#f59e0b",
           danger:     "#ef4444",

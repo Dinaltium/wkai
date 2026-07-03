@@ -24,8 +24,8 @@ export function ShareToggle() {
         <button
           onClick={handleToggle}
           className={clsx(
-            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2",
-            streamingToStudents ? "bg-indigo-500" : "bg-wkai-surface border border-wkai-border"
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2",
+            streamingToStudents ? "bg-teal-500" : "bg-wkai-surface border border-wkai-border"
           )}
         >
           <span

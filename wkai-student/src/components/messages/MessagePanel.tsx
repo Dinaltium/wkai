@@ -126,7 +126,7 @@ function MessageBubble({ msg, studentName }: { msg: ChatMessage; studentName: st
         className={clsx(
           "max-w-xs rounded-xl px-4 py-2.5 text-sm",
           isStudent
-            ? "bg-indigo-500 text-white rounded-br-sm"
+            ? "bg-teal-500 text-white rounded-br-sm"
             : isAi
             ? "border border-amber-500/30 bg-amber-500/5 text-wkai-text rounded-bl-sm"
             : "border border-wkai-border bg-wkai-surface text-wkai-text rounded-bl-sm"

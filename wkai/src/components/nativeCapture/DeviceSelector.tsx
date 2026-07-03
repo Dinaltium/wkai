@@ -85,7 +85,7 @@ export function DeviceSelector({
                 onClick={() => onSelect({ type: "monitor", id: m.id })}
                 className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
                   isSelected
-                    ? "bg-indigo-500/15 border border-indigo-500/40 text-wkai-text"
+                    ? "bg-teal-500/15 border border-teal-500/40 text-wkai-text"
                     : "bg-wkai-bg border border-transparent hover:border-wkai-border hover:bg-wkai-surface text-wkai-text-dim"
                 }`}
               >
@@ -118,7 +118,7 @@ export function DeviceSelector({
                 onClick={() => onSelect({ type: "window", id: w.id })}
                 className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
                   isSelected
-                    ? "bg-indigo-500/15 border border-indigo-500/40 text-wkai-text"
+                    ? "bg-teal-500/15 border border-teal-500/40 text-wkai-text"
                     : "bg-wkai-bg border border-transparent hover:border-wkai-border hover:bg-wkai-surface text-wkai-text-dim"
                 }`}
               >

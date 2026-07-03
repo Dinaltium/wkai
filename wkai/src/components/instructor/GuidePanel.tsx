@@ -90,9 +90,9 @@ const BLOCK_META: Record<
   step: {
     label: "Step",
     icon: <Footprints size={13} />,
-    iconClass: "text-indigo-400",
-    bgClass: "bg-indigo-500/5",
-    borderClass: "border-indigo-500/20",
+    iconClass: "text-teal-400",
+    bgClass: "bg-teal-500/5",
+    borderClass: "border-teal-500/20",
   },
   tip: {
     label: "Tip",

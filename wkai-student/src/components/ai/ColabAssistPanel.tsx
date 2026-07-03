@@ -69,14 +69,14 @@ export function ColabAssistPanel({ send }: Props) {
       <div className="p-4 space-y-3 overflow-y-auto">
         <div className="flex gap-2">
           <button
-            className={`btn-ghost text-xs ${mode === "paste" ? "border border-indigo-400 text-indigo-400" : ""}`}
+            className={`btn-ghost text-xs ${mode === "paste" ? "border border-teal-400 text-teal-400" : ""}`}
             onClick={() => setMode("paste")}
           >
             <ClipboardList size={12} />
             Paste Output
           </button>
           <button
-            className={`btn-ghost text-xs ${mode === "url" ? "border border-indigo-400 text-indigo-400" : ""}`}
+            className={`btn-ghost text-xs ${mode === "url" ? "border border-teal-400 text-teal-400" : ""}`}
             onClick={() => setMode("url")}
           >
             <Link2 size={12} />
@@ -112,7 +112,7 @@ export function ColabAssistPanel({ send }: Props) {
 
         {colabAdvice && (
           <div className="rounded-xl border border-wkai-border bg-wkai-surface p-3 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-indigo-400 flex items-center gap-1">
+            <p className="text-xs uppercase tracking-widest text-teal-400 flex items-center gap-1">
               <Sparkles size={12} />
               Advice
             </p>
@@ -129,7 +129,7 @@ export function ColabAssistPanel({ send }: Props) {
               {colabFollowUps.map((q: string) => (
                 <button
                   key={q}
-                  className="w-full text-left rounded-lg border border-wkai-border px-2.5 py-2 text-xs text-wkai-text-dim hover:text-wkai-text hover:border-indigo-400 transition-colors"
+                  className="w-full text-left rounded-lg border border-wkai-border px-2.5 py-2 text-xs text-wkai-text-dim hover:text-wkai-text hover:border-teal-400 transition-colors"
                   onClick={() => sendFollowUp(q)}
                 >
                   {q}
