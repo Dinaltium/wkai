@@ -16,6 +16,7 @@ param(
   [string]$ApiKey,
   [string]$ApiSecret,
   [string]$WhipUrl,
+  [string]$StreamKey,
   [string]$Room = "wkai-test",
   [string]$Identity = "instructor",
   [int]$Seconds = 30,
@@ -45,9 +46,15 @@ if (-not $WhipUrl) {
   $WhipUrl = ($LiveKitUrl -replace '^wss://','https://' -replace '^ws://','http://').TrimEnd('/') + "/whip"
 }
 
-# Mint a publish token.
-$token = (& node (Join-Path $PSScriptRoot "mint-livekit-token.mjs") --key $ApiKey --secret $ApiSecret --room $Room --identity $Identity --ttl 7200).Trim()
-if (-not $token) { Write-Host "Token minting failed." -ForegroundColor Red; exit 1 }
+# Auth: for a LiveKit WHIP ingress, the stream key IS the bearer token. If not
+# provided, fall back to minting a room-join token (works for direct-WHIP setups).
+if ($StreamKey) {
+  $token = $StreamKey
+  Write-Host "Using ingress stream key for auth." -ForegroundColor Cyan
+} else {
+  $token = (& node (Join-Path $PSScriptRoot "mint-livekit-token.mjs") --key $ApiKey --secret $ApiSecret --room $Room --identity $Identity --ttl 7200).Trim()
+  if (-not $token) { Write-Host "Token minting failed." -ForegroundColor Red; exit 1 }
+}
 
 Write-Host "WHIP URL:  $WhipUrl" -ForegroundColor Cyan
 Write-Host "Room:      $Room   Identity: $Identity" -ForegroundColor Cyan
