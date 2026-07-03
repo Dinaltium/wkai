@@ -34,7 +34,8 @@ const url = arg("url", process.env.LK_URL || fromLocalPs1("LK_URL"));
 const apiKey = arg("key", process.env.LK_KEY || fromLocalPs1("LK_KEY"));
 const apiSecret = arg("secret", process.env.LK_SECRET || fromLocalPs1("LK_SECRET"));
 const room = arg("room", "wkai-test");
-const name = arg("name", "wkai-whip");
+const kind = arg("type", "whip").toLowerCase(); // "whip" | "rtmp"
+const name = arg("name", `wkai-${kind}`);
 
 if (!url || !apiKey || !apiSecret) {
   console.error("Missing LiveKit URL/key/secret. Set them in spike/livekit.local.ps1 or pass --url/--key/--secret.");
@@ -52,16 +53,20 @@ const payload = { iss: apiKey, sub: apiKey, nbf: now, exp: now + 600, video: { i
 const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
 const token = `${signingInput}.${b64url(crypto.createHmac("sha256", apiSecret).update(signingInput).digest())}`;
 
-// ── Create the ingress (WHIP_INPUT) ──────────────────────────────────────────
+// ── Create the ingress ───────────────────────────────────────────────────────
+// WHIP = sub-second, but ffmpeg's WHIP muxer can't handle LiveKit's TCP ICE
+// candidates. RTMP = rock-solid ffmpeg output (transcoded by LiveKit).
 const body = {
-  input_type: "WHIP_INPUT",
+  input_type: kind === "rtmp" ? "RTMP_INPUT" : "WHIP_INPUT",
   name,
   room_name: room,
   participant_identity: "instructor",
   participant_name: "Instructor",
-  // Pass encoded media straight through (we send H.264/Opus already).
-  bypass_transcoding: true,
 };
+if (kind === "whip") {
+  // Pass encoded media straight through (we send H.264/Opus already).
+  body.bypass_transcoding = true;
+}
 
 const endpoint = `${httpBase}/twirp/livekit.Ingress/CreateIngress`;
 const res = await fetch(endpoint, {
@@ -83,12 +88,16 @@ try { info = JSON.parse(text); } catch { console.log(text); process.exit(0); }
 const whipUrl = info.url ?? info.Url;
 const streamKey = info.stream_key ?? info.streamKey;
 
-console.log("\nWHIP ingress created:");
+console.log(`\n${kind.toUpperCase()} ingress created:`);
 console.log("  ingressId:", info.ingress_id ?? info.ingressId ?? "(see raw below)");
 console.log("  room:     ", room);
-console.log("  WHIP URL: ", whipUrl);
+console.log("  URL:      ", whipUrl);
 console.log("  streamKey:", streamKey);
 console.log("\nRun the smoke test with:");
-console.log(`  ./whip-smoketest.ps1 -WhipUrl "${whipUrl}" -StreamKey "${streamKey}"`);
+if (kind === "rtmp") {
+  console.log(`  ./rtmp-smoketest.ps1 -Url "${whipUrl}" -StreamKey "${streamKey}"`);
+} else {
+  console.log(`  ./whip-smoketest.ps1 -WhipUrl "${whipUrl}" -StreamKey "${streamKey}"`);
+}
 console.log("\n(raw response for reference)");
 console.log(JSON.stringify(info, null, 1));

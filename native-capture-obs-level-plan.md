@@ -4,7 +4,12 @@ Status: DESIGN. Windows-first; macOS/Linux later. Goal: OBS/Zoom/Webex-class scr
 
 Supersedes the earlier Path-A-vs-Path-B framing: the decision is a **hybrid** — FFmpeg-centric ("B") for encode/mux/egress, with a native Rust capture layer ("A") in front for OBS-grade source control. FFmpeg is used but its role is cut down; the WebRTC publish stack is FFmpeg's WHIP muxer, not a hand-rolled `webrtc-rs` stack.
 
-**Decisions locked (2026-07-03):** SFU = **LiveKit** (native WHIP ingest, rooms first-class). Frame handoff = **Rust captures → pipes raw frames to FFmpeg** (true hybrid, OBS-grade source control). FFmpeg = **bundled trimmed build** (guaranteed `-f whip`). Implementation = **starting Phase 0 spike** (Windows-first).
+**Decisions locked (2026-07-03):** SFU = **LiveKit** (rooms first-class). Frame handoff = **Rust captures → pipes raw frames to FFmpeg** (true hybrid, OBS-grade source control). FFmpeg = **bundled trimmed build**. Implementation = **Phase 0 spike in progress** (Windows-first).
+
+**Egress finding (2026-07-03 spike):** FFmpeg's **WHIP muxer does NOT interoperate with LiveKit Cloud** — it picks only the first ICE candidate and hard-fails on TCP ones (`Protocol tcp is not supported by RTC`), and LiveKit lists a TCP candidate first. The WebRTC negotiation (offer/answer/ICE/DTLS/SRTP) and LiveKit session creation all succeed; ffmpeg just can't complete ICE. Known unfixed ffmpeg limitation. **Two viable egress transports instead of ffmpeg-WHIP:**
+- **RTMP ingress** (chosen for v1): ffmpeg's RTMP output is rock-solid (TCP, no ICE). LiveKit transcodes RTMP→WebRTC for students. Cost: ~1-2s latency + billable transcoding — acceptable for a teaching workshop. Proven via `rtmp-smoketest.ps1`.
+- **LiveKit Rust SDK publish** (low-latency upgrade path): app's Rust side publishes encoded frames via the LiveKit SDK (handles ICE incl. TCP). Sub-second, no transcode cost, but real Rust integration work. Revisit if sub-second latency becomes a hard requirement.
+The `-f whip` egress in the plan below is superseded by RTMP ingress for v1; encode/mux stays identical (just `-f flv <rtmp-url>/<key>` instead of `-f whip`).
 
 ---
 
