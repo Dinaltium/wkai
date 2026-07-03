@@ -46,11 +46,15 @@ if (-not $WhipUrl) {
   $WhipUrl = ($LiveKitUrl -replace '^wss://','https://' -replace '^ws://','http://').TrimEnd('/') + "/whip"
 }
 
-# Auth: for a LiveKit WHIP ingress, the stream key IS the bearer token. If not
-# provided, fall back to minting a room-join token (works for direct-WHIP setups).
+# Auth: a LiveKit WHIP ingress puts the stream key in the URL PATH (/w/<key>),
+# not a bearer header. If no stream key, fall back to minting a room-join token
+# and sending it as the bearer (for direct-WHIP setups).
+$useAuthHeader = $true
+$token = $null
 if ($StreamKey) {
-  $token = $StreamKey
-  Write-Host "Using ingress stream key for auth." -ForegroundColor Cyan
+  $WhipUrl = "$($WhipUrl.TrimEnd('/'))/$StreamKey"
+  $useAuthHeader = $false
+  Write-Host "Using ingress stream key in URL path." -ForegroundColor Cyan
 } else {
   $token = (& node (Join-Path $PSScriptRoot "mint-livekit-token.mjs") --key $ApiKey --secret $ApiSecret --room $Room --identity $Identity --ttl 7200).Trim()
   if (-not $token) { Write-Host "Token minting failed." -ForegroundColor Red; exit 1 }
@@ -69,11 +73,13 @@ $ffArgs = @(
   "-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=48000",
   "-t","$Seconds",
   "-c:v","libx264","-preset","veryfast","-tune","zerolatency","-b:v","$Bitrate","-g","$gop","-pix_fmt","yuv420p",
-  "-c:a","libopus","-b:a","64k",
-  # Pass the RAW token - ffmpeg's whip muxer prepends "Bearer " itself.
-  "-authorization","$token",
-  "-f","whip",$WhipUrl
+  "-c:a","libopus","-b:a","64k"
 )
+if ($useAuthHeader) {
+  # Pass the RAW token - ffmpeg's whip muxer prepends "Bearer " itself.
+  $ffArgs += @("-authorization","$token")
+}
+$ffArgs += @("-f","whip",$WhipUrl)
 
 & ffmpeg @ffArgs
 if ($LASTEXITCODE -eq 0) { Write-Host "`nWHIP push completed. Confirm you saw video in the LiveKit room." -ForegroundColor Green }
