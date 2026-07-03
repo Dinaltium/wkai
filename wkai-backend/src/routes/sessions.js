@@ -2,7 +2,14 @@ import { Router } from "express";
 import { z } from "zod";
 import { scryptSync, timingSafeEqual, randomBytes, randomUUID } from "node:crypto";
 import { query } from "../db/client.js";
-import { setSessionData, deleteSessionData, clearStudentConnections } from "../db/redis.js";
+import {
+  setSessionData,
+  deleteSessionData,
+  clearStudentConnections,
+  setSessionIngress,
+  getSessionIngress,
+  clearSessionIngress,
+} from "../db/redis.js";
 import { broadcast, cleanupSession } from "../ws/server.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -11,6 +18,14 @@ import {
   issueStudentJoinToken,
   requireSessionToken,
 } from "../auth/sessionAccess.js";
+import {
+  isLiveKitConfigured,
+  roomNameForSession,
+  mintAccessToken,
+  createRtmpIngress,
+  deleteIngress,
+  getLiveKitUrl,
+} from "../livekit/client.js";
 
 export const sessionRouter = Router();
 
@@ -162,7 +177,12 @@ sessionRouter.patch("/:id/end", requireSessionToken({ requiredRole: "instructor"
 
     const session = rows[0];
 
-    // Clean up: Redis cache + LangChain session memory + WS room
+    // Clean up: LiveKit ingress + Redis cache + LangChain session memory + WS room
+    const ingressId = await getSessionIngress(session.id).catch(() => null);
+    if (ingressId) {
+      await deleteIngress(ingressId);
+      await clearSessionIngress(session.id);
+    }
     await deleteSessionData(session.id);
     await clearStudentConnections(session.id);
     clearSessionMemory(session.id);
@@ -203,6 +223,54 @@ sessionRouter.get("/:id/memory", requireSessionToken({ requiredRole: "instructor
     const messages = await memory.getMessages();
     const context  = await memory.getContextString();
     res.json({ messageCount: messages.length, context });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/sessions/:id/livestream — instructor starts a LiveKit RTMP ingress
+// Returns the RTMP publish URL + stream key for the instructor's native encoder.
+
+sessionRouter.post("/:id/livestream", requireSessionToken({ requiredRole: "instructor" }), async (req, res, next) => {
+  try {
+    if (!isLiveKitConfigured()) {
+      return res.status(503).json({ error: "Live streaming is not configured on this server." });
+    }
+    const sessionId = req.params.id;
+    const roomName = roomNameForSession(sessionId);
+    const ingress = await createRtmpIngress({ sessionId, roomName });
+    await setSessionIngress(sessionId, ingress.ingressId);
+    res.json({
+      roomName,
+      rtmpUrl: ingress.url,
+      streamKey: ingress.streamKey,
+      ingressId: ingress.ingressId,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/sessions/:id/livekit-token — subscribe token for the caller ──────
+// Students call this to join the LiveKit room and receive the instructor's video.
+
+sessionRouter.get("/:id/livekit-token", requireSessionToken(), async (req, res, next) => {
+  try {
+    if (!isLiveKitConfigured()) {
+      return res.status(503).json({ error: "Live streaming is not configured on this server." });
+    }
+    const sessionId = req.params.id;
+    const roomName = roomNameForSession(sessionId);
+    const payload = req.sessionToken;
+    // Students subscribe only; identity comes from the signed session token.
+    const identity = payload.role === "instructor" ? `instructor-view-${sessionId}` : payload.studentId;
+    const token = mintAccessToken({
+      identity,
+      name: payload.studentName ?? "Student",
+      roomName,
+      canPublish: false,
+    });
+    res.json({ url: getLiveKitUrl(), token, roomName });
   } catch (err) {
     next(err);
   }

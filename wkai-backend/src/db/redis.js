@@ -71,6 +71,17 @@ export async function clearStudentConnections(sessionId) {
   await redis.del(`students_active:${sessionId}`);
 }
 
+/** Track the LiveKit RTMP ingress id for a session (for teardown on end). */
+export async function setSessionIngress(sessionId, ingressId) {
+  await redis.setEx(`livekit_ingress:${sessionId}`, 86_400, ingressId);
+}
+export async function getSessionIngress(sessionId) {
+  return redis.get(`livekit_ingress:${sessionId}`);
+}
+export async function clearSessionIngress(sessionId) {
+  await redis.del(`livekit_ingress:${sessionId}`);
+}
+
 /** Store the latest Whisper transcript for a session (30s TTL — rolling window) */
 export async function setTranscript(sessionId, transcript) {
   await redis.setEx(`transcript:${sessionId}`, 30, transcript);
