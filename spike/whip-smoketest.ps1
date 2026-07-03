@@ -79,12 +79,15 @@ if ($useAuthHeader) {
   # Pass the RAW token - ffmpeg's whip muxer prepends "Bearer " itself.
   $ffArgs += @("-authorization","$token")
 }
-$ffArgs += @("-f","whip",$WhipUrl)
+# Big UDP buffer so a large first keyframe (full desktop I-frame) doesn't overflow
+# the WHIP muxer's tiny default (4096B) and error with EAGAIN (-11).
+$ffArgs += @("-ts_buffer_size","8388608","-f","whip",$WhipUrl)
 
 & ffmpeg @ffArgs
 if ($LASTEXITCODE -eq 0) { Write-Host "`nWHIP push completed. Confirm you saw video in the LiveKit room." -ForegroundColor Green }
 else {
   Write-Host "`nWHIP push failed (exit $LASTEXITCODE)." -ForegroundColor Red
+  Write-Host "If -11 / 'UDP send blocked': raise -ts_buffer_size further (already 8MB here) or lower -Bitrate." -ForegroundColor Yellow
   Write-Host "If 401 persists: run  ffmpeg -hide_banner -h muxer=whip  to confirm the auth option name on this build" -ForegroundColor Yellow
   Write-Host "(it should be 'authorization' taking the raw token; some builds use 'bearer_token' or want the token in the URL as ?access_token=)." -ForegroundColor Yellow
   Write-Host "If 404: verify the WHIP URL in the LiveKit dashboard and pass -WhipUrl." -ForegroundColor Yellow
