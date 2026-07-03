@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "wkai-student", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "instructor",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "wkai", "run", "dev"],
+      "port": 1420
     }
   ]
 }

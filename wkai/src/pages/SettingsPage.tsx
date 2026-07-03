@@ -75,11 +75,11 @@ export function SettingsPage() {
         {/* AI */}
         <section className="card space-y-4 p-4">
           <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
-            AI — Groq
+            AI: Groq
           </h2>
           <Field
             label="Groq API Key"
-            hint="Get yours free at console.groq.com — no credit card needed"
+            hint="Get yours free at console.groq.com, no credit card needed"
           >
             <input
               className="input font-mono text-xs"

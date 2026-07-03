@@ -142,7 +142,7 @@ export function SetupPage() {
         </button>
 
         <p className="text-center text-xs text-wkai-text-dim">
-          The app will move to your system tray — students join with the room
+          The app will move to your system tray. Students join with the room
           code.
         </p>
       </div>
