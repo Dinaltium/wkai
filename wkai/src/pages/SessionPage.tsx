@@ -109,7 +109,7 @@ export function SessionPage() {
                 className={clsx(
                   "flex-1 py-2 text-xs font-medium capitalize transition-colors",
                   leftTab === tab
-                    ? "border-b-2 border-teal-400 text-teal-400"
+                    ? "border-b-2 border-accent text-accent-text"
                     : "text-wkai-text-dim hover:text-wkai-text"
                 )}
               >

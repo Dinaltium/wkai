@@ -19,7 +19,7 @@ export function CapturePreview({
     <div
       className={`relative w-full rounded-xl overflow-hidden bg-wkai-bg border transition-all duration-300 ${
         isCapturing
-          ? "border-teal-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)]"
+          ? "border-accent/50 shadow-[0_0_20px_rgba(99,102,241,0.15)]"
           : "border-wkai-border"
       }`}
       style={{ aspectRatio: "16 / 9" }}

@@ -10,7 +10,7 @@ export function StudentPanel() {
         <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
           Students
         </p>
-        <span className="rounded-full bg-teal-500/20 px-2 py-0.5 text-xs font-medium text-teal-400">
+        <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-medium text-accent-text">
           {studentCount}
         </span>
       </div>
@@ -25,7 +25,7 @@ export function StudentPanel() {
           <div className="space-y-1">
             {students.map((s) => (
               <div key={s.studentId} className="flex items-center gap-2 rounded-lg px-2 py-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-500/20 text-xs font-medium text-teal-400">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-medium text-accent-text">
                   {s.studentName.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">

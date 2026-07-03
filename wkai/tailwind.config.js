@@ -4,18 +4,21 @@ export default {
   theme: {
     extend: {
       colors: {
+        accent:        "rgb(var(--accent) / <alpha-value>)",
+        "accent-text": "rgb(var(--accent-text) / <alpha-value>)",
+        "accent-fg":   "rgb(var(--accent-fg) / <alpha-value>)",
         wkai: {
-          bg: "#0c0c0e",
-          surface: "#18181b",
-          border: "#2c2c31",
-          accent: "#14b8a6",
-          "accent-hover": "#0d9488",
-          success: "#22c55e",
-          warning: "#f59e0b",
-          danger: "#ef4444",
-          muted: "#6b7280",
-          text: "#e5e7eb",
-          "text-dim": "#9ca3af",
+          bg:         "rgb(var(--wkai-bg) / <alpha-value>)",
+          surface:    "rgb(var(--wkai-surface) / <alpha-value>)",
+          surface2:   "rgb(var(--wkai-surface2) / <alpha-value>)",
+          border:     "rgb(var(--wkai-border) / <alpha-value>)",
+          accent:     "rgb(var(--accent) / <alpha-value>)",
+          success:    "#22c55e",
+          warning:    "#f59e0b",
+          danger:     "#ef4444",
+          muted:      "rgb(var(--wkai-text-dim) / <alpha-value>)",
+          text:       "rgb(var(--wkai-text) / <alpha-value>)",
+          "text-dim": "rgb(var(--wkai-text-dim) / <alpha-value>)",
         },
       },
       fontFamily: {

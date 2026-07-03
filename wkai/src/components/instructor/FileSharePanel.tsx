@@ -198,7 +198,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
             className={clsx(
               "flex-1 py-2 text-xs font-medium transition-colors",
               activeTab === tab
-                ? "border-b-2 border-teal-400 text-teal-400"
+                ? "border-b-2 border-accent text-accent-text"
                 : "text-wkai-text-dim hover:text-wkai-text"
             )}
           >
@@ -251,7 +251,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
               {uploading && (
                 <div className="h-1.5 rounded bg-wkai-border overflow-hidden">
                   <div
-                    className="h-full bg-teal-400 transition-all duration-150"
+                    className="h-full bg-accent transition-all duration-150"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -314,7 +314,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
                   key={f.id}
                   className="flex items-center gap-2 rounded-lg bg-wkai-bg p-2 text-xs"
                 >
-                  <File size={13} className="text-teal-400 shrink-0" />
+                  <File size={13} className="text-accent-text shrink-0" />
                   <span className="truncate text-wkai-text flex-1">{f.name}</span>
                   <span className="text-wkai-text-dim shrink-0">
                     {new Date(f.sharedAt).toLocaleTimeString([], {
@@ -361,7 +361,7 @@ function ModeButton({ label, active, onClick }: { label: string; active: boolean
       onClick={onClick}
       className={clsx(
         "px-2 py-1.5 text-[11px] font-medium",
-        active ? "bg-teal-500/15 text-teal-300" : "bg-transparent text-wkai-text-dim hover:text-wkai-text"
+        active ? "bg-accent/15 text-accent-text" : "bg-transparent text-wkai-text-dim hover:text-wkai-text"
       )}
     >
       {label}
@@ -504,7 +504,7 @@ function TreeNodeList({
             {node.source === "folder" && !node.ghost && (
               <button
                 type="button"
-                className="opacity-0 group-hover:opacity-100 rounded px-1 text-[10px] text-teal-300 hover:bg-teal-500/10"
+                className="opacity-0 group-hover:opacity-100 rounded px-1 text-[10px] text-accent-text hover:bg-accent/10"
                 onClick={() => onShareFile(node.path)}
                 disabled={sharing === node.path}
               >

@@ -17,10 +17,10 @@ export function PlatformBadge({ platform, backend }: PlatformBadgeProps) {
 
   return (
     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-wkai-surface border border-wkai-border text-xs">
-      <Monitor size={12} className="text-teal-400" />
+      <Monitor size={12} className="text-accent-text" />
       <span className="text-wkai-text">{platformLabel}</span>
       <span className="text-wkai-text-dim">·</span>
-      <span className="text-teal-400 font-mono">{backend}</span>
+      <span className="text-accent-text font-mono">{backend}</span>
     </div>
   );
 }
