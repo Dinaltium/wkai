@@ -91,7 +91,7 @@ export function JoinPage() {
           Your Name
         </label>
         <input
-          className="h-12 w-full rounded-xl border border-wkai-border bg-wkai-surface px-4 text-sm font-medium text-wkai-text focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition-all placeholder:text-wkai-text-dim/30"
+          className="h-12 w-full rounded-xl border border-wkai-border bg-wkai-surface px-4 text-sm font-medium text-wkai-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all placeholder:text-wkai-text-dim/30"
           placeholder="e.g. Alex Smith"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -107,7 +107,7 @@ export function JoinPage() {
             key={i}
             ref={(el) => { refs.current[i] = el; }}
             className="h-14 w-12 rounded-xl border border-wkai-border bg-wkai-surface text-center text-xl font-bold font-mono text-wkai-text uppercase
-              focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition-all
+              focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all
               placeholder:text-wkai-border"
             maxLength={1}
             value={ch}

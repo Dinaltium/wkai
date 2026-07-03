@@ -55,7 +55,7 @@ export function ScreenPreview({ remoteStream }: ScreenPreviewProps) {
       </div>
       {latestLiveExplanation && (
         <div className="border-t border-wkai-border px-4 py-3 space-y-1 bg-wkai-surface">
-          <p className="text-[11px] uppercase tracking-wider text-teal-400 font-semibold">AI Live Notes</p>
+          <p className="text-[11px] uppercase tracking-wider text-accent-text font-semibold">AI Live Notes</p>
           <p className="text-xs text-wkai-text-dim">
             Heard: "{latestLiveExplanation.transcript}"
           </p>

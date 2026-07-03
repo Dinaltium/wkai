@@ -139,8 +139,8 @@ function EmptyState() {
         </p>
       </div>
       <div className="flex items-center gap-2 mt-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-ping" />
-        <span className="text-xs text-teal-400">Waiting for session content</span>
+        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
+        <span className="text-xs text-accent-text">Waiting for session content</span>
       </div>
     </div>
   );
@@ -161,9 +161,9 @@ const BLOCK_META: Record<
   step: {
     label: "Step",
     icon: <Footprints size={13} />,
-    iconClass: "text-teal-400",
-    bgClass: "bg-teal-500/5",
-    borderClass: "border-teal-500/20",
+    iconClass: "text-accent-text",
+    bgClass: "bg-accent/5",
+    borderClass: "border-accent/20",
   },
   tip: {
     label: "Tip",
