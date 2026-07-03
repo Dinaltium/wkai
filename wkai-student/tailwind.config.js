@@ -13,9 +13,9 @@ export default {
           success:    "#22c55e",
           warning:    "#f59e0b",
           danger:     "#ef4444",
-          muted:      "#6b7280",
+          muted:      "#9ca3af",
           text:       "#e5e7eb",
-          "text-dim": "#6b7280",
+          "text-dim": "#9ca3af",
         },
       },
       fontFamily: {

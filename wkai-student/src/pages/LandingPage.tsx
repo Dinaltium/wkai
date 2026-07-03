@@ -26,8 +26,7 @@ export function LandingPage() {
 
         <main className="mt-20 grid gap-8 md:grid-cols-2">
           <section className="space-y-5">
-            <p className="text-xs uppercase tracking-[0.2em] text-indigo-400">Live Workshops</p>
-            <h1 className="text-4xl font-bold leading-tight">
+            <h1 className="text-4xl font-bold leading-tight text-balance">
               Run secure coding workshops with real-time AI support.
             </h1>
             <p className="text-sm text-wkai-text-dim">
