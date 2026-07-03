@@ -8,7 +8,6 @@ import {
   Code2,
   BookOpen,
   HelpCircle,
-  Loader2,
 } from "lucide-react";
 
 export function GuidePanel() {

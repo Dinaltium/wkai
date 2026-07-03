@@ -25,6 +25,15 @@ interface AppStore {
   recording: RecordingState;
   setRecording: (partial: Partial<RecordingState>) => void;
 
+  // ─── Guide + Files ─────────────────────────────────────────────────────────
+  guideBlocks: GuideBlock[];
+  addGuideBlock: (block: GuideBlock) => void;
+  clearGuide: () => void;
+  sharedFiles: SharedFile[];
+  addSharedFile: (file: SharedFile) => void;
+  watchedFiles: WatchedFile[];
+  setWatchedFiles: (files: WatchedFile[]) => void;
+
   // ─── Student Count ─────────────────────────────────────────────────────────
   studentCount: number;
   setStudentCount: (n: number) => void;

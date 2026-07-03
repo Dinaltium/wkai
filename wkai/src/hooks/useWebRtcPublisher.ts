@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useAppStore } from "../store";
 import type {
   WebRtcAnswerPayload,

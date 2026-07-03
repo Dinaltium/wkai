@@ -18,10 +18,9 @@ function pickMimeType() {
 }
 
 export function RecordingPanel({ roomCode }: { roomCode: string }) {
-  const { 
-    addDebugLog, 
-    sharedDisplayStream, 
-    setSharedDisplayStream,
+  const {
+    addDebugLog,
+    sharedDisplayStream,
     recording,
     setRecording,
     settings

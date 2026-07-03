@@ -2,7 +2,7 @@ import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 
 export function ShareToggle() {
-  const { streamingToStudents, setStreamingToStudents, sharedDisplayStream } = useAppStore();
+  const { streamingToStudents, setStreamingToStudents } = useAppStore();
 
   function handleToggle() {
     const next = !streamingToStudents;
