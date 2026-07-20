@@ -2,6 +2,10 @@
 
 Consolidated release notes for implementation and platform work across `wkai`, `wkai-student`, `wkai-backend`, CI, and deployment.
 
+## 2026-07-20 - Docs touch-up
+
+- Minor changelog housekeeping.
+
 ## 2026-04 - Instructor Explorer + URL Diagnostics
 
 ### Instructor app (`wkai`)
