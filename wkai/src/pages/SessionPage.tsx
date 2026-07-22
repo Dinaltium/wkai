@@ -47,8 +47,8 @@ export function SessionPage() {
         saveLocal: settings.saveLocalRecording,
         dir: settings.recordingDirectory || "",
         format: settings.recordingFormat || "mp4"
-      }).then(() => {
-        const stream = capture.getStream(fps);
+      }).then(async () => {
+        const stream = await capture.getStream(fps);
         setSharedDisplayStream(stream);
       });
     } else {
@@ -144,8 +144,10 @@ export function SessionPage() {
 
       <StudentJoinToast />
 
-      {/* Hidden Native Capture Renderer */}
-      <div className="hidden">
+      {/* Visually-hidden native capture renderer — MUST stay rendered/composited
+          (not display:none) or canvas.captureStream() freezes and WebRTC/recording
+          get a dead track. Off-screen + opacity-0 keeps it painting. */}
+      <div className="fixed bottom-0 right-0 w-[1px] h-[1px] opacity-0 pointer-events-none overflow-hidden">
         <CapturePreview
           canvasRef={capture.canvasRef}
           attachCanvas={capture.attachCanvas}

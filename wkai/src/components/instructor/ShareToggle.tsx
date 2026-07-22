@@ -31,7 +31,7 @@ export function ShareToggle() {
           <span
             className={clsx(
               "pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-lg ring-0 transition-transform",
-              streamingToStudents ? "translate-x-4.5" : "translate-x-0.5"
+              streamingToStudents ? "translate-x-[18px]" : "translate-x-0.5"
             )}
           />
         </button>

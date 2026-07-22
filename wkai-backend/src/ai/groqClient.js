@@ -5,18 +5,20 @@ import Groq from "groq-sdk";
 export const groqRaw = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─── LangChain ChatGroq instances ─────────────────────────────────────────────
-// Vision model — Llama-4 Scout, multimodal
+// Vision model — Qwen3.6-27B (llama-4-scout was decommissioned by Groq)
 export const visionLLM = new ChatGroq({
   apiKey:      process.env.GROQ_API_KEY,
-  model:       "meta-llama/llama-4-scout-17b-16e-instruct",
+  model:       "qwen/qwen3.6-27b",
   temperature: 0.2,
   maxTokens:   1024,
 });
 
-// Text model — Llama3-70b, fast reasoning
+// Text model — GPT-OSS-120B: stronger reasoning + native tool-calling than
+// llama-3.3-70b-versatile, better fit for the structured/Zod-validated JSON
+// output this pipeline requires (diagnosis, quiz questions, intent detection).
 export const textLLM = new ChatGroq({
   apiKey:      process.env.GROQ_API_KEY,
-  model:       "llama3-70b-8192",
+  model:       "openai/gpt-oss-120b",
   temperature: 0.1,
   maxTokens:   600,
 });
@@ -24,7 +26,7 @@ export const textLLM = new ChatGroq({
 // Same text model, higher temperature for comprehension question creativity
 export const creativeLLM = new ChatGroq({
   apiKey:      process.env.GROQ_API_KEY,
-  model:       "llama3-70b-8192",
+  model:       "openai/gpt-oss-120b",
   temperature: 0.6,
   maxTokens:   300,
 });

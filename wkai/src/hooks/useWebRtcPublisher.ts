@@ -91,13 +91,17 @@ export function useWebRtcPublisher(
 
   useEffect(() => {
     if (!sessionId || !streamingToStudents) return;
+    // sharedDisplayStream is a dep: the capture stream often becomes ready AFTER
+    // a student has already joined/requested. Without it here, createPeerForStudent
+    // early-returns (no stream) and never retries → no offer, no video.
+    if (!sharedDisplayStream) return;
     const activeIds = new Set(students.map((s) => s.studentId));
 
     void Promise.all(students.map((s) => createPeerForStudent(s.studentId)));
     [...peersRef.current.keys()].forEach((studentId) => {
       if (!activeIds.has(studentId)) closePeer(studentId);
     });
-  }, [sessionId, streamingToStudents, students]);
+  }, [sessionId, streamingToStudents, students, sharedDisplayStream]);
 
   useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {

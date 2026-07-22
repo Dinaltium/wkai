@@ -49,12 +49,15 @@ export function useRoomSocket(roomCode: string) {
   function dispatch(msg: WsMessage) {
     switch (msg.type) {
       case "session-state": {
-        const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[]; studentCount?: number };
+        const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[]; studentCount?: number; instructorOnline?: boolean };
         useStore.getState().setSession(p.session);
         useStore.getState().setGuideBlocks(p.guideBlocks ?? []);
         useStore.getState().setSharedFiles(p.sharedFiles ?? []);
         if (typeof p.studentCount === "number") {
           useStore.getState().setStudentCount(p.studentCount);
+        }
+        if (typeof p.instructorOnline === "boolean" && !useStore.getState().sessionEnded) {
+          useStore.getState().setInstructorOffline(!p.instructorOnline);
         }
         break;
       }
@@ -88,6 +91,14 @@ export function useRoomSocket(roomCode: string) {
         useStore.getState().setSessionEnded(true);
         useStore.getState().setConnected(false);
         ws.current?.close();
+        break;
+      case "instructor-offline":
+        if (!useStore.getState().sessionEnded) {
+          useStore.getState().setInstructorOffline(true);
+        }
+        break;
+      case "instructor-online":
+        useStore.getState().setInstructorOffline(false);
         break;
       case "error":
         console.error("[WS] Server error:", (msg.payload as { message: string }).message);

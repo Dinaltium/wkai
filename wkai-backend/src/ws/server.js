@@ -19,6 +19,12 @@ import { verifySessionToken } from "../auth/sessionAccess.js";
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
 
+// Map of sessionId → pending "instructor went offline" timer. A brief drop
+// (dev-server restart, network blip, app reload) shouldn't alarm students —
+// only a sustained absence does.
+const instructorOfflineTimers = new Map();
+const INSTRUCTOR_OFFLINE_GRACE_MS = 8000;
+
 export function initWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
@@ -50,7 +56,13 @@ export function initWebSocketServer(httpServer) {
     );
 
     if (!rows.length || rows[0].status === "ended") {
-      ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found or ended" } }));
+      // Terminal, not transient: tell the client the session is over so it shows
+      // the "ended" prompt AND stops its reconnect loop. Sending a generic error
+      // made clients retry every few seconds forever (DB-query storm on ended rooms).
+      ws.send(JSON.stringify({
+        type: "session-ended",
+        payload: { message: rows.length ? "The instructor has ended this session." : "This room no longer exists." },
+      }));
       ws.close();
       return;
     }
@@ -78,6 +90,17 @@ export function initWebSocketServer(httpServer) {
 
     console.log(`[WS] ${role} connected to room ${roomCode} (sessionId: ${sessionId})`);
 
+    if (isInstructor) {
+      const pendingOffline = instructorOfflineTimers.get(sessionId);
+      if (pendingOffline) {
+        clearTimeout(pendingOffline);
+        instructorOfflineTimers.delete(sessionId);
+      }
+      // Announce presence to any students already waiting (covers both a
+      // returning instructor and one who joins after students).
+      broadcast(sessionId, { type: "instructor-online", payload: {} }, ws);
+    }
+
     if (role === "student" && previousSocket !== ws) {
       const count = await incrementStudentCount(sessionId, studentId);
       console.log(`[WS] Student count for ${sessionId}: ${count}, room size: ${rooms.get(sessionId)?.size ?? 0}`);
@@ -101,9 +124,10 @@ export function initWebSocketServer(httpServer) {
     const state = await getSessionData(sessionId);
     if (state) {
       const count = await getStudentCount(sessionId);
-      ws.send(JSON.stringify({ 
-        type: "session-state", 
-        payload: { session: state, studentCount: count } 
+      const instructorOnline = room.get("instructor")?.readyState === WebSocket.OPEN;
+      ws.send(JSON.stringify({
+        type: "session-state",
+        payload: { session: state, studentCount: count, instructorOnline }
       }));
     }
 
@@ -153,6 +177,14 @@ export function initWebSocketServer(httpServer) {
         if (role === "student") {
           const count = await decrementStudentCount(sessionId, studentId);
           broadcast(sessionId, { type: "student-left", payload: { count } });
+        }
+
+        if (isInstructor) {
+          const timer = setTimeout(() => {
+            instructorOfflineTimers.delete(sessionId);
+            broadcast(sessionId, { type: "instructor-offline", payload: {} });
+          }, INSTRUCTOR_OFFLINE_GRACE_MS);
+          instructorOfflineTimers.set(sessionId, timer);
         }
       }
     });

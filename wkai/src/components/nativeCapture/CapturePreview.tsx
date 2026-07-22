@@ -31,7 +31,6 @@ export function CapturePreview({
           attachCanvas(el);
         }}
         className="w-full h-full object-contain"
-        style={{ display: isCapturing ? "block" : "none" }}
       />
 
       {!isCapturing && (

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import axios from "axios";
 import { joinRoom } from "../lib/api";
 import { useStore } from "../store";
 
@@ -9,6 +10,7 @@ export function JoinPage() {
   const { setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
 
   const [name, setName] = useState(localStorage.getItem("wkai_student_name") || "");
+  const [password, setPassword] = useState("");
   // 6 individual digit/letter inputs
   const [chars, setChars] = useState<string[]>(["", "", "", "", "", ""]);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
@@ -54,7 +56,7 @@ export function JoinPage() {
     setError(null);
     try {
       localStorage.setItem("wkai_student_name", name);
-      const data = await joinRoom(roomCode, name);
+      const data = await joinRoom(roomCode, name, password.trim() || undefined);
       if (data.session.status === "ended") {
         setError("This session has already ended.");
         return;
@@ -65,8 +67,9 @@ export function JoinPage() {
       setGuideBlocks(data.guideBlocks);
       setSharedFiles(data.sharedFiles);
       navigate(`/room/${roomCode}`, { replace: true });
-    } catch {
-      setError("Room not found. Check the code and try again.");
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
+      setError(msg || "Room not found. Check the code and try again.");
     } finally {
       setLoading(false);
     }
@@ -118,6 +121,21 @@ export function JoinPage() {
             spellCheck={false}
           />
         ))}
+      </div>
+
+      {/* Password (optional — only rooms with a password enforce it) */}
+      <div className="mt-6 w-full max-w-[320px]">
+        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-wkai-text-dim">
+          Room Password <span className="normal-case text-wkai-text-dim/60">(if required)</span>
+        </label>
+        <input
+          className="h-12 w-full rounded-xl border border-wkai-border bg-wkai-surface px-4 text-sm font-medium text-wkai-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all placeholder:text-wkai-text-dim/30"
+          type="password"
+          placeholder="Only if the instructor set one"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="off"
+        />
       </div>
 
       {/* Error */}

@@ -24,6 +24,8 @@ interface StudentStore {
   setSession: (s: Session | null) => void;
   sessionEnded: boolean;
   setSessionEnded: (v: boolean) => void;
+  instructorOffline: boolean;
+  setInstructorOffline: (v: boolean) => void;
 
   // ─── Connection ────────────────────────────────────────────────────────────
   connected: boolean;
@@ -131,6 +133,8 @@ export const useStore = create<StudentStore>((set) => ({
   },
   sessionEnded: false,
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),
+  instructorOffline: false,
+  setInstructorOffline: (instructorOffline) => set({ instructorOffline }),
 
   connected: false,
   setConnected: (connected) => set({ connected }),

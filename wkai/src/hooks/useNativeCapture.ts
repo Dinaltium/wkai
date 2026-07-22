@@ -34,67 +34,25 @@ export function useNativeCapture() {
   // Canvas rendering refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef(new Image());
-  const frameRef = useRef<string | null>(null);
-  const animFrameRef = useRef<number>(0);
-  const isRenderingRef = useRef(false);
-
-  // Animation loop — draws the latest frame to canvas
-  const renderLoop = useCallback(() => {
-    const frame = frameRef.current;
-    const canvas = canvasRef.current;
-    if (frame && canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        const img = imgRef.current;
-        img.onload = () => {
-          if (canvasRef.current) {
-            ctx.drawImage(
-              img,
-              0,
-              0,
-              canvasRef.current.width,
-              canvasRef.current.height
-            );
-          }
-        };
-        img.src = `data:image/jpeg;base64,${frame}`;
-        frameRef.current = null; // consumed
-      }
-    }
-    animFrameRef.current = requestAnimationFrame(renderLoop);
-  }, []);
-
-  // Start the render loop
-  const startRenderLoop = useCallback(() => {
-    if (!isRenderingRef.current) {
-      isRenderingRef.current = true;
-      animFrameRef.current = requestAnimationFrame(renderLoop);
-    }
-  }, [renderLoop]);
-
-  // Stop the render loop
-  const stopRenderLoop = useCallback(() => {
-    if (isRenderingRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      isRenderingRef.current = false;
-    }
-  }, []);
 
   // Attach canvas for rendering
-  const attachCanvas = useCallback(
-    (canvas: HTMLCanvasElement | null) => {
-      canvasRef.current = canvas;
-      if (canvas) {
-        startRenderLoop();
-      } else {
-        stopRenderLoop();
-      }
-    },
-    [startRenderLoop, stopRenderLoop]
-  );
+  const attachCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+    canvasRef.current = canvas;
+  }, []);
+
+  const streamRef = useRef<MediaStream | null>(null);
+  const targetFpsRef = useRef<number>(30);
+  const onStreamReadyRef = useRef<((stream: MediaStream) => void)[]>([]);
 
   const getStream = useCallback((fps = 30) => {
-    return canvasRef.current ? canvasRef.current.captureStream(fps) : null;
+    return new Promise<MediaStream | null>((resolve) => {
+      targetFpsRef.current = fps;
+      if (streamRef.current) {
+        resolve(streamRef.current);
+      } else {
+        onStreamReadyRef.current.push(resolve as (stream: MediaStream) => void);
+      }
+    });
   }, []);
 
   // Initialize platform and event listeners
@@ -109,22 +67,35 @@ export function useNativeCapture() {
         setPlatform("unknown");
       }
 
-      // Listen to frame events
+      // Listen to frame events — draw directly on the IPC event, not rAF
+      // (rAF drifts from the native capture cadence and causes stream stalls)
       const unFrame = await listen<FramePayload>(
         "native-capture:frame",
         (event) => {
-          frameRef.current = event.payload.data;
-          // Update canvas size to match frame if needed
           const canvas = canvasRef.current;
-          if (canvas) {
-            if (
-              canvas.width !== event.payload.width ||
-              canvas.height !== event.payload.height
-            ) {
-              canvas.width = event.payload.width;
-              canvas.height = event.payload.height;
-            }
+          if (!canvas) return;
+          if (
+            canvas.width !== event.payload.width ||
+            canvas.height !== event.payload.height
+          ) {
+            canvas.width = event.payload.width;
+            canvas.height = event.payload.height;
           }
+          const ctx = canvas.getContext("2d", { alpha: false });
+          if (!ctx) return;
+          const img = imgRef.current;
+          img.onload = () => {
+            if (!canvasRef.current) return;
+            ctx.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
+            if (!streamRef.current) {
+              streamRef.current = canvasRef.current.captureStream(targetFpsRef.current);
+              if (onStreamReadyRef.current.length > 0) {
+                onStreamReadyRef.current.forEach((resolve) => resolve(streamRef.current!));
+                onStreamReadyRef.current = [];
+              }
+            }
+          };
+          img.src = `data:image/jpeg;base64,${event.payload.data}`;
         }
       );
       unlisteners.push(unFrame);
@@ -164,9 +135,12 @@ export function useNativeCapture() {
 
     return () => {
       unlisteners.forEach((fn) => fn());
-      stopRenderLoop();
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
     };
-  }, [stopRenderLoop]);
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -185,19 +159,19 @@ export function useNativeCapture() {
       setError(null);
       try {
         await invoke("start_native_capture", { target, config });
-        startRenderLoop();
 
-        if (recordingOptions?.saveLocal && recordingOptions.dir && canvasRef.current) {
+        if (recordingOptions?.saveLocal && recordingOptions.dir) {
           const ext = recordingOptions.format === "mp4" ? "mp4" : "webm";
           let mimeType = "video/webm";
           if (ext === "mp4" && MediaRecorder.isTypeSupported("video/mp4")) {
             mimeType = "video/mp4";
           }
-          
+
           const fps = config.fps || 30;
-          const stream = canvasRef.current.captureStream(fps);
+          const stream = await getStream(fps);
+          if (!stream) return;
           const recorder = new MediaRecorder(stream, { mimeType });
-          
+
           const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
           const dir = recordingOptions.dir.replace(/[\\/]$/, "");
           const filePath = `${dir}/wkai_recording_${timestamp}.${ext}`;
@@ -223,7 +197,7 @@ export function useNativeCapture() {
         setIsLoading(false);
       }
     },
-    [startRenderLoop]
+    [getStream]
   );
 
   // Stop capture
@@ -231,7 +205,10 @@ export function useNativeCapture() {
     setIsLoading(true);
     try {
       await invoke("stop_native_capture");
-      frameRef.current = null;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current = null;

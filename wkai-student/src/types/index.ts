@@ -104,6 +104,8 @@ export type WsEventType =
   | "colab-assist-request"
   | "colab-assist-response"
   | "session-ended"
+  | "instructor-offline"
+  | "instructor-online"
   | "error";
 
 export interface WsMessage<T = unknown> {

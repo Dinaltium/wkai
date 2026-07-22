@@ -20,6 +20,8 @@ interface AppStore {
   // ─── Session ───────────────────────────────────────────────────────────────
   session: Session | null;
   setSession: (session: Session | null) => void;
+  /** Reset all per-session runtime state so a newly started session starts clean. */
+  resetSessionState: () => void;
 
   // ─── Recording ─────────────────────────────────────────────────────────────
   recording: RecordingState;
@@ -106,6 +108,18 @@ export const useAppStore = create<AppStore>((set) => ({
 
   session: null,
   setSession: (session) => set({ session }),
+
+  resetSessionState: () =>
+    set({
+      streamingToStudents: false,
+      sharedDisplayStream: null,
+      recording: { isRecording: false, isPaused: false, duration: 0, isMuted: false },
+      guideBlocks: [],
+      sharedFiles: [],
+      students: [],
+      studentCount: 0,
+      inboxMessages: [],
+    }),
 
   recording: {
     isRecording: false,

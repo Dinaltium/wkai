@@ -86,17 +86,19 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
         
         addDebugLog(`Recording stopped. Size: ${Math.round(blob.size / 1024)} KB`, "success");
 
-        // Handle local saving if enabled
+        // Handle local saving if enabled — uses the unrestricted `append_to_recording`
+        // Rust command (bypasses the fs-plugin ACL, which only covers app-scoped dirs,
+        // not arbitrary user-picked folders from the directory picker).
         if (settings.saveLocalRecording && settings.recordingDirectory) {
           try {
+            const { invoke } = await import("@tauri-apps/api/core");
             const { join } = await import("@tauri-apps/api/path");
-            const { writeFile } = await import("@tauri-apps/plugin-fs");
-            
+
             const arrayBuffer = await blob.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
+            const chunk = Array.from(new Uint8Array(arrayBuffer));
             const fullPath = await join(settings.recordingDirectory, filename);
-            
-            await writeFile(fullPath, uint8Array);
+
+            await invoke("append_to_recording", { path: fullPath, chunk });
             addDebugLog(`Recording saved to system: ${fullPath}`, "success");
           } catch (err) {
             console.error("Local save failed:", err);

@@ -4,8 +4,16 @@ import { Users, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export function RoomHeader() {
-  const { session, connected, studentCount, backgroundLiveEnabled, setBackgroundLiveEnabled } = useStore();
+  const { session, connected, instructorOffline, studentCount, backgroundLiveEnabled, setBackgroundLiveEnabled } = useStore();
   const navigate = useNavigate();
+
+  // Status reflects instructor presence, not the student's own socket: a
+  // connected student with no instructor in the room is "waiting", not "live".
+  const status = !connected
+    ? { label: "Reconnecting…", live: false }
+    : instructorOffline
+      ? { label: "Instructor offline", live: false }
+      : { label: "Live", live: true };
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-wkai-border bg-wkai-surface px-4">
@@ -38,16 +46,16 @@ export function RoomHeader() {
         <span
           className={clsx(
             "flex items-center gap-1.5 text-xs font-medium",
-            connected ? "text-emerald-400" : "text-wkai-text-dim"
+            status.live ? "text-emerald-400" : "text-wkai-text-dim"
           )}
         >
           <span
             className={clsx(
               "h-1.5 w-1.5 rounded-full",
-              connected ? "bg-emerald-400 animate-pulse" : "bg-gray-600"
+              status.live ? "bg-emerald-400 animate-pulse" : "bg-gray-600"
             )}
           />
-          {connected ? "Live" : "Reconnecting…"}
+          {status.label}
         </span>
         <label className="hidden md:flex items-center gap-1.5 text-[11px] text-wkai-text-dim">
           <input

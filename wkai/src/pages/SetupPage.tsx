@@ -6,7 +6,7 @@ import { createSession, watchFolder, listWatchedFiles } from "../lib/tauri";
 
 export function SetupPage() {
   const navigate = useNavigate();
-  const { settings, updateSettings, setSession, setWatchedFiles } = useAppStore();
+  const { settings, updateSettings, setSession, setWatchedFiles, resetSessionState } = useAppStore();
 
   const [workshopTitle, setWorkshopTitle] = useState("");
   const [sessionPassword, setSessionPassword] = useState("");
@@ -27,6 +27,10 @@ export function SetupPage() {
     setError(null);
 
     try {
+      // Clear any leftover state from a previous session in this app instance
+      // (sharing toggle, guide, students, recording) so the new room starts clean.
+      resetSessionState();
+
       // 1. Create session — registers with backend, returns room code
       const session = await createSession(
         settings.instructorName,
@@ -111,12 +115,31 @@ export function SetupPage() {
               File Share Folder{" "}
               <span className="normal-case text-wkai-text-dim/60">(optional)</span>
             </label>
-            <input
-              className="input font-mono text-xs"
-              placeholder="/home/rafan/workshop-files"
-              value={settings.watchFolder}
-              onChange={(e) => updateSettings({ watchFolder: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <input
+                className="input flex-1 font-mono text-xs"
+                placeholder="/home/rafan/workshop-files"
+                value={settings.watchFolder}
+                onChange={(e) => updateSettings({ watchFolder: e.target.value })}
+              />
+              <button
+                type="button"
+                className="btn-secondary whitespace-nowrap text-xs py-1"
+                onClick={async () => {
+                  const { open } = await import("@tauri-apps/plugin-dialog");
+                  const selected = await open({
+                    directory: true,
+                    multiple: false,
+                    title: "Select File Share Folder"
+                  });
+                  if (typeof selected === "string") {
+                    updateSettings({ watchFolder: selected });
+                  }
+                }}
+              >
+                Browse
+              </button>
+            </div>
             <p className="text-xs text-wkai-text-dim">
               You can now manage folder path, file upload, and URL upload from the right-side explorer during live session.
             </p>

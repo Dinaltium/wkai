@@ -12,6 +12,7 @@ import { MessagePanel } from "../components/messages/MessagePanel";
 import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
 import { joinRoom } from "../lib/api";
 import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
+import { InstructorOfflineBanner } from "../components/shared/InstructorOfflineBanner";
 import { CodeEditor } from "../components/shared/CodeEditor";
 import { ErrorHelper } from "../components/error/ErrorHelper";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
@@ -19,7 +20,7 @@ import { ComprehensionModal } from "../components/comprehension/ComprehensionMod
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { session, sessionEnded, activeTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { session, sessionEnded, instructorOffline, activeTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
   const { remoteStream } = useWebRtcReceiver(send);
   const bootstrappingRef = useRef(!session && !sessionEnded);
@@ -73,6 +74,7 @@ export function RoomPage() {
     <div className="flex h-full flex-col overflow-hidden bg-wkai-bg">
       <RoomHeader />
       {sessionEnded && <SessionEndedBanner />}
+      {!sessionEnded && instructorOffline && <InstructorOfflineBanner />}
       <TabBar />
 
       <div className="flex-1 overflow-hidden">

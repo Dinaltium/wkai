@@ -177,6 +177,14 @@ sessionRouter.patch("/:id/end", requireSessionToken({ requiredRole: "instructor"
 
     const session = rows[0];
 
+    // Tell connected students FIRST — cleanupSession() deletes the WS room, so
+    // broadcasting after it would reach nobody (this was the "students never told
+    // the session ended" bug).
+    broadcast(session.id, {
+      type:    "session-ended",
+      payload: { message: "The instructor has ended this session." },
+    });
+
     // Clean up: LiveKit ingress + Redis cache + LangChain session memory + WS room
     const ingressId = await getSessionIngress(session.id).catch(() => null);
     if (ingressId) {
@@ -187,11 +195,6 @@ sessionRouter.patch("/:id/end", requireSessionToken({ requiredRole: "instructor"
     await clearStudentConnections(session.id);
     clearSessionMemory(session.id);
     cleanupSession(session.id);
-
-    broadcast(session.id, {
-      type:    "session-ended",
-      payload: { message: "The instructor has ended this session." },
-    });
 
     res.json({ session: formatSession(session) });
   } catch (err) {
