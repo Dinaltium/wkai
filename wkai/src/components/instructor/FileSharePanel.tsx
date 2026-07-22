@@ -64,10 +64,35 @@ export function FileSharePanel({ sessionId, send }: Props) {
     try {
       const url = await shareFile(sessionId, file.path, settings.backendUrl);
       send("file-shared", { name: file.name, url, sessionId });
+      addDebugLog(`Shared ${file.name}`, "success");
     } catch (err) {
       console.error("Share failed", err);
+      addDebugLog(`Share failed: ${String(err)}`, "error");
     } finally {
       setSharing(null);
+    }
+  }
+
+  // Unified share for any tree node. Folder files must be uploaded to Cloudinary
+  // via the Rust command first; uploaded/URL entries already have a public url,
+  // so we broadcast that directly.
+  async function handleShareNode(node: FileTreeNode) {
+    if (node.source === "folder") {
+      const hit = folderFiles.find(
+        (file) => toRelativePath(file.path, settings.watchFolder) === node.path
+      );
+      if (hit) await handleShare(hit);
+      else addDebugLog(`Could not resolve folder file: ${node.name}`, "error");
+      return;
+    }
+    if (node.url) {
+      setSharing(node.path);
+      try {
+        send("file-shared", { name: node.name, url: node.url, sessionId });
+        addDebugLog(`Shared ${node.name}`, "success");
+      } finally {
+        setSharing(null);
+      }
     }
   }
 
@@ -198,7 +223,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
             className={clsx(
               "flex-1 py-2 text-xs font-medium transition-colors",
               activeTab === tab
-                ? "border-b-2 border-indigo-400 text-indigo-400"
+                ? "border-b-2 border-accent text-accent-text"
                 : "text-wkai-text-dim hover:text-wkai-text"
             )}
           >
@@ -251,7 +276,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
               {uploading && (
                 <div className="h-1.5 rounded bg-wkai-border overflow-hidden">
                   <div
-                    className="h-full bg-indigo-400 transition-all duration-150"
+                    className="h-full bg-accent transition-all duration-150"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -293,10 +318,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
                 sharing={sharing}
                 expandedFolders={expandedFolders}
                 onToggleFolder={(id) => setExpandedFolders((prev) => ({ ...prev, [id]: !prev[id] }))}
-                onShareFile={(path) => {
-                  const hit = folderFiles.find((file) => file.path === path);
-                  if (hit) void handleShare(hit);
-                }}
+                onShareFile={(node) => void handleShareNode(node)}
                 formatSize={formatSize}
               />
             )}
@@ -314,7 +336,7 @@ export function FileSharePanel({ sessionId, send }: Props) {
                   key={f.id}
                   className="flex items-center gap-2 rounded-lg bg-wkai-bg p-2 text-xs"
                 >
-                  <File size={13} className="text-indigo-400 shrink-0" />
+                  <File size={13} className="text-accent-text shrink-0" />
                   <span className="truncate text-wkai-text flex-1">{f.name}</span>
                   <span className="text-wkai-text-dim shrink-0">
                     {new Date(f.sharedAt).toLocaleTimeString([], {
@@ -361,7 +383,7 @@ function ModeButton({ label, active, onClick }: { label: string; active: boolean
       onClick={onClick}
       className={clsx(
         "px-2 py-1.5 text-[11px] font-medium",
-        active ? "bg-indigo-500/15 text-indigo-300" : "bg-transparent text-wkai-text-dim hover:text-wkai-text"
+        active ? "bg-accent/15 text-accent-text" : "bg-transparent text-wkai-text-dim hover:text-wkai-text"
       )}
     >
       {label}
@@ -377,6 +399,7 @@ type FileTreeNode = {
   source?: "folder" | "upload" | "url";
   ghost?: boolean;
   sizeBytes?: number | null;
+  url?: string;
   children: FileTreeNode[];
 };
 
@@ -410,6 +433,7 @@ function buildTree(entries: ExplorerFileEntry[]): FileTreeNode {
           source: isLast ? entry.source : undefined,
           ghost: isLast ? entry.ghost : false,
           sizeBytes: isLast ? entry.sizeBytes : null,
+          url: isLast ? entry.url : undefined,
           children: [],
         };
         map.set(nodeId, node);
@@ -459,7 +483,7 @@ function TreeNodeList({
   sharing: string | null;
   expandedFolders: Record<string, boolean>;
   onToggleFolder: (id: string) => void;
-  onShareFile: (path: string) => void;
+  onShareFile: (node: FileTreeNode) => void;
   formatSize: (n: number) => string;
 }) {
   return (
@@ -501,12 +525,15 @@ function TreeNodeList({
             <span className="truncate text-xs text-wkai-text flex-1">{node.name}</span>
             {node.ghost && <span className="text-[10px] uppercase text-amber-400">ghost</span>}
             {typeof node.sizeBytes === "number" && <span className="text-[10px] text-wkai-text-dim">{formatSize(node.sizeBytes)}</span>}
-            {node.source === "folder" && !node.ghost && (
+            {/* Folder files upload-on-share via Rust; upload/url entries already
+                have a public url. Both are shareable. */}
+            {(node.source === "folder" || node.url) && (
               <button
                 type="button"
-                className="opacity-0 group-hover:opacity-100 rounded px-1 text-[10px] text-indigo-300 hover:bg-indigo-500/10"
-                onClick={() => onShareFile(node.path)}
+                className="opacity-0 group-hover:opacity-100 rounded px-1 text-[10px] text-accent-text hover:bg-accent/10"
+                onClick={() => onShareFile(node)}
                 disabled={sharing === node.path}
+                title="Share with students"
               >
                 {sharing === node.path ? <Loader2 size={11} className="animate-spin" /> : <Share2 size={11} />}
               </button>

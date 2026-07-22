@@ -3,6 +3,7 @@ import { AppShell } from "./components/shared/AppShell";
 import { SetupPage } from "./pages/SetupPage";
 import { SessionPage } from "./pages/SessionPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { NativeCaptureTest } from "./pages/NativeCaptureTest";
 
 export const router = createBrowserRouter([
   {
@@ -12,6 +13,7 @@ export const router = createBrowserRouter([
       { index: true, element: <SetupPage /> },
       { path: "session", element: <SessionPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "native-capture-test", element: <NativeCaptureTest /> },
     ],
   },
 ]);

@@ -15,12 +15,17 @@ import type {
 interface StudentStore {
   // ─── Identity ──────────────────────────────────────────────────────────────
   studentId: string;
+  joinToken: string | null;
+  // Server-assigned identity + signed token, set on successful join.
+  setAuth: (studentId: string, joinToken: string) => void;
 
   // ─── Session ───────────────────────────────────────────────────────────────
   session: Session | null;
   setSession: (s: Session | null) => void;
   sessionEnded: boolean;
   setSessionEnded: (v: boolean) => void;
+  instructorOffline: boolean;
+  setInstructorOffline: (v: boolean) => void;
 
   // ─── Connection ────────────────────────────────────────────────────────────
   connected: boolean;
@@ -80,12 +85,17 @@ interface StudentStore {
   setActiveTab: (t: RoomTab) => void;
 }
 
-// Stable random student ID for this browser session
+// Identity is assigned by the server on join and persisted so a page reload in
+// the room keeps the same signed token. Falls back to a placeholder before the
+// first join (overwritten by setAuth).
+const STUDENT_ID_KEY = "wkai_student_id";
+const JOIN_TOKEN_KEY = "wkai_join_token";
+
 const STUDENT_ID =
-  sessionStorage.getItem("wkai_student_id") ??
+  sessionStorage.getItem(STUDENT_ID_KEY) ??
   (() => {
     const id = `s_${Math.random().toString(36).slice(2, 9)}`;
-    sessionStorage.setItem("wkai_student_id", id);
+    sessionStorage.setItem(STUDENT_ID_KEY, id);
     return id;
   })();
 
@@ -105,6 +115,12 @@ function readStoredSession(): Session | null {
 
 export const useStore = create<StudentStore>((set) => ({
   studentId: STUDENT_ID,
+  joinToken: sessionStorage.getItem(JOIN_TOKEN_KEY),
+  setAuth: (studentId, joinToken) => {
+    sessionStorage.setItem(STUDENT_ID_KEY, studentId);
+    sessionStorage.setItem(JOIN_TOKEN_KEY, joinToken);
+    set({ studentId, joinToken });
+  },
 
   session: readStoredSession(),
   setSession: (session) => {
@@ -117,6 +133,8 @@ export const useStore = create<StudentStore>((set) => ({
   },
   sessionEnded: false,
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),
+  instructorOffline: false,
+  setInstructorOffline: (instructorOffline) => set({ instructorOffline }),
 
   connected: false,
   setConnected: (connected) => set({ connected }),

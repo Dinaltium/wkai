@@ -3,18 +3,30 @@
 @tailwind utilities;
 
 @layer base {
+  /* Theme tokens as RGB channels (consumed via rgb(var(--x) / <alpha>)). */
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface-2: #20253a;
-    --border: #2a2d3a;
-    --accent: #6366f1;
-    --accent-dim: rgba(99, 102, 241, 0.15);
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --text: #e5e7eb;
-    --text-dim: #6b7280;
+    --wkai-bg: 12 12 14;
+    --wkai-surface: 24 24 27;
+    --wkai-surface2: 35 35 39;
+    --wkai-border: 44 44 49;
+    --wkai-text: 229 231 235;
+    --wkai-text-dim: 156 163 175;
+    /* Accent trio — set by JS from the user's picked color + mode. */
+    --accent: 20 184 166;
+    --accent-text: 45 212 191;
+    --accent-fg: 4 47 46;
+    color-scheme: dark;
+  }
+
+  .light {
+    --wkai-bg: 250 250 250;
+    --wkai-surface: 255 255 255;
+    --wkai-surface2: 244 244 245;
+    --wkai-border: 228 228 231;
+    --wkai-text: 24 24 27;
+    --wkai-text-dim: 82 82 91;
+    --accent-text: 13 148 136;
+    color-scheme: light;
   }
 
   * {
@@ -32,13 +44,14 @@
   }
 
   body {
-    background-color: var(--bg);
-    color: var(--text);
+    background-color: rgb(var(--wkai-bg));
+    color: rgb(var(--wkai-text));
     font-family: "Inter", system-ui, sans-serif;
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     user-select: none;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   /* Scrollbar styling */
@@ -50,11 +63,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
+    background: rgb(var(--wkai-border));
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3d4a;
+    background: rgb(var(--wkai-text-dim) / 0.6);
   }
 
   code,
@@ -62,14 +75,24 @@
   .font-mono {
     font-family: "JetBrains Mono", "Fira Code", monospace;
   }
+
+  /* Respect reduced-motion: collapse animations/transitions to near-instant. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-wkai-bg;
   }
   .btn-primary {
-    @apply btn bg-indigo-500 text-white hover:bg-indigo-600 active:scale-95;
+    @apply btn bg-accent text-accent-fg font-semibold hover:opacity-90 active:scale-95;
   }
   .btn-ghost {
     @apply btn bg-transparent text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text;
@@ -84,7 +107,7 @@
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
   }
   .input {
-    @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors;
+    @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 transition-colors;
   }
   .pulse-dot {
     @apply relative inline-flex h-2 w-2;

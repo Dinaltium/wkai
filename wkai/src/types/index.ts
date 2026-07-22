@@ -9,6 +9,8 @@ export interface Session {
   workshopTitle: string;
   startedAt: string;
   status: SessionStatus;
+  /** Signed session-ownership token — sent on the WS connection and end-session call. */
+  instructorToken?: string;
 }
 
 // ─── AI Guide Content ────────────────────────────────────────────────────────
@@ -151,6 +153,9 @@ export interface AppSettings {
   groqApiKey: string;
   saveLocalRecording: boolean;
   recordingDirectory: string;
+  recordingFormat: "mp4" | "webm";
+  captureFramerate: 15 | 24 | 30 | 60 | "auto";
+  captureQuality: "low" | "medium" | "high" | "auto";
 }
 
 export interface RecordingState {

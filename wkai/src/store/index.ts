@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type {
   Session,
-  CaptureState,
+  RecordingState,
   GuideBlock,
   SharedFile,
   WatchedFile,
@@ -20,10 +20,21 @@ interface AppStore {
   // ─── Session ───────────────────────────────────────────────────────────────
   session: Session | null;
   setSession: (session: Session | null) => void;
+  /** Reset all per-session runtime state so a newly started session starts clean. */
+  resetSessionState: () => void;
 
   // ─── Recording ─────────────────────────────────────────────────────────────
   recording: RecordingState;
   setRecording: (partial: Partial<RecordingState>) => void;
+
+  // ─── Guide + Files ─────────────────────────────────────────────────────────
+  guideBlocks: GuideBlock[];
+  addGuideBlock: (block: GuideBlock) => void;
+  clearGuide: () => void;
+  sharedFiles: SharedFile[];
+  addSharedFile: (file: SharedFile) => void;
+  watchedFiles: WatchedFile[];
+  setWatchedFiles: (files: WatchedFile[]) => void;
 
   // ─── Student Count ─────────────────────────────────────────────────────────
   studentCount: number;
@@ -61,6 +72,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   groqApiKey:     "",
   saveLocalRecording: false,
   recordingDirectory: "",
+  recordingFormat: "mp4",
+  captureFramerate: "auto" as const,
+  captureQuality: "auto" as const,
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";
@@ -94,6 +108,18 @@ export const useAppStore = create<AppStore>((set) => ({
 
   session: null,
   setSession: (session) => set({ session }),
+
+  resetSessionState: () =>
+    set({
+      streamingToStudents: false,
+      sharedDisplayStream: null,
+      recording: { isRecording: false, isPaused: false, duration: 0, isMuted: false },
+      guideBlocks: [],
+      sharedFiles: [],
+      students: [],
+      studentCount: 0,
+      inboxMessages: [],
+    }),
 
   recording: {
     isRecording: false,

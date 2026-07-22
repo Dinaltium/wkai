@@ -17,7 +17,7 @@ export function RoomInfo({ session }: { session: Session }) {
         Room Code
       </p>
       <div className="flex items-center justify-between rounded-lg bg-wkai-bg border border-wkai-border px-3 py-2">
-        <span className="font-mono text-2xl font-bold tracking-widest text-indigo-400">
+        <span className="font-mono text-2xl font-bold tracking-widest text-accent-text">
           {session.roomCode}
         </span>
         <button

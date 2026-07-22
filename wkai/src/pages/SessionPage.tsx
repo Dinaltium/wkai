@@ -14,15 +14,57 @@ import { EndSessionButton } from "../components/instructor/EndSessionButton";
 import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
 import { RecordingPanel } from "../components/instructor/RecordingPanel";
 import { useWebRtcPublisher } from "../hooks/useWebRtcPublisher";
+import { useNativeCapture } from "../hooks/useNativeCapture";
+import { useCaptureDevices } from "../hooks/useCaptureDevices";
+import { DeviceSelector } from "../components/nativeCapture/DeviceSelector";
+import { CapturePreview } from "../components/nativeCapture/CapturePreview";
+import type { CaptureTarget } from "../types/nativeCapture";
+import { useEffect } from "react";
 export function SessionPage() {
   const { session, settings, studentCount } = useAppStore();
   const { send, on, off } = useWebSocket({
     sessionId: session?.id ?? null,
     backendUrl: settings.backendUrl,
+    token: session?.instructorToken,
   });
   useWebRtcPublisher(session?.id ?? null, send, on, off);
 
   const [leftTab, setLeftTab] = useState<"students" | "inbox">("students");
+  const [selectedTarget, setSelectedTarget] = useState<CaptureTarget | null>(null);
+  const capture = useNativeCapture();
+  const devices = useCaptureDevices();
+  const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
+
+  // Auto-start capture when target is selected
+  useEffect(() => {
+    if (selectedTarget) {
+      const fps = settings.captureFramerate === "auto" ? 30 : parseInt(String(settings.captureFramerate));
+      capture.startCapture(selectedTarget, {
+        fps,
+        quality: settings.captureQuality,
+        preview_width: 1280
+      }, {
+        saveLocal: settings.saveLocalRecording,
+        dir: settings.recordingDirectory || "",
+        format: settings.recordingFormat || "mp4"
+      }).then(async () => {
+        const stream = await capture.getStream(fps);
+        setSharedDisplayStream(stream);
+      });
+    } else {
+      capture.stopCapture().then(() => {
+        setSharedDisplayStream(null);
+      });
+    }
+  }, [selectedTarget]); // Intentionally omitting settings so it doesn't restart on setting change
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      capture.stopCapture();
+      setSharedDisplayStream(null);
+    };
+  }, []);
 
   if (!session) {
     return (
@@ -43,6 +85,16 @@ export function SessionPage() {
           <CaptureStatus />
         </div>
         <div className="border-b border-wkai-border p-4">
+          <DeviceSelector
+            monitors={devices.monitors}
+            windows={devices.windows}
+            selectedTarget={selectedTarget}
+            onSelect={setSelectedTarget}
+            isLoading={devices.isLoading}
+            onRefresh={devices.refreshDevices}
+          />
+        </div>
+        <div className="border-b border-wkai-border p-4">
           <ShareToggle />
         </div>
         <div className="border-b border-wkai-border p-4">
@@ -57,7 +109,7 @@ export function SessionPage() {
                 className={clsx(
                   "flex-1 py-2 text-xs font-medium capitalize transition-colors",
                   leftTab === tab
-                    ? "border-b-2 border-indigo-400 text-indigo-400"
+                    ? "border-b-2 border-accent text-accent-text"
                     : "text-wkai-text-dim hover:text-wkai-text"
                 )}
               >
@@ -91,6 +143,17 @@ export function SessionPage() {
       <ShareIntentToast sessionId={session.id} />
 
       <StudentJoinToast />
+
+      {/* Visually-hidden native capture renderer — MUST stay rendered/composited
+          (not display:none) or canvas.captureStream() freezes and WebRTC/recording
+          get a dead track. Off-screen + opacity-0 keeps it painting. */}
+      <div className="fixed bottom-0 right-0 w-[1px] h-[1px] opacity-0 pointer-events-none overflow-hidden">
+        <CapturePreview
+          canvasRef={capture.canvasRef}
+          attachCanvas={capture.attachCanvas}
+          status={capture.status.status}
+        />
+      </div>
     </div>
   );
 }

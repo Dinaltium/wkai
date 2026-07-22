@@ -37,7 +37,7 @@ function FileRow({ file }: { file: import("../../types").SharedFile }) {
   function getIcon(name: string) {
     const ext = name.split(".").pop()?.toLowerCase();
     if (["js", "ts", "py", "rs", "go", "cpp", "java"].includes(ext ?? ""))
-      return <FileCode size={16} className="text-indigo-400" />;
+      return <FileCode size={16} className="text-accent-text" />;
     if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext ?? ""))
       return <FileImage size={16} className="text-pink-400" />;
     if (["md", "txt", "pdf", "docx"].includes(ext ?? ""))
@@ -46,7 +46,7 @@ function FileRow({ file }: { file: import("../../types").SharedFile }) {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-wkai-border bg-wkai-surface px-4 py-3 group hover:border-indigo-500/40 transition-colors">
+    <div className="flex items-center gap-3 rounded-xl border border-wkai-border bg-wkai-surface px-4 py-3 group hover:border-accent/40 transition-colors">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-wkai-bg border border-wkai-border">
         {getIcon(file.name)}
       </div>
@@ -68,7 +68,7 @@ function FileRow({ file }: { file: import("../../types").SharedFile }) {
         target="_blank"
         rel="noreferrer"
         className="flex items-center gap-1.5 rounded-lg border border-wkai-border px-3 py-1.5 text-xs text-wkai-text-dim
-          hover:border-indigo-500/50 hover:text-indigo-400 transition-all opacity-0 group-hover:opacity-100"
+          hover:border-accent/50 hover:text-accent-text transition-all opacity-0 group-hover:opacity-100"
       >
         <Download size={12} />
         Download

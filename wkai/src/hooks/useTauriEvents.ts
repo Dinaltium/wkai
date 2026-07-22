@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { isTauri } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 
 /**
@@ -13,6 +14,8 @@ export function useTauriEvents() {
   const { settings, addDebugLog } = useAppStore();
 
   useEffect(() => {
+    // Browser preview (no native runtime): skip native event wiring.
+    if (!isTauri()) return;
     const windowApi = getCurrentWebviewWindow();
     const listenWindow = windowApi.listen.bind(windowApi);
     const addDualListener = <T,>(eventName: string, handler: Parameters<typeof listen<T>>[1]) =>

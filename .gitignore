@@ -26,6 +26,15 @@
 wkai-backend/.env
 wkai-backend/.env.local
 
+# ...but DO track example templates (no secrets, needed for onboarding)
+!.env.example
+!wkai-backend/.env.example
+
+# Spike local creds + benchmark output artifacts (anywhere they land)
+spike/livekit.local.ps1
+out_*.mp4
+*.mp4.log
+
 # Firebase service account key (contains private credentials)
 firebase-service-account.json
 firebase-adminsdk*.json

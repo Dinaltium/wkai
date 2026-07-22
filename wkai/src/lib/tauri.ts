@@ -19,9 +19,10 @@ export async function createSession(
 
 export async function endSession(
   sessionId: string,
-  backendUrl: string
+  backendUrl: string,
+  instructorToken?: string
 ): Promise<void> {
-  return invoke("end_session", { sessionId, backendUrl });
+  return invoke("end_session", { sessionId, backendUrl, instructorToken });
 }
 
 export async function getSessionStatus(
@@ -53,6 +54,43 @@ export async function listWatchedFiles(
 
 export async function captureScreen(): Promise<string> {
   return invoke<string>("capture_screen");
+}
+
+// ─── Native Recording (Phase 1a: FFmpeg-driven) ───────────────────────────────
+
+export type CaptureMode = "gpu-dda" | "cpu-gdi";
+export type VideoEncoder = "nvenc-h264" | "nvenc-hevc" | "qsv-h264" | "amf-h264" | "x264";
+export type RateControl =
+  | { mode: "cbr"; bitrateKbps: number }
+  | { mode: "crf"; quality: number };
+
+export interface RecordConfig {
+  captureMode: CaptureMode;
+  fps: number;
+  width?: number | null;
+  height?: number | null;
+  encoder: VideoEncoder;
+  rateControl: RateControl;
+  keyframeIntervalSecs: number;
+  container: "mp4" | "mkv";
+  audioDevice?: string | null;
+  audioBitrateKbps: number;
+  outputPath: string;
+}
+
+/** Start a native recording (FFmpeg captures+encodes to disk). No browser MediaRecorder. */
+export async function startRecording(config: RecordConfig, ffmpegPath?: string): Promise<void> {
+  return invoke("start_recording", { config, ffmpegPath });
+}
+
+/** Stop and finalize the recording; resolves with the output file path. */
+export async function stopRecording(): Promise<string> {
+  return invoke<string>("stop_recording");
+}
+
+/** True while a recording is active. */
+export async function recordingStatus(): Promise<boolean> {
+  return invoke<boolean>("recording_status");
 }
 
 interface UrlImportDiagnosis {

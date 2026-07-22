@@ -7,16 +7,17 @@ type Handler<T = unknown> = (payload: T) => void;
 interface UseWsOptions {
   sessionId: string | null;
   backendUrl: string;
+  token?: string;
 }
 
-export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
+export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
   const { setStudentCount, addGuideBlock, addSharedFile } = useAppStore();
 
   const connect = useCallback(() => {
-    if (!sessionId) return;
-    const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?session=${sessionId}&role=instructor`;
+    if (!sessionId || !token) return;
+    const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?token=${encodeURIComponent(token)}`;
     ws.current = new WebSocket(wsUrl);
 
     ws.current.onopen = () => console.log("[WKAI WS] Connected to", wsUrl);
@@ -49,7 +50,7 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
             setStudentCount((msg.payload as { count: number }).count);
             break;
           case "student-list": {
-            const p = msg.payload as { students: { studentId: string; studentName: string }[] };
+            const p = msg.payload as { students: { studentId: string; studentName: string; joinedAt: string }[] };
             useAppStore.getState().setStudents(p.students);
             break;
           }
@@ -65,7 +66,7 @@ export function useWebSocket({ sessionId, backendUrl }: UseWsOptions) {
 
     ws.current.onclose = () => setTimeout(connect, 3000);
     ws.current.onerror = (err) => console.error("[WKAI WS] Error", err);
-  }, [sessionId, backendUrl]);
+  }, [sessionId, backendUrl, token]);
 
   useEffect(() => {
     connect();

@@ -4,18 +4,22 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Accent trio (theme-switchable, user-customizable via CSS vars).
+        accent:        "rgb(var(--accent) / <alpha-value>)",
+        "accent-text": "rgb(var(--accent-text) / <alpha-value>)",
+        "accent-fg":   "rgb(var(--accent-fg) / <alpha-value>)",
         wkai: {
-          bg:         "#0f1117",
-          surface:    "#1a1d27",
-          surface2:   "#20253a",
-          border:     "#2a2d3a",
-          accent:     "#6366f1",
+          bg:         "rgb(var(--wkai-bg) / <alpha-value>)",
+          surface:    "rgb(var(--wkai-surface) / <alpha-value>)",
+          surface2:   "rgb(var(--wkai-surface2) / <alpha-value>)",
+          border:     "rgb(var(--wkai-border) / <alpha-value>)",
+          accent:     "rgb(var(--accent) / <alpha-value>)",
           success:    "#22c55e",
           warning:    "#f59e0b",
           danger:     "#ef4444",
-          muted:      "#6b7280",
-          text:       "#e5e7eb",
-          "text-dim": "#6b7280",
+          muted:      "rgb(var(--wkai-text-dim) / <alpha-value>)",
+          text:       "rgb(var(--wkai-text) / <alpha-value>)",
+          "text-dim": "rgb(var(--wkai-text-dim) / <alpha-value>)",
         },
       },
       fontFamily: {

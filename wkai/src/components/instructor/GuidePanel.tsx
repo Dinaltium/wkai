@@ -8,7 +8,6 @@ import {
   Code2,
   BookOpen,
   HelpCircle,
-  Loader2,
 } from "lucide-react";
 
 export function GuidePanel() {
@@ -91,9 +90,9 @@ const BLOCK_META: Record<
   step: {
     label: "Step",
     icon: <Footprints size={13} />,
-    iconClass: "text-indigo-400",
-    bgClass: "bg-indigo-500/5",
-    borderClass: "border-indigo-500/20",
+    iconClass: "text-accent-text",
+    bgClass: "bg-accent/5",
+    borderClass: "border-accent/20",
   },
   tip: {
     label: "Tip",

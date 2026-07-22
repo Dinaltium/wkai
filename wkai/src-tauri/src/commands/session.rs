@@ -10,6 +10,10 @@ pub struct SessionInfo {
     pub workshopTitle: String,
     pub startedAt: String,
     pub status: SessionStatus,
+    /// Signed token proving ownership of this session. Sent by the frontend on
+    /// the instructor WebSocket connection and on privileged calls (end session).
+    #[serde(default)]
+    pub instructorToken: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -35,15 +39,6 @@ pub async fn create_session(
     // Room code: first 6 chars of UUID, uppercased, dashes replaced
     let room_code = session_id[..6].to_uppercase().replace('-', "X");
     let now = chrono::Utc::now().to_rfc3339();
-
-    let _session = SessionInfo {
-        id: session_id.clone(),
-        roomCode: room_code.clone(),
-        instructorName: instructor_name.clone(),
-        workshopTitle: workshop_title.clone(),
-        startedAt: now.clone(),
-        status: SessionStatus::Active,
-    };
 
     log::info!("Creating session: {} (room: {})", session_id, room_code);
 
@@ -72,7 +67,13 @@ pub async fn create_session(
         .get("session")
         .ok_or("Backend did not return session object")?;
 
-    // Merge backend data (id, startedAt) with local data
+    // Merge backend data (id, startedAt, instructorToken) with local data
+    let instructor_token = response
+        .get("instructorToken")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+
     let merged = SessionInfo {
         id:             backend_session["id"].as_str().unwrap_or(&session_id).to_string(),
         roomCode:       backend_session["roomCode"].as_str().unwrap_or(&room_code).to_string(),
@@ -80,6 +81,7 @@ pub async fn create_session(
         workshopTitle:  backend_session["workshopTitle"].as_str().unwrap_or(&workshop_title).to_string(),
         startedAt:      backend_session["startedAt"].as_str().unwrap_or(&now).to_string(),
         status:         SessionStatus::Active,
+        instructorToken: instructor_token,
     };
 
     log::info!("Session registered with backend successfully");
@@ -92,12 +94,16 @@ pub async fn create_session(
 pub async fn end_session(
     session_id: String,
     backend_url: String,
+    instructor_token: Option<String>,
 ) -> Result<(), String> {
     log::info!("Ending session: {}", session_id);
 
     let client = reqwest::Client::new();
-    let res = client
-        .patch(format!("{}/api/sessions/{}/end", backend_url, session_id))
+    let mut request = client.patch(format!("{}/api/sessions/{}/end", backend_url, session_id));
+    if let Some(token) = instructor_token.filter(|t| !t.is_empty()) {
+        request = request.bearer_auth(token);
+    }
+    let res = request
         .send()
         .await
         .map_err(|e| format!("Failed to reach backend: {}", e))?;

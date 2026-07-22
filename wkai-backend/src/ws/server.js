@@ -13,32 +13,56 @@ import {
 import { query } from "../db/client.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { detectShareIntent } from "../ai/graphs/intentAgent.js";
+import { runQueued } from "../ai/sessionQueue.js";
+import { verifySessionToken } from "../auth/sessionAccess.js";
 
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
+
+// Map of sessionId → pending "instructor went offline" timer. A brief drop
+// (dev-server restart, network blip, app reload) shouldn't alarm students —
+// only a sustained absence does.
+const instructorOfflineTimers = new Map();
+const INSTRUCTOR_OFFLINE_GRACE_MS = 8000;
 
 export function initWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
   wss.on("connection", async (ws, req) => {
     const { query: qs } = parse(req.url, true);
-    const sessionParam = String(qs.session ?? "").trim();
-    const role = qs.role === "instructor" ? "instructor" : "student";
-    const studentId = typeof qs.studentId === "string" && qs.studentId.length > 0
-      ? qs.studentId
-      : `s_${Math.random().toString(36).slice(2, 8)}`;
-    const studentName = String(qs.studentName ?? "Student").trim();
 
+    // Auth: identity, role, and session all come from the signed token — never
+    // from client-supplied query params. This closes instructor-role hijacking
+    // (role was a spoofable param) and student impersonation (studentId/name were
+    // spoofable), and enforces the session-password gate (a token is only issued
+    // by the HTTP /join route after the password check).
+    const token = typeof qs.token === "string" ? qs.token : "";
+    const auth = verifySessionToken(token);
+    if (!auth.valid) {
+      ws.send(JSON.stringify({ type: "error", payload: { message: `Unauthorized: ${auth.reason}` } }));
+      ws.close();
+      return;
+    }
+
+    const role = auth.payload.role === "instructor" ? "instructor" : "student";
     const isInstructor = role === "instructor";
-    const lookupQuery = isInstructor
-      ? "SELECT id, room_code, status FROM sessions WHERE id = $1"
-      : "SELECT id, room_code, status FROM sessions WHERE room_code = $1";
-    const lookupValue = isInstructor ? sessionParam : sessionParam.toUpperCase();
+    const studentId = isInstructor ? null : auth.payload.studentId;
+    const studentName = isInstructor ? null : String(auth.payload.studentName ?? "Student").trim();
 
-    const { rows } = await query(lookupQuery, [lookupValue]);
+    // Verify the session referenced by the token still exists and is live.
+    const { rows } = await query(
+      "SELECT id, room_code, status FROM sessions WHERE id = $1",
+      [auth.payload.sessionId]
+    );
 
     if (!rows.length || rows[0].status === "ended") {
-      ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found or ended" } }));
+      // Terminal, not transient: tell the client the session is over so it shows
+      // the "ended" prompt AND stops its reconnect loop. Sending a generic error
+      // made clients retry every few seconds forever (DB-query storm on ended rooms).
+      ws.send(JSON.stringify({
+        type: "session-ended",
+        payload: { message: rows.length ? "The instructor has ended this session." : "This room no longer exists." },
+      }));
       ws.close();
       return;
     }
@@ -66,6 +90,17 @@ export function initWebSocketServer(httpServer) {
 
     console.log(`[WS] ${role} connected to room ${roomCode} (sessionId: ${sessionId})`);
 
+    if (isInstructor) {
+      const pendingOffline = instructorOfflineTimers.get(sessionId);
+      if (pendingOffline) {
+        clearTimeout(pendingOffline);
+        instructorOfflineTimers.delete(sessionId);
+      }
+      // Announce presence to any students already waiting (covers both a
+      // returning instructor and one who joins after students).
+      broadcast(sessionId, { type: "instructor-online", payload: {} }, ws);
+    }
+
     if (role === "student" && previousSocket !== ws) {
       const count = await incrementStudentCount(sessionId, studentId);
       console.log(`[WS] Student count for ${sessionId}: ${count}, room size: ${rooms.get(sessionId)?.size ?? 0}`);
@@ -89,9 +124,10 @@ export function initWebSocketServer(httpServer) {
     const state = await getSessionData(sessionId);
     if (state) {
       const count = await getStudentCount(sessionId);
-      ws.send(JSON.stringify({ 
-        type: "session-state", 
-        payload: { session: state, studentCount: count } 
+      const instructorOnline = room.get("instructor")?.readyState === WebSocket.OPEN;
+      ws.send(JSON.stringify({
+        type: "session-state",
+        payload: { session: state, studentCount: count, instructorOnline }
       }));
     }
 
@@ -142,6 +178,14 @@ export function initWebSocketServer(httpServer) {
           const count = await decrementStudentCount(sessionId, studentId);
           broadcast(sessionId, { type: "student-left", payload: { count } });
         }
+
+        if (isInstructor) {
+          const timer = setTimeout(() => {
+            instructorOfflineTimers.delete(sessionId);
+            broadcast(sessionId, { type: "instructor-offline", payload: {} });
+          }, INSTRUCTOR_OFFLINE_GRACE_MS);
+          instructorOfflineTimers.set(sessionId, timer);
+        }
       }
     });
 
@@ -162,9 +206,10 @@ async function handleAudioTranscript(ws, payload) {
   // Store latest transcript in Redis for next screen frame to pick up
   await setTranscript(sessionId, transcript);
 
-  // Run the LangGraph intent detection agent
+  // Run the LangGraph intent detection agent (queued per-session to avoid
+  // stampeding Groq when the room is busy).
   try {
-    const intent = await detectShareIntent(transcript, recentFiles);
+    const intent = await runQueued(sessionId, () => detectShareIntent(transcript, recentFiles));
     if (intent.shouldShare && intent.file) {
       console.log(`[IntentAgent] Share intent detected (${(intent.confidence * 100).toFixed(0)}%) → ${intent.file.name}`);
       // Emit back to instructor for confirmation before sharing
@@ -205,7 +250,9 @@ async function handleStudentError(ws, payload) {
   const { errorMessage } = payload;
   try {
     const { diagnoseError } = await import("../ai/errorDiagnosis.js");
-    const result = await diagnoseError(errorMessage);
+    // Queue per-session so a room full of students pasting errors at once does
+    // not stampede Groq's rate limit.
+    const result = await runQueued(sessionId, () => diagnoseError(errorMessage));
     await query(
       `INSERT INTO error_resolutions (session_id, student_id, error_message, diagnosis, fix_command)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -214,6 +261,20 @@ async function handleStudentError(ws, payload) {
     ws.send(JSON.stringify({ type: "error-resolved", payload: result }));
   } catch (err) {
     console.error("[WS] Error diagnosis failed:", err.message);
+    // Never leave the student hanging with no reply — send a graceful fallback
+    // that matches the ErrorResolution shape the client expects.
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: "error-resolved",
+        payload: {
+          diagnosis: "The AI assistant is busy or temporarily unavailable. Please try again in a moment.",
+          fixCommand: null,
+          fixSteps: ["Wait a few seconds and resubmit the error."],
+          isSetupError: false,
+          severity: "warning",
+        },
+      }));
+    }
   }
 }
 

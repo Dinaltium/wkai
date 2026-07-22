@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useAppStore } from "../store";
 import type {
   WebRtcAnswerPayload,
@@ -25,7 +25,6 @@ export function useWebRtcPublisher(
 ) {
   const streamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const hasRequestedStreamRef = useRef(false);
   const addDebugLog = useAppStore((s) => s.addDebugLog);
   const streamingToStudents = useAppStore((s) => s.streamingToStudents);
   const students = useAppStore((s) => s.students);
@@ -33,41 +32,7 @@ export function useWebRtcPublisher(
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
   const createPeerRef = useRef<(studentId: string, forceRestart?: boolean) => Promise<void>>(async () => {});
 
-  const ensureStream = async () => {
-    if (streamRef.current) return streamRef.current;
-    if (sharedDisplayStream) {
-      streamRef.current = sharedDisplayStream;
-      return sharedDisplayStream;
-    }
-    if (hasRequestedStreamRef.current) return null;
-    hasRequestedStreamRef.current = true;
-    
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: "always" } as any,
-        audio: false,
-      });
-      
-      setSharedDisplayStream(stream);
-      streamRef.current = stream;
 
-      stream.getVideoTracks().forEach((track) => {
-        track.onended = () => {
-          stream.getTracks().forEach((t) => t.stop());
-          setSharedDisplayStream(null);
-          streamRef.current = null;
-          hasRequestedStreamRef.current = false;
-          send("webrtc-session-reset", { reason: "display-track-ended" });
-          addDebugLog("WebRTC stream ended", "warn");
-        };
-      });
-      return stream;
-    } catch (err) {
-      addDebugLog(`Failed to start browser capture: ${String(err)}`, "error");
-      hasRequestedStreamRef.current = false;
-      return null;
-    }
-  };
 
   const closePeer = (studentId: string) => {
     const peer = peersRef.current.get(studentId);
@@ -87,7 +52,7 @@ export function useWebRtcPublisher(
     }
     if (peersRef.current.has(studentId)) return;
 
-    const stream = await ensureStream();
+    const stream = sharedDisplayStream;
     if (!stream) return;
     const peer = new RTCPeerConnection(RTC_CONFIG);
     peersRef.current.set(studentId, peer);
@@ -125,22 +90,18 @@ export function useWebRtcPublisher(
   createPeerRef.current = createPeerForStudent;
 
   useEffect(() => {
-    const handleRequest = () => {
-      void ensureStream();
-    };
-    window.addEventListener("wkai:request-stream", handleRequest);
-    return () => window.removeEventListener("wkai:request-stream", handleRequest);
-  }, [sharedDisplayStream]);
-
-  useEffect(() => {
     if (!sessionId || !streamingToStudents) return;
+    // sharedDisplayStream is a dep: the capture stream often becomes ready AFTER
+    // a student has already joined/requested. Without it here, createPeerForStudent
+    // early-returns (no stream) and never retries → no offer, no video.
+    if (!sharedDisplayStream) return;
     const activeIds = new Set(students.map((s) => s.studentId));
 
     void Promise.all(students.map((s) => createPeerForStudent(s.studentId)));
     [...peersRef.current.keys()].forEach((studentId) => {
       if (!activeIds.has(studentId)) closePeer(studentId);
     });
-  }, [sessionId, streamingToStudents, students]);
+  }, [sessionId, streamingToStudents, students, sharedDisplayStream]);
 
   useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {
@@ -195,7 +156,6 @@ export function useWebRtcPublisher(
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       setSharedDisplayStream(null);
-      hasRequestedStreamRef.current = false;
     };
   }, [setSharedDisplayStream]);
 }

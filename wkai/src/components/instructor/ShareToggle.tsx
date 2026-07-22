@@ -2,13 +2,12 @@ import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 
 export function ShareToggle() {
-  const { streamingToStudents, setStreamingToStudents, sharedDisplayStream } = useAppStore();
+  const { streamingToStudents, setStreamingToStudents } = useAppStore();
 
   function handleToggle() {
     const next = !streamingToStudents;
-    if (next && !sharedDisplayStream) {
-      window.dispatchEvent(new Event("wkai:request-stream"));
-    }
+    // Removed browser display capture request (wkai:request-stream)
+    // We now rely solely on the Rust native capture pipeline.
     setStreamingToStudents(next);
   }
 
@@ -25,14 +24,14 @@ export function ShareToggle() {
         <button
           onClick={handleToggle}
           className={clsx(
-            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2",
-            streamingToStudents ? "bg-indigo-500" : "bg-wkai-surface border border-wkai-border"
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
+            streamingToStudents ? "bg-accent" : "bg-wkai-surface border border-wkai-border"
           )}
         >
           <span
             className={clsx(
               "pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-lg ring-0 transition-transform",
-              streamingToStudents ? "translate-x-4.5" : "translate-x-0.5"
+              streamingToStudents ? "translate-x-[18px]" : "translate-x-0.5"
             )}
           />
         </button>

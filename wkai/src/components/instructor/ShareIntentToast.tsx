@@ -41,17 +41,17 @@ export function ShareIntentToast({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 rounded-xl border border-indigo-500/40 bg-wkai-surface shadow-2xl shadow-black/40 animate-slide-up">
+    <div className="fixed bottom-6 right-6 z-50 w-80 rounded-xl border border-accent/40 bg-wkai-surface shadow-2xl shadow-black/40 animate-slide-up">
       <div className="flex items-start gap-3 p-4">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/20">
-          <Share2 size={15} className="text-indigo-400" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/20">
+          <Share2 size={15} className="text-accent-text" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-wkai-text">Share intent detected</p>
           <p className="text-xs text-wkai-text-dim mt-0.5 truncate">
             "{pending.file.name}"
           </p>
-          <p className="text-xs text-indigo-400 mt-0.5">
+          <p className="text-xs text-accent-text mt-0.5">
             {(pending.confidence * 100).toFixed(0)}% confident
           </p>
         </div>

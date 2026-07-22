@@ -7,6 +7,7 @@ import { connectDb } from "./db/client.js";
 import { connectRedis } from "./db/redis.js";
 import { debugLog, debugEnabled } from "./utils/debug.js";
 import { startKeepAlive } from "./utils/keepAlive.js";
+import { assertSecurityConfig } from "./auth/sessionAccess.js";
 
 const PORT = process.env.PORT ?? 4000;
 
@@ -29,6 +30,8 @@ async function main() {
     debugVerbose: debugEnabled(),
     port: PORT,
   });
+  // Refuse to boot with an insecure token-signing config in production.
+  assertSecurityConfig();
   // Connect to Postgres and Redis before accepting traffic
   await connectDb();
   await connectRedis();

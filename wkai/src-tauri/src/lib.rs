@@ -9,6 +9,8 @@ mod session;
 mod ai;
 mod audio;
 mod file_watcher;
+mod native_capture;
+mod recording;
 
 pub use commands::*;
 
@@ -33,10 +35,27 @@ pub fn run() {
             commands::files::share_file,
             commands::files::list_watched_files,
             commands::ai::capture_screen,
+            commands::native_capture::get_platform_backend,
+            commands::native_capture::list_capture_devices,
+            commands::native_capture::start_native_capture,
+            commands::native_capture::stop_native_capture,
+            commands::native_capture::get_capture_status,
+            commands::native_capture::get_capture_metrics,
+            commands::native_capture::append_to_recording,
+            commands::recording::start_recording,
+            commands::recording::stop_recording,
+            commands::recording::recording_status,
         ])
 
         // Setup system tray
         .setup(|app| {
+            // Initialize native capture manager as managed state
+            let manager = native_capture::CaptureManager::new(app.handle().clone());
+            app.manage(std::sync::Arc::new(std::sync::Mutex::new(manager)));
+
+            // Native recording (FFmpeg-driven) managed state.
+            app.manage(commands::recording::RecordingManager::default());
+
             setup_tray(app)?;
             Ok(())
         })

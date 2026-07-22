@@ -3,31 +3,70 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Theme tokens as RGB channels (consumed via rgb(var(--x) / <alpha>)) ──── */
+  :root {
+    --wkai-bg: 12 12 14;
+    --wkai-surface: 24 24 27;
+    --wkai-surface2: 35 35 39;
+    --wkai-border: 44 44 49;
+    --wkai-text: 229 231 235;
+    --wkai-text-dim: 156 163 175;
+    /* Accent trio — set by JS from the user's picked color + mode.
+       --accent: solid fill · --accent-text: readable on page bg · --accent-fg: text on accent */
+    --accent: 20 184 166;
+    --accent-text: 45 212 191;
+    --accent-fg: 4 47 46;
+    color-scheme: dark;
+  }
+
+  .light {
+    --wkai-bg: 250 250 250;
+    --wkai-surface: 255 255 255;
+    --wkai-surface2: 244 244 245;
+    --wkai-border: 228 228 231;
+    --wkai-text: 24 24 27;
+    --wkai-text-dim: 82 82 91;
+    /* darker accent for legible text on a light page (JS refines per accent) */
+    --accent-text: 13 148 136;
+    color-scheme: light;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body, #root {
     height: 100%;
-    background: #0f1117;
-    color: #e5e7eb;
+    background: rgb(var(--wkai-bg));
+    color: rgb(var(--wkai-text));
     font-family: "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2a2d3a; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a3d4a; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--wkai-border)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--wkai-text-dim) / 0.6); }
 
   code, pre, .mono { font-family: "JetBrains Mono", "Fira Code", monospace; }
+
+  /* Respect reduced-motion: collapse animations/transitions to near-instant. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
-  .btn         { @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none; }
-  .btn-primary { @apply btn bg-indigo-500 text-white hover:bg-indigo-600 active:scale-95; }
+  .btn         { @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-wkai-bg; }
+  .btn-primary { @apply btn bg-accent text-accent-fg font-semibold hover:opacity-90 active:scale-95; }
   .btn-ghost   { @apply btn text-wkai-text-dim hover:bg-wkai-border hover:text-wkai-text; }
   .btn-success { @apply btn bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95; }
   .btn-danger  { @apply btn bg-red-500/10 text-red-400 hover:bg-red-500/20; }
   .card        { @apply rounded-xl border border-wkai-border bg-wkai-surface; }
-  .input       { @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors; }
+  .input       { @apply w-full rounded-lg border border-wkai-border bg-wkai-bg px-3 py-2 text-sm text-wkai-text placeholder:text-wkai-text-dim focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 transition-colors; }
   .badge       { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
 }

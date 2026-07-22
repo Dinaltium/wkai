@@ -16,7 +16,7 @@ export function AIHelperPanel({ send }: Props) {
     <div className="grid h-full grid-cols-1 lg:grid-cols-3">
       <div className="lg:col-span-2 border-r border-wkai-border min-h-0 flex flex-col">
         <div className="border-b border-wkai-border px-4 py-2 bg-wkai-surface">
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-accent-text flex items-center gap-2">
             <Bot size={12} />
             AI Helper Workspace
           </p>
@@ -33,13 +33,13 @@ export function AIHelperPanel({ send }: Props) {
           <div className="flex h-full flex-col">
             <div className="flex border-b border-wkai-border">
               <button
-                className={`flex-1 py-2 text-xs font-medium ${assistTab === "error" ? "text-indigo-400 border-b-2 border-indigo-400" : "text-wkai-text-dim"}`}
+                className={`flex-1 py-2 text-xs font-medium ${assistTab === "error" ? "text-accent-text border-b-2 border-accent" : "text-wkai-text-dim"}`}
                 onClick={() => setAssistTab("error")}
               >
                 Error Helper
               </button>
               <button
-                className={`flex-1 py-2 text-xs font-medium ${assistTab === "colab" ? "text-indigo-400 border-b-2 border-indigo-400" : "text-wkai-text-dim"}`}
+                className={`flex-1 py-2 text-xs font-medium ${assistTab === "colab" ? "text-accent-text border-b-2 border-accent" : "text-wkai-text-dim"}`}
                 onClick={() => setAssistTab("colab")}
               >
                 Colab Assistant

@@ -12,6 +12,7 @@ import { MessagePanel } from "../components/messages/MessagePanel";
 import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
 import { joinRoom } from "../lib/api";
 import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
+import { InstructorOfflineBanner } from "../components/shared/InstructorOfflineBanner";
 import { CodeEditor } from "../components/shared/CodeEditor";
 import { ErrorHelper } from "../components/error/ErrorHelper";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
@@ -19,7 +20,7 @@ import { ComprehensionModal } from "../components/comprehension/ComprehensionMod
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { studentId, session, sessionEnded, activeTab, pendingQuestion, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { session, sessionEnded, instructorOffline, activeTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
   const { remoteStream } = useWebRtcReceiver(send);
   const bootstrappingRef = useRef(!session && !sessionEnded);
@@ -33,7 +34,7 @@ export function RoomPage() {
       bootstrappingRef.current = true;
       try {
         const studentName = localStorage.getItem("wkai_student_name") || "Student";
-        const data = await joinRoom(code, studentId, studentName);
+        const data = await joinRoom(code, studentName);
         if (cancelled) return;
 
         if (data.session.status === "ended") {
@@ -41,6 +42,9 @@ export function RoomPage() {
           return;
         }
 
+        // Re-issued identity + token (e.g. after a page reload); the WS hook
+        // reconnects once the token lands in the store.
+        setAuth(data.studentId, data.joinToken);
         setSession(data.session);
         setGuideBlocks(data.guideBlocks);
         setSharedFiles(data.sharedFiles);
@@ -56,7 +60,7 @@ export function RoomPage() {
     return () => {
       cancelled = true;
     };
-  }, [code, navigate, session, sessionEnded, setSession, setGuideBlocks, setSharedFiles]);
+  }, [code, navigate, session, sessionEnded, setAuth, setSession, setGuideBlocks, setSharedFiles]);
 
   if ((bootstrappingRef.current || (!session && !sessionEnded)) && !sessionEnded) {
     return (
@@ -70,6 +74,7 @@ export function RoomPage() {
     <div className="flex h-full flex-col overflow-hidden bg-wkai-bg">
       <RoomHeader />
       {sessionEnded && <SessionEndedBanner />}
+      {!sessionEnded && instructorOffline && <InstructorOfflineBanner />}
       <TabBar />
 
       <div className="flex-1 overflow-hidden">

@@ -20,8 +20,8 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
     setLoading(true);
     try {
       window.dispatchEvent(new Event("wkai:force-stop-recording"));
-      const { settings } = useAppStore.getState();
-      await endSession(sessionId, settings.backendUrl);
+      const { settings, session } = useAppStore.getState();
+      await endSession(sessionId, settings.backendUrl, session?.instructorToken);
       setSession(null);
       clearGuide();
       navigate("/");
