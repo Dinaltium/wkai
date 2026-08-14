@@ -229,5 +229,5 @@ C:\Projects\WKAI\wkai\    # Windows
 ## Support
 
 For issues, check the main documentation:
-- `WKAI_PROJECT_STRUCTURE.md` — Full architecture overview
-- `WKAI_Qwen35_Prompt.md` — Complete project structure with AI stack details
+- `README.md` — Architecture overview and setup
+- `known-issues-and-improvements.md` — Outstanding work and design notes
