@@ -280,3 +280,10 @@ __pycache__/
 
 
 # package-lock.json and yarn.lock are now tracked for reproducible builds.
+# Word/Office temp files
+~$*
+~WRL*.tmp
+
+# Local report artifacts (not tracked)
+report-figures/
+WKAI_Project_Report*.docx
