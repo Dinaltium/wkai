@@ -2,15 +2,39 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
+      "cwd": "wkai-backend",
+      "port": 4000
+    },
+    {
       "name": "student",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "wkai-student", "run", "dev"],
-      "port": 3000
+      "runtimeArgs": [
+        "exec",
+        "--",
+        "vite",
+        "--port",
+        "3001",
+        "--strictPort",
+        "--host",
+        "0.0.0.0"
+      ],
+      "cwd": "wkai-student",
+      "port": 3001
     },
     {
       "name": "instructor",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "wkai", "run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "wkai",
       "port": 1420
     }
   ]

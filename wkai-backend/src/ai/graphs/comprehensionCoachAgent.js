@@ -4,6 +4,7 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import { creativeLLM, callWithRetry } from "../groqClient.js";
 import { getSessionMemory } from "../memory.js";
+import { extractJsonBlock } from "../jsonBlock.js";
 import { getLangSmithConfig } from "../langsmith.js";
 
 const CoachState = Annotation.Root({
@@ -51,7 +52,7 @@ async function generateQuestionNode(state) {
         format_instructions: parser.getFormatInstructions(),
       })
     );
-    return { question: await parser.parse(String(result.content ?? "")) };
+    return { question: await parser.parse(extractJsonBlock(result.content)) };
   } catch (err) {
     // Return null (caller treats "no question this round" as valid) but never
     // fail silently — a spike in parse/generation failures should be visible.

@@ -15,6 +15,10 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
+/// Upper bound for the outgoing screen share. Desktop content at native
+/// resolution needs far more headroom than the browser's default ramp.
+const MAX_VIDEO_BITRATE_BPS = 5_000_000;
+
 
 
 export function useWebRtcPublisher(
@@ -31,6 +35,8 @@ export function useWebRtcPublisher(
   const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
   const createPeerRef = useRef<(studentId: string, forceRestart?: boolean) => Promise<void>>(async () => {});
+  // Students who asked for an offer before the capture stream existed.
+  const pendingOffersRef = useRef<Set<string>>(new Set());
 
 
 
@@ -46,18 +52,63 @@ export function useWebRtcPublisher(
   };
 
   const createPeerForStudent = async (studentId: string, forceRestart = false) => {
-    if (!sessionId || !streamingToStudents) return;
+    if (!sessionId) {
+      addDebugLog(`No offer for ${studentId}: no active session id`, "warn");
+      return;
+    }
+    // Already connected and not being restarted — the steady state, not worth
+    // logging: the reconcile effect re-runs on every roster change.
+    if (peersRef.current.has(studentId) && !forceRestart) return;
+    if (!streamingToStudents) {
+      addDebugLog(`No offer for ${studentId}: screen sharing is off`, "warn");
+      return;
+    }
     if (forceRestart) {
       closePeer(studentId);
     }
-    if (peersRef.current.has(studentId)) return;
 
     const stream = sharedDisplayStream;
-    if (!stream) return;
+    if (!stream) {
+      // The capture stream is not ready yet (it only exists once the first frame
+      // has been drawn). Remember the request instead of dropping it — without
+      // this, a student who asks before capture warms up never gets an offer.
+      pendingOffersRef.current.add(studentId);
+      addDebugLog(
+        `Offer for ${studentId} deferred: capture stream not ready yet`,
+        "warn"
+      );
+      return;
+    }
+    pendingOffersRef.current.delete(studentId);
     const peer = new RTCPeerConnection(RTC_CONFIG);
     peersRef.current.set(studentId, peer);
 
-    stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+    stream.getTracks().forEach((track) => {
+      // Screen content, not camera: tell the encoder to protect detail (text,
+      // code) instead of smoothness. Without this the browser treats the canvas
+      // track as motion video and blurs static text to hold framerate.
+      if (track.kind === "video") track.contentHint = "detail";
+      peer.addTrack(track, stream);
+    });
+
+    // The browser otherwise ramps a fresh sender from a few hundred kbps, which
+    // is nowhere near enough for a full-resolution desktop and is what makes the
+    // student's view look soft. Ask for a real ceiling and keep resolution
+    // rather than shedding it under pressure.
+    for (const sender of peer.getSenders()) {
+      if (sender.track?.kind !== "video") continue;
+      const params = sender.getParameters();
+      params.degradationPreference = "maintain-resolution";
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+      params.encodings[0].maxBitrate = MAX_VIDEO_BITRATE_BPS;
+      try {
+        await sender.setParameters(params);
+      } catch {
+        addDebugLog(`Could not raise video bitrate for ${studentId}`, "warn");
+      }
+    }
     peer.onicecandidate = (event) => {
       if (!event.candidate) return;
       send("webrtc-ice-candidate", {
@@ -97,11 +148,19 @@ export function useWebRtcPublisher(
     if (!sharedDisplayStream) return;
     const activeIds = new Set(students.map((s) => s.studentId));
 
+    // Serve anyone who asked while the stream was still warming up.
+    const deferred = [...pendingOffersRef.current].filter((id) => activeIds.has(id));
+    pendingOffersRef.current.clear();
+    deferred.forEach((id) => {
+      addDebugLog(`Retrying deferred offer for ${id}`, "info");
+      void createPeerForStudent(id, true);
+    });
+
     void Promise.all(students.map((s) => createPeerForStudent(s.studentId)));
     [...peersRef.current.keys()].forEach((studentId) => {
       if (!activeIds.has(studentId)) closePeer(studentId);
     });
-  }, [sessionId, streamingToStudents, students, sharedDisplayStream]);
+  }, [sessionId, streamingToStudents, students, sharedDisplayStream, addDebugLog]);
 
   useEffect(() => {
     const handleAnswer = async (payload: WebRtcAnswerPayload) => {

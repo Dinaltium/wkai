@@ -33,7 +33,10 @@ export function useNativeCapture() {
 
   // Canvas rendering refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const imgRef = useRef(new Image());
+  // True while a frame is being decoded. Frames that arrive mid-decode are
+  // dropped rather than queued — the capture cadence is the source of truth and
+  // a backlog would only add latency.
+  const decodingRef = useRef(false);
 
   // Attach canvas for rendering
   const attachCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -44,15 +47,48 @@ export function useNativeCapture() {
   const targetFpsRef = useRef<number>(30);
   const onStreamReadyRef = useRef<((stream: MediaStream) => void)[]>([]);
 
-  const getStream = useCallback((fps = 30) => {
+  // Hands out the capture MediaStream once the first frame has been drawn.
+  // Resolves null on timeout instead of hanging forever: callers set
+  // sharedDisplayStream from this, and a promise that never settles left the
+  // publisher with no stream and no way to know why.
+  const getStream = useCallback((fps = 30, timeoutMs = 10_000) => {
     return new Promise<MediaStream | null>((resolve) => {
       targetFpsRef.current = fps;
       if (streamRef.current) {
         resolve(streamRef.current);
-      } else {
-        onStreamReadyRef.current.push(resolve as (stream: MediaStream) => void);
+        return;
+      }
+
+      let settled = false;
+      const settle = (stream: MediaStream | null) => {
+        if (settled) return;
+        settled = true;
+        resolve(stream);
+      };
+
+      onStreamReadyRef.current.push(settle);
+
+      if (timeoutMs > 0) {
+        window.setTimeout(() => {
+          if (settled) return;
+          console.error(
+            `[NativeCapture] No frame drawn within ${timeoutMs}ms — capture stream unavailable`
+          );
+          settle(null);
+        }, timeoutMs);
       }
     });
+  }, []);
+
+  // Creates the captureStream on the first drawn frame and releases anyone
+  // waiting in getStream(). Deliberately not created before a frame exists —
+  // an empty canvas yields a track WebRTC will not negotiate against.
+  const publishStream = useCallback((canvas: HTMLCanvasElement) => {
+    if (streamRef.current) return;
+    streamRef.current = canvas.captureStream(targetFpsRef.current);
+    const waiters = onStreamReadyRef.current;
+    onStreamReadyRef.current = [];
+    waiters.forEach((resolve) => resolve(streamRef.current!));
   }, []);
 
   // Initialize platform and event listeners
@@ -72,30 +108,45 @@ export function useNativeCapture() {
       const unFrame = await listen<FramePayload>(
         "native-capture:frame",
         (event) => {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          if (
-            canvas.width !== event.payload.width ||
-            canvas.height !== event.payload.height
-          ) {
-            canvas.width = event.payload.width;
-            canvas.height = event.payload.height;
-          }
-          const ctx = canvas.getContext("2d", { alpha: false });
-          if (!ctx) return;
-          const img = imgRef.current;
-          img.onload = () => {
-            if (!canvasRef.current) return;
-            ctx.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
-            if (!streamRef.current) {
-              streamRef.current = canvasRef.current.captureStream(targetFpsRef.current);
-              if (onStreamReadyRef.current.length > 0) {
-                onStreamReadyRef.current.forEach((resolve) => resolve(streamRef.current!));
-                onStreamReadyRef.current = [];
+          if (!canvasRef.current) return;
+          if (decodingRef.current) return;
+          decodingRef.current = true;
+
+          const { width, height, data } = event.payload;
+          void (async () => {
+            try {
+              const binary = atob(data);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i += 1) {
+                bytes[i] = binary.charCodeAt(i);
               }
+              const bitmap = await createImageBitmap(
+                new Blob([bytes], { type: "image/jpeg" })
+              );
+
+              const canvas = canvasRef.current;
+              if (!canvas) {
+                bitmap.close();
+                return;
+              }
+              if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+              }
+              const ctx = canvas.getContext("2d", { alpha: false });
+              if (!ctx) {
+                bitmap.close();
+                return;
+              }
+              ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+              bitmap.close();
+              publishStream(canvas);
+            } catch (err) {
+              console.error("[NativeCapture] Frame decode failed:", err);
+            } finally {
+              decodingRef.current = false;
             }
-          };
-          img.src = `data:image/jpeg;base64,${event.payload.data}`;
+          })();
         }
       );
       unlisteners.push(unFrame);
@@ -140,7 +191,7 @@ export function useNativeCapture() {
         streamRef.current = null;
       }
     };
-  }, []);
+  }, [publishStream]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 

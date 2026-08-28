@@ -186,9 +186,13 @@ impl CaptureBackend for WindowsCaptureBackend {
                         }
                     };
 
-                    // Resize if needed.
+                    // Resize if needed. preview_width == 0 means "native, do not
+                    // resize" — and native is the fast path: downscaling a
+                    // 1920x1200 RGBA frame costs ~64ms, roughly three times the
+                    // JPEG encode itself, so shrinking the frame lowers quality
+                    // *and* framerate.
                     let (src_w, src_h) = (img.width(), img.height());
-                    let resized = if src_w > preview_width {
+                    let resized = if preview_width > 0 && src_w > preview_width {
                         let scale = preview_width as f64 / src_w as f64;
                         let new_h = (src_h as f64 * scale).round() as u32;
                         image::imageops::resize(
@@ -201,7 +205,12 @@ impl CaptureBackend for WindowsCaptureBackend {
                         img
                     };
 
-                    let (out_w, out_h) = (resized.width(), resized.height());
+                    // Drop the alpha channel: xcap hands back RGBA, and JPEG has
+                    // no alpha, so encoding Rgba8 fails on every single frame
+                    // ("does not support the color type `Rgba8`"). Screens are
+                    // opaque, so there is nothing to preserve.
+                    let rgb = image::DynamicImage::ImageRgba8(resized).into_rgb8();
+                    let (out_w, out_h) = (rgb.width(), rgb.height());
 
                     // JPEG-encode.
                     let mut jpeg_buf: Vec<u8> = Vec::with_capacity((out_w * out_h * 3 / 4) as usize);
@@ -209,10 +218,10 @@ impl CaptureBackend for WindowsCaptureBackend {
                         let mut cursor = Cursor::new(&mut jpeg_buf);
                         let encoder = JpegEncoder::new_with_quality(&mut cursor, jpeg_quality);
                         if let Err(e) = encoder.write_image(
-                            resized.as_raw(),
+                            rgb.as_raw(),
                             out_w,
                             out_h,
-                            image::ExtendedColorType::Rgba8,
+                            image::ExtendedColorType::Rgb8,
                         ) {
                             log::warn!("[capture-loop] JPEG encode failed: {e}");
                             continue;

@@ -37,9 +37,11 @@ filesRouter.post("/upload", upload.single("file"), async (req, res, next) => {
     }
 
     // Build a clean public_id: wkai/sessionId/timestamp_filename
-    // Cloudinary uses public_id as the file path inside your account
-    const baseName   = path.basename(req.file.originalname, path.extname(req.file.originalname));
-    const publicId   = `wkai/${sessionId}/${Date.now()}_${baseName}`;
+    // Cloudinary uses public_id as the file path inside your account.
+    // For resource_type "raw" it is used verbatim and no format is appended, so
+    // the extension has to stay on — without it the delivery URL ends in a bare
+    // name and clients have nothing to infer the file type from.
+    const publicId = `wkai/${sessionId}/${Date.now()}_${req.file.originalname}`;
 
     const url = await uploadToCloudinary(req.file.buffer, publicId, req.file.mimetype);
 

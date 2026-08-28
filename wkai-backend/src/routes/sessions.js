@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { scryptSync, timingSafeEqual, randomBytes, randomUUID } from "node:crypto";
 import { query } from "../db/client.js";
+import { formatGuideBlock, formatSharedFile } from "../utils/formatters.js";
 import {
   setSessionData,
   deleteSessionData,
@@ -306,26 +307,3 @@ function formatSession(row) {
   };
 }
 
-function formatGuideBlock(row) {
-  return {
-    id:        row.id,
-    sessionId: row.session_id,
-    type:      row.type,
-    title:     row.title,
-    content:   row.content,
-    code:      row.code,
-    language:  row.language,
-    locked:    row.locked,
-    timestamp: row.created_at,
-  };
-}
-
-function formatSharedFile(row) {
-  return {
-    id:        row.id,
-    name:      row.name,
-    url:       row.url,
-    sizeBytes: row.size_bytes,
-    sharedAt:  row.shared_at,
-  };
-}

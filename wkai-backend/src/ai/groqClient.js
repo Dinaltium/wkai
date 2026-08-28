@@ -5,10 +5,13 @@ import Groq from "groq-sdk";
 export const groqRaw = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─── LangChain ChatGroq instances ─────────────────────────────────────────────
-// Vision model — Qwen3.6-27B (llama-4-scout was decommissioned by Groq)
+// Vision model — Qwen3.8-27B (llama-4-scout was decommissioned by Groq).
+// Not 3.6: that revision emits a <think> block ahead of its answer and spends
+// the whole token budget on it, so every frame truncated mid-JSON and only got
+// through by paying for an OutputFixingParser repair call (~5s vs ~0.7s here).
 export const visionLLM = new ChatGroq({
   apiKey:      process.env.GROQ_API_KEY,
-  model:       "qwen/qwen3.6-27b",
+  model:       "qwen/qwen3.8-27b",
   temperature: 0.2,
   maxTokens:   1024,
 });
@@ -23,12 +26,15 @@ export const textLLM = new ChatGroq({
   maxTokens:   600,
 });
 
-// Same text model, higher temperature for comprehension question creativity
+// Same text model, higher temperature for comprehension question creativity.
+// maxTokens has to cover reasoning as well as the answer — gpt-oss-120b spends
+// 100-200 tokens thinking before it writes, and at 300 every comprehension MCQ
+// was cut off mid-JSON and dropped by the parser.
 export const creativeLLM = new ChatGroq({
   apiKey:      process.env.GROQ_API_KEY,
   model:       "openai/gpt-oss-120b",
   temperature: 0.6,
-  maxTokens:   300,
+  maxTokens:   1200,
 });
 
 export const WHISPER_MODEL = "whisper-large-v3";

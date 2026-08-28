@@ -11,6 +11,7 @@ import {
   getTranscript,
 } from "../db/redis.js";
 import { query } from "../db/client.js";
+import { formatGuideBlock, formatSharedFile } from "../utils/formatters.js";
 import { clearSessionMemory } from "../ai/memory.js";
 import { detectShareIntent } from "../ai/graphs/intentAgent.js";
 import { runQueued } from "../ai/sessionQueue.js";
@@ -125,9 +126,23 @@ export function initWebSocketServer(httpServer) {
     if (state) {
       const count = await getStudentCount(sessionId);
       const instructorOnline = room.get("instructor")?.readyState === WebSocket.OPEN;
+      // The guide and the shared-file list have to travel with session-state.
+      // Clients treat this message as the authoritative snapshot and replace
+      // their local copies from it, so omitting them blanked both on every
+      // reconnect — which is why shared files kept vanishing.
+      const [blocks, files] = await Promise.all([
+        query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC", [sessionId]),
+        query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [sessionId]),
+      ]);
       ws.send(JSON.stringify({
         type: "session-state",
-        payload: { session: state, studentCount: count, instructorOnline }
+        payload: {
+          session:     state,
+          guideBlocks: blocks.rows.map(formatGuideBlock),
+          sharedFiles: files.rows.map(formatSharedFile),
+          studentCount: count,
+          instructorOnline,
+        }
       }));
     }
 
@@ -373,10 +388,3 @@ export function getRoomSize(sessionId) {
   return rooms.get(sessionId)?.size ?? 0;
 }
 
-function formatGuideBlock(row) {
-  return {
-    id: row.id, sessionId: row.session_id, type: row.type,
-    title: row.title, content: row.content, code: row.code,
-    language: row.language, locked: row.locked, timestamp: row.created_at,
-  };
-}

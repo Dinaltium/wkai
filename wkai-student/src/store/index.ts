@@ -129,7 +129,11 @@ export const useStore = create<StudentStore>((set) => ({
     } else {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
-    set({ session });
+    // Entering a room clears the terminal states of whatever room came before.
+    // Nothing else resets these, so a student who watched one session end kept
+    // the "instructor has ended this session" banner in the next room they
+    // joined — and a stale sessionEnded also suppressed WS auto-reconnect.
+    set(session ? { session, sessionEnded: false, instructorOffline: false } : { session });
   },
   sessionEnded: false,
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),

@@ -51,8 +51,11 @@ export function useRoomSocket(roomCode: string) {
       case "session-state": {
         const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[]; studentCount?: number; instructorOnline?: boolean };
         useStore.getState().setSession(p.session);
-        useStore.getState().setGuideBlocks(p.guideBlocks ?? []);
-        useStore.getState().setSharedFiles(p.sharedFiles ?? []);
+        // Only replace from fields the server actually sent. Defaulting to []
+        // meant an older server (or any payload missing these) silently wiped
+        // the guide and the shared-file list on every reconnect.
+        if (p.guideBlocks) useStore.getState().setGuideBlocks(p.guideBlocks);
+        if (p.sharedFiles) useStore.getState().setSharedFiles(p.sharedFiles);
         if (typeof p.studentCount === "number") {
           useStore.getState().setStudentCount(p.studentCount);
         }

@@ -34,21 +34,32 @@ export function SessionPage() {
   const capture = useNativeCapture();
   const devices = useCaptureDevices();
   const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
+  const addDebugLog = useAppStore((s) => s.addDebugLog);
 
   // Auto-start capture when target is selected
   useEffect(() => {
     if (selectedTarget) {
       const fps = settings.captureFramerate === "auto" ? 30 : parseInt(String(settings.captureFramerate));
+      // 0 = capture at the display's native width. Only "low" downscales:
+      // resizing a 1920x1200 frame costs ~64ms against ~50ms for the encode, so
+      // for every other preset native is both sharper and faster.
+      const previewWidth = settings.captureQuality === "low" ? 1280 : 0;
       capture.startCapture(selectedTarget, {
         fps,
         quality: settings.captureQuality,
-        preview_width: 1280
+        preview_width: previewWidth
       }, {
         saveLocal: settings.saveLocalRecording,
         dir: settings.recordingDirectory || "",
         format: settings.recordingFormat || "mp4"
       }).then(async () => {
         const stream = await capture.getStream(fps);
+        if (!stream) {
+          addDebugLog(
+            "Capture started but produced no frames — live stream and recording unavailable",
+            "error"
+          );
+        }
         setSharedDisplayStream(stream);
       });
     } else {

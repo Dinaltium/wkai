@@ -4,6 +4,7 @@ import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { textLLM, callWithRetry } from "../groqClient.js";
 import { getSessionMemory } from "../memory.js";
+import { extractJsonBlock } from "../jsonBlock.js";
 import { getLangSmithConfig } from "../langsmith.js";
 
 const ColabAssistState = Annotation.Root({
@@ -63,7 +64,7 @@ async function analyzeColabNode(state) {
         format_instructions: outputParser.getFormatInstructions(),
       })
     );
-    const parsed = await outputParser.parse(String(response.content ?? ""));
+    const parsed = await outputParser.parse(extractJsonBlock(response.content));
     return {
       advice: parsed.advice.trim(),
       followUpQuestions: parsed.followUpQuestions ?? [],

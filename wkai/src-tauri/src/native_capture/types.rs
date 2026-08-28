@@ -50,10 +50,10 @@ impl CaptureQuality {
     /// Returns the JPEG quality parameter (1-100) for this preset.
     pub fn jpeg_quality(&self) -> u8 {
         match self {
-            CaptureQuality::Low => 40,
-            CaptureQuality::Medium => 65,
-            CaptureQuality::High => 85,
-            CaptureQuality::Auto => 65, // starts at medium
+            CaptureQuality::Low => 60,
+            CaptureQuality::Medium => 80,
+            CaptureQuality::High => 92,
+            CaptureQuality::Auto => 85,
         }
     }
 }
