@@ -691,7 +691,10 @@ async function handleComprehensionAnswer(ws, payload) {
 async function handleWebRtcSignaling(ws, msg) {
   const { sessionId } = ws;
   const room = rooms.get(sessionId);
-  if (!room) return;
+  if (!room) {
+    console.warn(`[WebRTC] ${msg.type} dropped: no room for session ${sessionId}`);
+    return;
+  }
 
   const payload = msg.payload;
   const type = msg.type;
@@ -699,11 +702,22 @@ async function handleWebRtcSignaling(ws, msg) {
   if (ws.role === "instructor") {
     // Instructor sends to specific student
     const targetStudentId = payload.targetStudentId || payload.studentId;
-    if (!targetStudentId) return;
+    if (!targetStudentId) {
+      console.warn(`[WebRTC] ${type} from instructor dropped: no target student id`);
+      return;
+    }
 
     const studentSocket = room.get(`student:${targetStudentId}`);
     if (studentSocket && studentSocket.readyState === WebSocket.OPEN) {
       studentSocket.send(JSON.stringify(msg));
+      console.log(`[WebRTC] ${type} instructor -> student:${targetStudentId}`);
+    } else {
+      // Silence here used to look identical to a healthy session: the offer
+      // left the instructor and simply evaporated. Say so, and say who was
+      // actually in the room instead.
+      console.warn(
+        `[WebRTC] ${type} instructor -> student:${targetStudentId} DROPPED (socket ${studentSocket ? "not open" : "not in room"}); room has [${[...room.keys()].join(", ")}]`
+      );
     }
   } else {
     // Student sends to instructor
@@ -712,6 +726,11 @@ async function handleWebRtcSignaling(ws, msg) {
       // Add studentId to payload so instructor knows who it's from
       msg.payload = { ...payload, studentId: ws.studentId };
       instructorSocket.send(JSON.stringify(msg));
+      console.log(`[WebRTC] ${type} student:${ws.studentId} -> instructor`);
+    } else {
+      console.warn(
+        `[WebRTC] ${type} student:${ws.studentId} -> instructor DROPPED (instructor ${instructorSocket ? "socket not open" : "not connected"})`
+      );
     }
   }
 }
