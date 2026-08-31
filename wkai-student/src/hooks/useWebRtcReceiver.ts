@@ -2,8 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import type { WebRtcIceCandidatePayload, WebRtcOfferPayload } from "../types";
 import { useStore } from "../store";
 
+// See useWebRtcPublisher.ts on the instructor side for why TURN is needed
+// here — STUN-only gathering left only an unresolvable mDNS host candidate
+// and a public-IP srflx candidate with no NAT-hairpin path, confirmed via
+// candidate logging.
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
 };
 
 export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
@@ -42,12 +63,32 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
 
       peer.onicecandidate = (iceEvent) => {
         if (!iceEvent.candidate) return;
+        // TEMP DIAGNOSTIC — see whether this side is gathering usable
+        // candidates (host/srflx/relay) before guessing at the failure mode.
+        // console.log too: StudentDebugPanel isn't mounted anywhere in the
+        // app, so addDebugLog alone is invisible with no other UI for it.
+        console.log(
+          `[WebRTC recv] ICE candidate: type=${iceEvent.candidate.type} proto=${iceEvent.candidate.protocol} addr=${iceEvent.candidate.address ?? "?"}`
+        );
+        addDebugLog(
+          `ICE candidate: type=${iceEvent.candidate.type} proto=${iceEvent.candidate.protocol} addr=${iceEvent.candidate.address ?? "?"}`,
+          "info"
+        );
         send("webrtc-ice-candidate", {
           candidate: iceEvent.candidate.toJSON(),
           studentId,
         });
       };
+      peer.onicegatheringstatechange = () => {
+        console.log(`[WebRTC recv] ICE gathering: ${peer.iceGatheringState}`);
+        addDebugLog(`ICE gathering: ${peer.iceGatheringState}`, "info");
+      };
+      peer.oniceconnectionstatechange = () => {
+        console.log(`[WebRTC recv] ICE connection: ${peer.iceConnectionState}`);
+        addDebugLog(`ICE connection: ${peer.iceConnectionState}`, "info");
+      };
       peer.ontrack = (trackEvent) => {
+        console.log("[WebRTC recv] ontrack fired");
         const [stream] = trackEvent.streams;
         if (stream) {
           setRemoteStream(stream);
@@ -55,9 +96,20 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
         }
       };
       peer.onconnectionstatechange = () => {
+        console.log(`[WebRTC recv] connectionState: ${peer.connectionState}`);
         addDebugLog(`WebRTC receiver ${peer.connectionState}`, "info");
+        // "disconnected" is often transient (brief ICE hiccup) and browsers
+        // frequently recover from it on their own — tearing the peer down
+        // immediately on it would fight that self-recovery. Only terminal
+        // states get an explicit rebuild.
         if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+          // closePeer() alone left the student stuck with no video and no
+          // way to recover short of remounting (rejoining/restarting the
+          // session) — the instructor side retries its own dead peers, but
+          // that only helps if the INSTRUCTOR's connection died, not the
+          // student's. Ask for a fresh offer ourselves too.
           closePeer();
+          window.setTimeout(() => requestOffer("connection-lost"), 750);
         }
       };
 

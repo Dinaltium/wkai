@@ -6,6 +6,7 @@ import type {
   SharedFile,
   WatchedFile,
   AppSettings,
+  SessionAiSettings,
   DebugLogEntry,
   DebugLogLevel,
   StudentInfo,
@@ -23,6 +24,14 @@ interface AppStore {
   /** Reset all per-session runtime state so a newly started session starts clean. */
   resetSessionState: () => void;
 
+  // ─── Per-session AI/recording overrides ───────────────────────────────────
+  // Seeded from `settings` when a session starts; null before that (and after
+  // resetSessionState) so callers can tell "not yet initialized" apart from
+  // "initialized and toggled off".
+  sessionAiSettings: SessionAiSettings | null;
+  initSessionAiSettings: () => void;
+  setSessionAiSettings: (partial: Partial<SessionAiSettings>) => void;
+
   // ─── Recording ─────────────────────────────────────────────────────────────
   recording: RecordingState;
   setRecording: (partial: Partial<RecordingState>) => void;
@@ -30,9 +39,11 @@ interface AppStore {
   // ─── Guide + Files ─────────────────────────────────────────────────────────
   guideBlocks: GuideBlock[];
   addGuideBlock: (block: GuideBlock) => void;
+  setGuideBlocks: (blocks: GuideBlock[]) => void;
   clearGuide: () => void;
   sharedFiles: SharedFile[];
   addSharedFile: (file: SharedFile) => void;
+  setSharedFiles: (files: SharedFile[]) => void;
   watchedFiles: WatchedFile[];
   setWatchedFiles: (files: WatchedFile[]) => void;
 
@@ -56,6 +67,7 @@ interface AppStore {
   setDebugPanelOpen: (v: boolean) => void;
   inboxMessages: InstructorMessage[];
   addInboxMessage: (m: InstructorMessage) => void;
+  setInboxMessages: (m: InstructorMessage[]) => void;
   markInboxReplied: (messageId: string) => void;
 }
 
@@ -75,6 +87,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   recordingFormat: "mp4",
   captureFramerate: "auto" as const,
   captureQuality: "auto" as const,
+  aiGuideBlocksEnabled: true,
+  aiTranscriptionEnabled: true,
+  micDevice: "",
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";
@@ -119,7 +134,24 @@ export const useAppStore = create<AppStore>((set) => ({
       students: [],
       studentCount: 0,
       inboxMessages: [],
+      sessionAiSettings: null,
     }),
+
+  sessionAiSettings: null,
+  initSessionAiSettings: () =>
+    set((s) => ({
+      sessionAiSettings: s.sessionAiSettings ?? {
+        aiGuideBlocksEnabled: s.settings.aiGuideBlocksEnabled,
+        aiTranscriptionEnabled: s.settings.aiTranscriptionEnabled,
+        saveLocalRecording: s.settings.saveLocalRecording,
+      },
+    })),
+  setSessionAiSettings: (partial) =>
+    set((s) =>
+      s.sessionAiSettings
+        ? { sessionAiSettings: { ...s.sessionAiSettings, ...partial } }
+        : {}
+    ),
 
   recording: {
     isRecording: false,
@@ -133,11 +165,13 @@ export const useAppStore = create<AppStore>((set) => ({
   guideBlocks: [],
   addGuideBlock: (block) =>
     set((s) => ({ guideBlocks: [...s.guideBlocks, block] })),
+  setGuideBlocks: (guideBlocks) => set({ guideBlocks }),
   clearGuide: () => set({ guideBlocks: [] }),
 
   sharedFiles: [],
   addSharedFile: (file) =>
     set((s) => ({ sharedFiles: [file, ...s.sharedFiles] })),
+  setSharedFiles: (sharedFiles) => set({ sharedFiles }),
 
   watchedFiles: [],
   setWatchedFiles: (watchedFiles) => set({ watchedFiles }),
@@ -180,6 +214,7 @@ export const useAppStore = create<AppStore>((set) => ({
     set((s) => ({
       inboxMessages: [...s.inboxMessages.filter((x) => x.messageId !== m.messageId), m],
     })),
+  setInboxMessages: (inboxMessages) => set({ inboxMessages }),
   markInboxReplied: (messageId) =>
     set((s) => ({
       inboxMessages: s.inboxMessages.map((m) =>

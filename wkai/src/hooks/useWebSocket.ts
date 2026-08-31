@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import type { WsEventType } from "../types";
+import type { WsEventType, InstructorMessage, GuideBlock, SharedFile } from "../types";
 import { useAppStore } from "../store";
 
 type Handler<T = unknown> = (payload: T) => void;
@@ -28,6 +28,22 @@ export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
         const handler = handlers.current.get(msg.type);
         if (handler) handler(msg.payload);
         switch (msg.type) {
+          case "session-state": {
+            // The instructor client ignored this snapshot entirely, so its
+            // guide, shared files and Q&A inbox all survived only in memory —
+            // every reload or dropped socket started the room from blank.
+            const p = msg.payload as {
+              guideBlocks?: GuideBlock[];
+              sharedFiles?: SharedFile[];
+              inboxMessages?: InstructorMessage[];
+              studentCount?: number;
+            };
+            if (p.guideBlocks) useAppStore.getState().setGuideBlocks(p.guideBlocks);
+            if (p.sharedFiles) useAppStore.getState().setSharedFiles(p.sharedFiles);
+            if (p.inboxMessages) useAppStore.getState().setInboxMessages(p.inboxMessages);
+            if (typeof p.studentCount === "number") setStudentCount(p.studentCount);
+            break;
+          }
           case "guide-block":
             addGuideBlock(msg.payload as never);
             break;
@@ -52,6 +68,33 @@ export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
           case "student-list": {
             const p = msg.payload as { students: { studentId: string; studentName: string; joinedAt: string }[] };
             useAppStore.getState().setStudents(p.students);
+            break;
+          }
+          case "student-message": {
+            // Student Q&A landing in the instructor inbox. Nothing consumed
+            // this before, so the inbox was permanently empty even though the
+            // student's message reached the server.
+            const p = msg.payload as InstructorMessage;
+            useAppStore.getState().addInboxMessage(p);
+            useAppStore.getState().addDebugLog(`Question from ${p.studentName}: ${p.message}`, "info");
+            break;
+          }
+          case "ai-reply":
+            // The 45s AI fallback answered before the instructor did — close
+            // the inbox item so it stops asking for a reply that is now moot.
+            useAppStore.getState().markInboxReplied((msg.payload as { messageId: string }).messageId);
+            useAppStore.getState().addDebugLog("AI answered a student question (instructor did not reply in 45s)", "info");
+            break;
+          case "ai-frame-result": {
+            const p = msg.payload as { isInstructional?: boolean; blockCount?: number; summary?: string; error?: string };
+            if (p.error) {
+              useAppStore.getState().addDebugLog(`AI frame analysis failed: ${p.error}`, "error");
+            } else {
+              useAppStore.getState().addDebugLog(
+                `AI frame analyzed — ${p.blockCount ?? 0} guide block(s)${p.summary ? `: ${p.summary}` : ""}`,
+                (p.blockCount ?? 0) > 0 ? "success" : "info"
+              );
+            }
             break;
           }
           case "share-intent-detected":

@@ -66,7 +66,11 @@ Session taught so far:
 {session_context}
 
 Rules:
-- isInstructional: false for idle/browser/desktop screens
+- isInstructional: false ONLY for a genuinely idle screen — empty desktop,
+  lock screen, screensaver, or an unrelated window with nothing being taught.
+  An IDE, terminal, browser, docs page, slide deck, or any app the instructor
+  is demonstrating IS instructional — judge the activity, not the app type.
+- If you emit any guide block, isInstructional MUST be true
 - Only emit NEW content not already in session context
 - 1-3 guide blocks max, beginner-friendly
 - Extract EXACT code, never paraphrase
@@ -99,7 +103,14 @@ export const errorDiagnosisPrompt = ChatPromptTemplate.fromMessages([
     `You are WKAI's error resolution engine.
 A student in a live coding workshop has hit an error. Diagnose it and provide a fix.
 
+What this workshop has covered:
+{session_context}
+
 Rules:
+- Fix the error the way THIS workshop does it: match the libraries, versions and
+  commands in the context above rather than proposing a different stack. If the
+  context pins a version or gives an exact install command, reproduce it
+  verbatim in fixCommand.
 - Be concise and student-friendly. No jargon.
 - Prefer a single fix command (pip install, npm install, etc.) when possible.
 - If multiple steps are needed, list them in fixSteps.

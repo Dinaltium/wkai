@@ -1,10 +1,16 @@
 use base64::{engine::general_purpose, Engine as _};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
 static RECORDING: AtomicBool = AtomicBool::new(false);
+
+// Bumped on every start. A capture thread only keeps running while it owns the
+// current generation, so a stop/start inside one chunk window (flipping the
+// transcription toggle) can never leave the previous thread alive to emit a
+// duplicate chunk from a stale buffer.
+static GENERATION: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct AudioChunkPayload {
@@ -17,33 +23,60 @@ pub struct AudioChunkPayload {
 /// Start recording microphone audio in 30-second chunks.
 /// Each chunk is base64-encoded WAV and emitted as a Tauri event
 /// so the frontend can forward it to the Whisper endpoint.
-pub fn start_audio_capture(app: AppHandle, session_id: String) -> Result<(), String> {
+///
+/// This was written but never exposed: without `#[tauri::command]` and an entry
+/// in `generate_handler!`, the frontend had no way to reach it, so no
+/// `audio-chunk` event was ever emitted and the whole Whisper → transcript →
+/// guide-block path sat idle behind a listener that never fired.
+/// Input devices the instructor can transcribe from, by name.
+#[tauri::command]
+pub fn list_audio_input_devices() -> Result<Vec<String>, String> {
+    let host = cpal::default_host();
+    let devices = host.input_devices().map_err(|e| e.to_string())?;
+    Ok(devices.filter_map(|d| d.name().ok()).collect())
+}
+
+/// `device_name` picks an input by name; `None` falls back to the system
+/// default. The default is often not the microphone the instructor is speaking
+/// into — a machine with a virtual mic (Steam, WO Mic, a headset dock) will
+/// happily hand back a silent or unrelated endpoint, which is transcribed as
+/// confident nonsense rather than failing loudly.
+///
+/// Returns the name of the device actually opened so the caller can show it.
+#[tauri::command]
+pub fn start_audio_capture(
+    app: AppHandle,
+    session_id: String,
+    device_name: Option<String>,
+) -> Result<String, String> {
     if RECORDING.load(Ordering::SeqCst) {
         return Err("Audio capture already running".to_string());
     }
 
+    let host = cpal::default_host();
+    let requested = device_name.filter(|n| !n.trim().is_empty());
+    let device = match &requested {
+        Some(name) => host
+            .input_devices()
+            .map_err(|e| e.to_string())?
+            .find(|d| d.name().map(|n| &n == name).unwrap_or(false))
+            .ok_or_else(|| format!("Input device not found: {}", name))?,
+        None => host
+            .default_input_device()
+            .ok_or_else(|| "No input device found".to_string())?,
+    };
+
+    let device_label = device.name().unwrap_or_else(|_| "unknown".to_string());
+    let config = device
+        .default_input_config()
+        .map_err(|e| format!("Could not get input config: {}", e))?;
+
     RECORDING.store(true, Ordering::SeqCst);
+    let my_generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let opened_label = device_label.clone();
 
     std::thread::spawn(move || {
-        let host = cpal::default_host();
-
-        let device = match host.default_input_device() {
-            Some(d) => d,
-            None => {
-                log::error!("[Audio] No input device found");
-                return;
-            }
-        };
-
-        log::info!("[Audio] Using device: {}", device.name().unwrap_or_default());
-
-        let config = match device.default_input_config() {
-            Ok(c) => c,
-            Err(e) => {
-                log::error!("[Audio] Could not get input config: {}", e);
-                return;
-            }
-        };
+        log::info!("[Audio] Using device: {}", device_label);
 
         let sample_rate = config.sample_rate().0;
         let channels   = config.channels() as usize;
@@ -76,11 +109,23 @@ pub fn start_audio_capture(app: AppHandle, session_id: String) -> Result<(), Str
         let _ = stream.play();
 
         loop {
-            if !RECORDING.load(Ordering::SeqCst) {
+            if !RECORDING.load(Ordering::SeqCst) || GENERATION.load(Ordering::SeqCst) != my_generation {
                 break;
             }
 
-            std::thread::sleep(std::time::Duration::from_secs(chunk_secs as u64));
+            // Slept in one-second steps rather than one 30s block so a stop is
+            // honoured almost immediately instead of up to a full chunk later.
+            let mut waited = 0u32;
+            while waited < chunk_secs {
+                if !RECORDING.load(Ordering::SeqCst) || GENERATION.load(Ordering::SeqCst) != my_generation {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                waited += 1;
+            }
+            if !RECORDING.load(Ordering::SeqCst) || GENERATION.load(Ordering::SeqCst) != my_generation {
+                break;
+            }
 
             let chunk: Vec<f32> = {
                 let mut buf = samples.lock().unwrap();
@@ -113,9 +158,10 @@ pub fn start_audio_capture(app: AppHandle, session_id: String) -> Result<(), Str
         log::info!("[Audio] Recording stopped");
     });
 
-    Ok(())
+    Ok(opened_label)
 }
 
+#[tauri::command]
 pub fn stop_audio_capture() {
     RECORDING.store(false, Ordering::SeqCst);
 }

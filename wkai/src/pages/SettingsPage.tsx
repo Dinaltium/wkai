@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { MicTest } from "../components/instructor/MicTest";
 import { AITest } from "../components/instructor/AITest";
 import { ThemeControls } from "../components/shared/ThemeControls";
+import { listAudioInputDevices } from "../lib/tauri";
+import { isTauri } from "@tauri-apps/api/core";
 
 export function SettingsPage() {
   const { settings, updateSettings } = useAppStore();
@@ -12,6 +14,12 @@ export function SettingsPage() {
     localIp: string | null;
     studentUrl: string | null;
   } | null>(null);
+  const [micDevices, setMicDevices] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    listAudioInputDevices().then(setMicDevices).catch(() => setMicDevices([]));
+  }, []);
 
   useEffect(() => {
     fetch(`${settings.backendUrl}/api/network-info`)
@@ -97,6 +105,56 @@ export function SettingsPage() {
               onChange={(e) => updateSettings({ groqApiKey: e.target.value })}
               placeholder="gsk_..."
             />
+          </Field>
+
+          {/* Defaults for the per-session toggles shown in the Live sidebar —
+              changing them here only affects sessions started afterward, not
+              a session already in progress. */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-xs font-medium">Guide summarization</p>
+              <p className="text-[10px] text-wkai-text-dim">
+                Screen → AI → guide blocks. Default for new sessions; costs an API call every ~25s.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-wkai-border bg-wkai-surface text-accent-text focus:ring-accent"
+              checked={settings.aiGuideBlocksEnabled}
+              onChange={(e) => updateSettings({ aiGuideBlocksEnabled: e.target.checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-xs font-medium">Audio transcription</p>
+              <p className="text-[10px] text-wkai-text-dim">
+                Mic → Whisper. Default for new sessions; costs an API call per audio chunk.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-wkai-border bg-wkai-surface text-accent-text focus:ring-accent"
+              checked={settings.aiTranscriptionEnabled}
+              onChange={(e) => updateSettings({ aiTranscriptionEnabled: e.target.checked })}
+            />
+          </div>
+
+          {/* The system default input is frequently not the mic being spoken
+              into — virtual devices (Steam, WO Mic, headset docks) register as
+              inputs too, and Whisper turns their silence into confident
+              nonsense instead of failing. Pick explicitly. */}
+          <Field label="Transcription Microphone">
+            <select
+              className={`input text-xs ${!settings.aiTranscriptionEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={!settings.aiTranscriptionEnabled}
+              value={settings.micDevice}
+              onChange={(e) => updateSettings({ micDevice: e.target.value })}
+            >
+              <option value="">System default</option>
+              {micDevices.map((device) => (
+                <option key={device} value={device}>{device}</option>
+              ))}
+            </select>
           </Field>
         </section>
 

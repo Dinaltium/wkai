@@ -73,6 +73,15 @@ xcap = "0.9.4"
 [profile.dev]
 incremental = true
 debug = true
+# The dev profile defaults to opt-level 0, which makes the pure-Rust JPEG
+# encoder in the capture loop 400-600ms per native-res frame (measured) — a
+# ~1.5fps hard ceiling regardless of anything downstream. opt-level 3 here
+# keeps incremental rebuilds/hot-reload but makes the hot capture/encode path
+# run at real speed.
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 3
 
 [profile.release]
 panic = "abort"

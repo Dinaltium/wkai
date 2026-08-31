@@ -23,8 +23,11 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
     sharedDisplayStream,
     recording,
     setRecording,
-    settings
+    settings,
+    sessionAiSettings,
   } = useAppStore();
+  // Session override wins once seeded; falls back to the global default.
+  const saveLocalRecording = sessionAiSettings?.saveLocalRecording ?? settings.saveLocalRecording;
 
   const [starting, setStarting] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
@@ -89,7 +92,7 @@ export function RecordingPanel({ roomCode }: { roomCode: string }) {
         // Handle local saving if enabled — uses the unrestricted `append_to_recording`
         // Rust command (bypasses the fs-plugin ACL, which only covers app-scoped dirs,
         // not arbitrary user-picked folders from the directory picker).
-        if (settings.saveLocalRecording && settings.recordingDirectory) {
+        if (saveLocalRecording && settings.recordingDirectory) {
           try {
             const { invoke } = await import("@tauri-apps/api/core");
             const { join } = await import("@tauri-apps/api/path");

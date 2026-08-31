@@ -1,6 +1,7 @@
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
 import { textLLM, callWithRetry } from "../groqClient.js";
+import { buildSessionContext } from "../sessionContext.js";
 import {
   errorDiagnosisPrompt,
   errorResolutionParser,
@@ -11,6 +12,8 @@ import {
 
 const ErrorAgentState = Annotation.Root({
   errorMessage:  Annotation({ reducer: (_, v) => v }),
+  sessionId:     Annotation({ reducer: (_, v) => v, default: () => null }),
+  sessionContext: Annotation({ reducer: (_, v) => v, default: () => "" }),
   rawDiagnosis:  Annotation({ reducer: (_, v) => v, default: () => null }),
   resolution:    Annotation({ reducer: (_, v) => v, default: () => null }),
   retryCount:    Annotation({ reducer: (_, v) => v, default: () => 0 }),
@@ -47,9 +50,12 @@ async function classifyErrorNode(state) {
     errorClass = "network_error";
   }
 
-  // Inject the classification into the error message for the LLM
+  // Inject the classification into the error message for the LLM, and pull in
+  // what the workshop has actually taught so the fix matches the room's stack
+  // (its libraries, its pinned versions) instead of a generic one.
   const enrichedMessage = `[Error class: ${errorClass}]\n\n${state.errorMessage}`;
-  return { errorMessage: enrichedMessage };
+  const sessionContext = await buildSessionContext(state.sessionId, state.errorMessage);
+  return { errorMessage: enrichedMessage, sessionContext };
 }
 
 // ─── Node 2: Diagnose the error ───────────────────────────────────────────────
@@ -62,6 +68,7 @@ async function diagnoseNode(state) {
     const response = await callWithRetry(() =>
       chain.invoke({
         error_message: state.errorMessage,
+        session_context: state.sessionContext || "No workshop context recorded yet.",
         format_instructions: formatInstructions,
       })
     );
@@ -186,8 +193,8 @@ export const errorDiagnosisGraph = workflow.compile();
  * @param {string} errorMessage  Raw terminal error pasted by the student
  * @returns {Promise<ErrorResolution>}
  */
-export async function runErrorDiagnosis(errorMessage) {
-  const result = await errorDiagnosisGraph.invoke({ errorMessage });
+export async function runErrorDiagnosis(errorMessage, sessionId = null) {
+  const result = await errorDiagnosisGraph.invoke({ errorMessage, sessionId });
   return result.resolution ?? fallbackResolution();
 }
 

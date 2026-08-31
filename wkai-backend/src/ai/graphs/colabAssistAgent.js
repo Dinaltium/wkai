@@ -3,7 +3,7 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { textLLM, callWithRetry } from "../groqClient.js";
-import { getSessionMemory } from "../memory.js";
+import { buildSessionContext } from "../sessionContext.js";
 import { extractJsonBlock } from "../jsonBlock.js";
 import { getLangSmithConfig } from "../langsmith.js";
 
@@ -38,7 +38,12 @@ Input:
 
 Rules:
 - Output plain, practical guidance in under 200 words.
-- If the input is a URL, explicitly state you cannot open URLs and ask the student to paste relevant cell output, traceback, and the exact failing code cell.
+- Prefer the libraries, versions, commands and patterns the session context
+  shows the instructor using, over the generic answer.
+- When input type is "notebook", the cells and outputs below were fetched from
+  the student's notebook — reason about them directly.
+- Only if the input is a bare URL that could not be fetched, ask the student to
+  paste the failing cell, its output and the traceback.
 - For errors, explain root cause first, then precise next steps.
 - Keep language student-friendly.
 - Return 2-3 concise follow-up questions that help unblock the student.
@@ -48,9 +53,7 @@ Rules:
 ]);
 
 async function loadContextNode(state) {
-  const memory = getSessionMemory(state.sessionId);
-  const sessionContext = await memory.getContextString();
-  return { sessionContext };
+  return { sessionContext: await buildSessionContext(state.sessionId, state.colabContent) };
 }
 
 async function analyzeColabNode(state) {

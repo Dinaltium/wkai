@@ -1,7 +1,7 @@
 import { StateGraph, END, START, Annotation } from "@langchain/langgraph";
 import { textLLM, callWithRetry } from "../groqClient.js";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { getSessionMemory } from "../memory.js";
+import { buildSessionContext } from "../sessionContext.js";
 import { getLangSmithConfig } from "../langsmith.js";
 
 const MessageAgentState = Annotation.Root({
@@ -23,6 +23,8 @@ Session context:
 {session_context}
 
 Rules:
+- Ground the answer in the session context above whenever it is relevant —
+  refer to what the instructor actually taught, named, or shared.
 - Maximum 3 sentences.
 - Do not claim certainty when unsure.
 - If related to setup/runtime issues, suggest concrete version-check commands (for example: node -v, npm -v, python --version) before proposing fixes.
@@ -33,9 +35,10 @@ Rules:
 ]);
 
 async function loadContextNode(state) {
-  const memory = getSessionMemory(state.sessionId);
-  const sessionContext = await memory.getContextString();
-  return { sessionContext };
+  // Ranked against the question itself, so a student asking about a topic the
+  // instructor covered twenty minutes ago gets that material back rather than
+  // only whatever happened to be on screen last.
+  return { sessionContext: await buildSessionContext(state.sessionId, state.message) };
 }
 
 async function generateResponseNode(state) {

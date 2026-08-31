@@ -41,10 +41,14 @@ pub fn run() {
             commands::native_capture::stop_native_capture,
             commands::native_capture::get_capture_status,
             commands::native_capture::get_capture_metrics,
+            commands::native_capture::get_latest_frame,
             commands::native_capture::append_to_recording,
             commands::recording::start_recording,
             commands::recording::stop_recording,
             commands::recording::recording_status,
+            audio::list_audio_input_devices,
+            audio::start_audio_capture,
+            audio::stop_audio_capture,
         ])
 
         // Setup system tray

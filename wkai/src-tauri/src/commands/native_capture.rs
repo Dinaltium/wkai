@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use tauri::State;
+use tauri::{ipc::Response, State};
 
 use crate::native_capture::CaptureManager;
 use crate::native_capture::types::*;
@@ -60,6 +60,39 @@ pub async fn get_capture_status(state: ManagerState<'_>) -> Result<CaptureStatus
         .map_err(|e| format!("Lock poisoned: {e}"))?
         .get_status()
         .map_err(|e| e.to_string())
+}
+
+/// Pull the most recently captured frame as raw bytes — no base64, no JSON.
+/// Returns an empty response when nothing new has landed since the last
+/// pull; the caller should not redraw in that case.
+///
+/// Layout: `[width:u32 LE][height:u32 LE][timestamp_ms:u64 LE][jpeg bytes]`.
+///
+/// This used to return `Option<FramePayload>` (base64 string in a JSON
+/// envelope). That was the actual bottleneck, not JPEG decode: Tauri's normal
+/// command return path JSON-serializes the response, so a ~1MB base64 string
+/// was being stringified, pushed across the webview IPC bridge, and
+/// JSON.parsed back out on every single pull — hundreds of ms per frame,
+/// which is exactly the "2fps no matter what" symptom. `tauri::ipc::Response`
+/// sends raw bytes with none of that, called from the frontend's own render
+/// loop so display speed is bounded by consumption, never by a backlog.
+#[tauri::command]
+pub async fn get_latest_frame(state: ManagerState<'_>) -> Result<Response, String> {
+    let frame = {
+        let mgr = state.lock().map_err(|e| format!("Lock poisoned: {e}"))?;
+        mgr.take_latest_frame()
+    };
+
+    let Some(f) = frame else {
+        return Ok(Response::new(Vec::new()));
+    };
+
+    let mut buf = Vec::with_capacity(16 + f.jpeg_data.len());
+    buf.extend_from_slice(&f.width.to_le_bytes());
+    buf.extend_from_slice(&f.height.to_le_bytes());
+    buf.extend_from_slice(&f.timestamp_ms.to_le_bytes());
+    buf.extend_from_slice(&f.jpeg_data);
+    Ok(Response::new(buf))
 }
 
 /// Get current capture metrics.

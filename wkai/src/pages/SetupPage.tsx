@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, AlertCircle } from "lucide-react";
 import { useAppStore } from "../store";
 import { createSession, watchFolder, listWatchedFiles } from "../lib/tauri";
+import type { Workspace } from "../types";
 
 export function SetupPage() {
   const navigate = useNavigate();
@@ -10,8 +11,19 @@ export function SetupPage() {
 
   const [workshopTitle, setWorkshopTitle] = useState("");
   const [sessionPassword, setSessionPassword] = useState("");
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspaceName, setWorkspaceName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Existing folders, so a returning instructor picks last week's course rather
+  // than retyping (and misspelling) its name into a brand-new one.
+  useEffect(() => {
+    fetch(`${settings.backendUrl}/api/workspaces`)
+      .then((r) => r.json())
+      .then((d) => setWorkspaces(d.workspaces ?? []))
+      .catch(() => setWorkspaces([]));
+  }, [settings.backendUrl]);
 
   async function handleStart() {
     if (!settings.instructorName.trim()) {
@@ -36,7 +48,8 @@ export function SetupPage() {
         settings.instructorName,
         workshopTitle,
         settings.backendUrl,
-        sessionPassword.trim() || undefined
+        sessionPassword.trim() || undefined,
+        workspaceName.trim() || undefined
       );
       setSession(session);
 
@@ -95,6 +108,32 @@ export function SetupPage() {
               value={workshopTitle}
               onChange={(e) => setWorkshopTitle(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+              Workspace <span className="normal-case text-wkai-text-dim/60">(optional)</span>
+            </label>
+            <input
+              className="input"
+              list="wkai-workspaces"
+              placeholder="e.g. Blockchain Bootcamp — Batch 3"
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+              maxLength={120}
+            />
+            <datalist id="wkai-workspaces">
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.name}>
+                  {w.sessionCount ? `${w.sessionCount} session(s)` : "new"}
+                </option>
+              ))}
+            </datalist>
+            <p className="text-xs text-wkai-text-dim">
+              Sessions in the same workspace share their memory: what you taught in
+              earlier sessions is available to the AI in this one. Pick an existing
+              folder or type a new name.
+            </p>
           </div>
 
           <div className="space-y-1.5">

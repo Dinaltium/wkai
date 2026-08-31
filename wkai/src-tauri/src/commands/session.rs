@@ -14,6 +14,9 @@ pub struct SessionInfo {
     /// the instructor WebSocket connection and on privileged calls (end session).
     #[serde(default)]
     pub instructorToken: String,
+    /// Name of the workspace this session belongs to, if any.
+    #[serde(default)]
+    pub workspaceName: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -34,6 +37,9 @@ pub async fn create_session(
     workshop_title: String,
     backend_url: String,
     session_password: Option<String>,
+    // Optional folder this session belongs to. The backend creates the
+    // workspace on first use, so the instructor only ever types a name.
+    workspace_name: Option<String>,
 ) -> Result<SessionInfo, String> {
     let session_id = Uuid::new_v4().to_string();
     // Room code: first 6 chars of UUID, uppercased, dashes replaced
@@ -51,6 +57,7 @@ pub async fn create_session(
             "workshopTitle":  workshop_title,
             "roomCode":       room_code,
             "sessionPassword": session_password,
+            "workspaceName":   workspace_name,
         }))
         .send()
         .await
@@ -82,6 +89,7 @@ pub async fn create_session(
         startedAt:      backend_session["startedAt"].as_str().unwrap_or(&now).to_string(),
         status:         SessionStatus::Active,
         instructorToken: instructor_token,
+        workspaceName:  backend_session["workspaceName"].as_str().map(|s| s.to_string()),
     };
 
     log::info!("Session registered with backend successfully");

@@ -42,17 +42,40 @@ const CreateSessionSchema = z.object({
   workshopTitle:   z.string().min(1).max(200),
   roomCode:        z.string().length(6).toUpperCase(),
   sessionPassword: z.string().max(128).nullish(),
+  // A session may belong to a workspace — a folder of related sessions that
+  // share one body of taught material. Either an existing id or a name, which
+  // is created on first use so the instructor never has to pre-register it.
+  workspaceId:     z.string().uuid().nullish(),
+  workspaceName:   z.string().max(120).nullish(),
 });
+
+/** Resolves an id or a name to a workspace id, creating the folder on demand. */
+async function resolveWorkspace({ workspaceId, workspaceName, instructorName }) {
+  if (workspaceId) {
+    const { rows } = await query("SELECT id FROM workspaces WHERE id = $1", [workspaceId]);
+    return rows.length ? rows[0].id : null;
+  }
+  const name = String(workspaceName ?? "").trim();
+  if (!name) return null;
+  const existing = await query("SELECT id FROM workspaces WHERE lower(name) = lower($1)", [name]);
+  if (existing.rows.length) return existing.rows[0].id;
+  const created = await query(
+    "INSERT INTO workspaces (name, owner_name) VALUES ($1,$2) RETURNING id",
+    [name, instructorName ?? null]
+  );
+  return created.rows[0].id;
+}
 
 sessionRouter.post("/", createLimiter, async (req, res, next) => {
   try {
     const body = CreateSessionSchema.parse(req.body);
     const passwordHash = body.sessionPassword ? hashPassword(body.sessionPassword) : null;
+    const workspaceId = await resolveWorkspace(body);
 
     const { rows } = await query(
-      `INSERT INTO sessions (room_code, instructor_name, workshop_title, session_password_hash)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [body.roomCode, body.instructorName, body.workshopTitle, passwordHash]
+      `INSERT INTO sessions (room_code, instructor_name, workshop_title, session_password_hash, workspace_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [body.roomCode, body.instructorName, body.workshopTitle, passwordHash, workspaceId]
     );
 
     const session = rows[0];
@@ -72,6 +95,11 @@ sessionRouter.post("/", createLimiter, async (req, res, next) => {
       sessionId: session.id,
       roomCode:  session.room_code,
     });
+
+    if (workspaceId) {
+      const ws = await query("SELECT name FROM workspaces WHERE id = $1", [workspaceId]);
+      session.workspace_name = ws.rows[0]?.name ?? null;
+    }
 
     res.status(201).json({ session: formatSession(session), instructorToken });
   } catch (err) {
@@ -304,6 +332,8 @@ function formatSession(row) {
     startedAt:      row.started_at,
     endedAt:        row.ended_at ?? null,
     passwordRequired: row.session_password_hash != null,
+    workspaceId:    row.workspace_id ?? null,
+    workspaceName:  row.workspace_name ?? null,
   };
 }
 

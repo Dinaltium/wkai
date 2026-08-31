@@ -2,7 +2,10 @@ import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { redis } from "../db/redis.js";
 
-const HISTORY_TTL = 86_400;     // 24 hours (matches session TTL)
+// A workshop can run across several days (a course, a multi-day bootcamp), and
+// a 24-hour window silently emptied the running summary overnight — the room
+// stayed open while its memory of the first day expired underneath it.
+const HISTORY_TTL = 604_800;    // 7 days
 const MAX_MESSAGES = 20;        // keep last 20 turns to avoid context overflow
 
 /**

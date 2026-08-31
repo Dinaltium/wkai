@@ -28,3 +28,14 @@ export function formatSharedFile(row) {
     sharedAt:  row.shared_at,
   };
 }
+
+export function formatStudentMessage(row) {
+  return {
+    messageId:   row.message_id,
+    studentId:   row.student_id,
+    studentName: row.student_name,
+    message:     row.message,
+    timestamp:   row.created_at,
+    replied:     row.reply != null,
+  };
+}

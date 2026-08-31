@@ -72,6 +72,8 @@ interface StudentStore {
   // ─── Messages ──────────────────────────────────────────────────────────────
   chatMessages: ChatMessage[];
   addChatMessage: (m: ChatMessage) => void;
+  updateChatMessage: (id: string, patch: Partial<ChatMessage>) => void;
+  setChatMessages: (m: ChatMessage[]) => void;
 
   // ─── Debug ─────────────────────────────────────────────────────────────────
   debugLogs: DebugLogEntry[];
@@ -182,6 +184,11 @@ export const useStore = create<StudentStore>((set) => ({
 
   chatMessages: [],
   addChatMessage: (m) => set((s) => ({ chatMessages: [...s.chatMessages, m] })),
+  setChatMessages: (chatMessages) => set({ chatMessages }),
+  updateChatMessage: (id, patch) =>
+    set((s) => ({
+      chatMessages: s.chatMessages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    })),
 
   debugLogs: [],
   addDebugLog: (message, level = "info") =>

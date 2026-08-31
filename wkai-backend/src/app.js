@@ -7,6 +7,7 @@ import { sessionRouter } from "./routes/sessions.js";
 import { aiRouter } from "./routes/ai.js";
 import { filesRouter } from "./routes/files.js";
 import { runnerRouter } from "./routes/runner.js";
+import { workspaceRouter } from "./routes/workspaces.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { debugLog, debugEnabled } from "./utils/debug.js";
 
@@ -90,6 +91,7 @@ app.use("/api/sessions", sessionRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/run", runnerRouter);
+app.use("/api/workspaces", workspaceRouter);
 
 // ─── Error Handler ────────────────────────────────────────────────────────────
 

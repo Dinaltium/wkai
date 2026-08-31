@@ -11,8 +11,31 @@ type WsSend = <T>(type: WsEventType | string, payload: T) => void;
 type WsOn = <T>(type: WsEventType, handler: (payload: T) => void) => void;
 type WsOff = (type: WsEventType) => void;
 
+// STUN alone gave ICE exactly two candidate types: a host candidate as an
+// mDNS `.local` name (often unresolvable across processes/firewalls) and a
+// server-reflexive candidate at the public IP (fails without NAT hairpin
+// support, which most routers lack). With neither reachable and no relay
+// fallback, ICE had nothing left to try — confirmed via onicecandidate
+// logging, not guessed. A TURN relay is the actual fix.
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
 };
 
 /// Upper bound for the outgoing screen share. Desktop content at native
@@ -111,10 +134,24 @@ export function useWebRtcPublisher(
     }
     peer.onicecandidate = (event) => {
       if (!event.candidate) return;
+      // TEMP DIAGNOSTIC — "sent" in the log means the offer left this
+      // machine, not that ICE completed. Logging candidate types (host /
+      // srflx / relay) to see whether ICE is gathering anything usable at
+      // all before guessing further.
+      addDebugLog(
+        `WebRTC[${studentId}] ICE candidate: type=${event.candidate.type} proto=${event.candidate.protocol} addr=${event.candidate.address ?? "?"}`,
+        "info"
+      );
       send("webrtc-ice-candidate", {
         candidate: event.candidate.toJSON(),
         studentId,
       });
+    };
+    peer.onicegatheringstatechange = () => {
+      addDebugLog(`WebRTC[${studentId}] ICE gathering: ${peer.iceGatheringState}`, "info");
+    };
+    peer.oniceconnectionstatechange = () => {
+      addDebugLog(`WebRTC[${studentId}] ICE connection: ${peer.iceConnectionState}`, "info");
     };
     peer.onconnectionstatechange = () => {
       addDebugLog(`WebRTC[${studentId}] ${peer.connectionState}`, "info");

@@ -37,12 +37,23 @@ runnerRouter.post("/", async (req, res) => {
 
 // ─── Execution logic ──────────────────────────────────────────────────────────
 
-async function runCode(language, code) {
+export async function runCode(language, code) {
   const id  = randomUUID();
   const dir = tmpdir();
 
   // Write code to a temp file
-  const { file, cmd, args } = getRunner(language, id, dir, code);
+  const runner = getRunner(language, id, dir, code);
+  const { file } = runner;
+
+  let { cmd, args } = runner;
+  if (runner.kind) {
+    const interpreter = await resolveInterpreter(runner.kind);
+    if (!interpreter) {
+      return `${runner.kind === "python" ? "Python" : "Bash"} is not installed on the server, or is not on its PATH. Ask your instructor to install it and restart the backend.`;
+    }
+    cmd = interpreter.cmd;
+    args = [...interpreter.prefixArgs, ...runner.args];
+  }
 
   try {
     writeFileSync(file, code, "utf8");
@@ -52,11 +63,43 @@ async function runCode(language, code) {
   }
 }
 
+// "python3" does not exist on a stock Windows install — the launcher is `py`
+// and the interpreter is `python`, so every Run hit `spawn python3 ENOENT` and
+// the student saw a raw Node error instead of their program's output. Probe the
+// candidates for this platform once and reuse the answer.
+const INTERPRETER_CANDIDATES = {
+  python:
+    process.platform === "win32"
+      ? [["py", ["-3"]], ["python", []], ["python3", []]]
+      : [["python3", []], ["python", []]],
+  bash: process.platform === "win32" ? [["bash", []], ["sh", []]] : [["bash", []]],
+};
+
+const interpreterCache = new Map();
+
+function probe(cmd, args) {
+  return new Promise((resolve) => {
+    execFile(cmd, [...args, "--version"], { timeout: 5_000 }, (error) => resolve(!error));
+  });
+}
+
+async function resolveInterpreter(kind) {
+  if (interpreterCache.has(kind)) return interpreterCache.get(kind);
+  const promise = (async () => {
+    for (const [cmd, args] of INTERPRETER_CANDIDATES[kind] ?? []) {
+      if (await probe(cmd, args)) return { cmd, prefixArgs: args };
+    }
+    return null;
+  })();
+  interpreterCache.set(kind, promise);
+  return promise;
+}
+
 function getRunner(lang, id, dir, _code) {
   switch (lang) {
     case "python": {
       const file = join(dir, `wkai_${id}.py`);
-      return { file, cmd: "python3", args: [file] };
+      return { file, kind: "python", args: [file] };
     }
     case "javascript": {
       const file = join(dir, `wkai_${id}.js`);
@@ -69,7 +112,7 @@ function getRunner(lang, id, dir, _code) {
     }
     case "bash": {
       const file = join(dir, `wkai_${id}.sh`);
-      return { file, cmd: "bash", args: [file] };
+      return { file, kind: "bash", args: [file] };
     }
     default:
       throw new Error(`Unsupported language: ${lang}`);
@@ -96,6 +139,14 @@ function exec(cmd, args, timeoutMs) {
         resolve(out || "(no output)");
       }
     );
-    child.on("error", reject);
+    // A missing interpreter surfaces here as ENOENT. Reject-to-500 gave the
+    // student a bare "spawn <cmd> ENOENT"; say what actually went wrong.
+    child.on("error", (err) => {
+      if (err.code === "ENOENT") {
+        resolve(`Could not run: "${cmd}" was not found on the server's PATH.`);
+        return;
+      }
+      reject(err);
+    });
   });
 }

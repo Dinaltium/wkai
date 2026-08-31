@@ -11,6 +11,9 @@ export interface Session {
   status: SessionStatus;
   /** Signed session-ownership token — sent on the WS connection and end-session call. */
   instructorToken?: string;
+  /** Folder this session belongs to; its earlier sessions feed the AI's context. */
+  workspaceId?: string | null;
+  workspaceName?: string | null;
 }
 
 // ─── AI Guide Content ────────────────────────────────────────────────────────
@@ -81,6 +84,15 @@ export interface InstructorMessage {
   replied: boolean;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  ownerName?: string | null;
+  createdAt?: string;
+  sessionCount?: number;
+  lastSessionAt?: string;
+}
+
 export interface WebRtcOfferPayload {
   sdp: RTCSessionDescriptionInit;
   targetStudentId?: string;
@@ -135,6 +147,7 @@ export type WsEventType =
   | "webrtc-session-reset"
   | "webrtc-request-offer"
   | "student-list"
+  | "ai-frame-result"
   | "session-state";
 
 export interface WsEvent<T = unknown> {
@@ -156,6 +169,23 @@ export interface AppSettings {
   recordingFormat: "mp4" | "webm";
   captureFramerate: 15 | 24 | 30 | 60 | "auto";
   captureQuality: "low" | "medium" | "high" | "auto";
+  /** Periodic screen-frame → Groq vision → guide-block summarization. Costs an API call per frame. */
+  aiGuideBlocksEnabled: boolean;
+  /** Mic audio → Whisper transcription. Costs an API call per audio chunk. */
+  aiTranscriptionEnabled: boolean;
+  /** Input device name for transcription. Empty = system default. */
+  micDevice: string;
+}
+
+/**
+ * Per-session override of the AI/recording toggles above. Seeded from
+ * AppSettings when a session starts, then lives independently — flipping
+ * one off for "this session" never writes back to the global default.
+ */
+export interface SessionAiSettings {
+  aiGuideBlocksEnabled: boolean;
+  aiTranscriptionEnabled: boolean;
+  saveLocalRecording: boolean;
 }
 
 export interface RecordingState {

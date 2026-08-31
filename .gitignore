@@ -288,3 +288,10 @@ __pycache__/
 report-figures/
 WKAI_Project_Report*.docx
 FINAL REPORT*.docx
+
+# Report / deck binaries (local deliverables, not code)
+*.docx
+*.pptx
+*.pdf
+CAOS REPORT.docx
+WKAI_REPORT_REAL.*

@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use crate::native_capture::frame_pipeline::{CaptureFrame, FramePipeline};
@@ -16,6 +16,7 @@ pub struct CaptureManager {
     stop_flag: Arc<AtomicBool>,
     config: CaptureConfig,
     initialized: bool,
+    latest_frame: Arc<Mutex<Option<CaptureFrame>>>,
 }
 
 impl CaptureManager {
@@ -28,6 +29,7 @@ impl CaptureManager {
             stop_flag: Arc::new(AtomicBool::new(false)),
             config: CaptureConfig::default(),
             initialized: false,
+            latest_frame: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -118,6 +120,9 @@ impl CaptureManager {
 
         self.stop_flag = Arc::new(AtomicBool::new(false));
         self.config = config.clone();
+        // Fresh slot per session so a stale frame from a previous capture can
+        // never be returned to a client that just started pulling.
+        self.latest_frame = Arc::new(Mutex::new(None));
 
         // Start the capture backend (spawns its own thread internally).
         self.backend
@@ -131,6 +136,7 @@ impl CaptureManager {
             frame_rx,
             config,
             Arc::clone(&self.stop_flag),
+            Arc::clone(&self.latest_frame),
         );
         self.pipeline_handle = Some(pipeline);
 
@@ -163,6 +169,14 @@ impl CaptureManager {
             .as_ref()
             .map(|b| b.get_status())
             .unwrap_or_default())
+    }
+
+    /// Take the most recently captured frame, if any. Pull-based: the caller
+    /// (a Tauri command invoked by the frontend's render loop) decides when it
+    /// is ready for another frame, so the display can never fall behind a
+    /// growing backlog — it only ever sees "what's true right now".
+    pub fn take_latest_frame(&self) -> Option<CaptureFrame> {
+        self.latest_frame.lock().ok().and_then(|mut slot| slot.take())
     }
 
     /// Get current capture metrics.

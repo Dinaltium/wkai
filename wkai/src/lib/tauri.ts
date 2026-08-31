@@ -7,13 +7,15 @@ export async function createSession(
   instructorName: string,
   workshopTitle: string,
   backendUrl: string,
-  sessionPassword?: string
+  sessionPassword?: string,
+  workspaceName?: string
 ): Promise<Session> {
   return invoke<Session>("create_session", {
     instructorName,
     workshopTitle,
     backendUrl,
     sessionPassword,
+    workspaceName: workspaceName || null,
   });
 }
 
@@ -54,6 +56,27 @@ export async function listWatchedFiles(
 
 export async function captureScreen(): Promise<string> {
   return invoke<string>("capture_screen");
+}
+
+// ─── Audio Commands ───────────────────────────────────────────────────────────
+// Mic → 30s WAV chunks emitted as "audio-chunk" events, which useTauriEvents
+// forwards to Whisper. Separate from the mic track added to the WebRTC stream:
+// that one is for students to hear, this one is for transcription.
+
+export async function listAudioInputDevices(): Promise<string[]> {
+  return invoke<string[]>("list_audio_input_devices");
+}
+
+/** Resolves to the name of the input device actually opened. */
+export async function startAudioCapture(
+  sessionId: string,
+  deviceName?: string
+): Promise<string> {
+  return invoke<string>("start_audio_capture", { sessionId, deviceName: deviceName || null });
+}
+
+export async function stopAudioCapture(): Promise<void> {
+  return invoke("stop_audio_capture");
 }
 
 // ─── Native Recording (Phase 1a: FFmpeg-driven) ───────────────────────────────

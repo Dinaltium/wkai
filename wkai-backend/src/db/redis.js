@@ -1,6 +1,11 @@
 import { createClient } from "redis";
 
-const STUDENT_SET_TTL_SECONDS = 86_400; // 24h — matches session data TTL
+// Sessions are not all one afternoon: a course or bootcamp can keep the same
+// room open for days. A 24-hour TTL expired the room's Redis state underneath a
+// session that was still running, which reset student counts and dropped the
+// session snapshot mid-workshop.
+const SESSION_TTL_SECONDS = 604_800;    // 7 days
+const STUDENT_SET_TTL_SECONDS = 604_800; // matches session data TTL
 
 export const redis = createClient({
   url: process.env.REDIS_URL ?? "redis://localhost:6379",
@@ -30,11 +35,11 @@ export async function connectRedis() {
 
 // ─── Convenience helpers ──────────────────────────────────────────────────────
 
-/** Store session room data with a 24-hour TTL */
+/** Store session room data for the lifetime of a multi-day workshop. */
 export async function setSessionData(sessionId, data) {
   await redis.setEx(
     `session:${sessionId}`,
-    86_400, // 24 hours
+    SESSION_TTL_SECONDS,
     JSON.stringify(data)
   );
 }

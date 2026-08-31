@@ -15,22 +15,38 @@ export function AITest() {
     addDebugLog("AI test started...", "info");
 
     try {
-      addDebugLog("Sending test prompt to AI pipeline...", "info");
-      const res = await fetch(`${settings.backendUrl}/api/ai/diagnose`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          errorMessage:
-            "TEST_PROBE: Hello, this is an AI connectivity test. Please confirm you are operational.",
-        }),
-      });
+      // Query real agent health (config + observed error rate), not the LLM
+      // itself. Feeding a fake "TEST_PROBE" string through /api/ai/diagnose
+      // asked the DebugAgent's LLM to diagnose an error with no actual code
+      // behind it — it would hallucinate a plausible-sounding but fabricated
+      // diagnosis (e.g. "missing credentials") instead of confirming
+      // connectivity, which read as a real problem when it wasn't one.
+      addDebugLog("Checking AI agent health...", "info");
+      const res = await fetch(`${settings.backendUrl}/api/ai/agents`);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      const agents: Array<{ name: string; status: string; detail?: string }> =
+        data.health ?? [];
 
-      addDebugLog(`AI responded: ${String(data.diagnosis ?? "no diagnosis").slice(0, 80)}`, "success");
-      setResult("success");
-      setMessage("AI pipeline is operational and responding.");
+      const unhealthy = agents.filter((a) => a.status !== "healthy" && a.status !== "disabled");
+
+      agents.forEach((a) => {
+        addDebugLog(
+          `${a.name}: ${a.status}${a.detail ? ` — ${a.detail}` : ""}`,
+          a.status === "healthy" || a.status === "disabled" ? "info" : "error"
+        );
+      });
+
+      if (unhealthy.length > 0) {
+        setResult("error");
+        setMessage(
+          `${unhealthy.length} agent(s) not healthy: ${unhealthy.map((a) => a.name).join(", ")}. Check debug console for details.`
+        );
+      } else {
+        setResult("success");
+        setMessage("AI pipeline is operational and responding.");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       addDebugLog(`AI test failed: ${msg}`, "error");

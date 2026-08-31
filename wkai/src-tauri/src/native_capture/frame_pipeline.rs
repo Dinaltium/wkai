@@ -1,10 +1,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use tauri::Emitter;
 
 use crate::native_capture::events::*;
@@ -30,15 +28,22 @@ pub struct FramePipeline;
 impl FramePipeline {
     /// Spawn the pipeline thread.  Returns its `JoinHandle`.
     ///
-    /// * `app_handle` – used to emit events to the frontend.
-    /// * `frame_rx`   – receiving end of the capture-backend channel.
-    /// * `_config`    – capture config (reserved for future use in the pipeline).
-    /// * `stop_flag`  – shared flag; when set to `true` the pipeline drains and exits.
+    /// * `app_handle`   – used to emit status/metrics events to the frontend.
+    /// * `frame_rx`     – receiving end of the capture-backend channel.
+    /// * `_config`      – capture config (reserved for future use in the pipeline).
+    /// * `stop_flag`    – shared flag; when set to `true` the pipeline drains and exits.
+    /// * `latest_frame` – overwritten with each frame instead of pushed as an
+    ///   event. Frame delivery to the frontend is pull-based (`get_latest_frame`
+    ///   command): a push-per-frame event has no backpressure once it enters the
+    ///   webview's IPC queue, so a frontend that falls behind for even a moment
+    ///   ends up replaying a growing backlog of stale frames instead of catching
+    ///   up to the current one.
     pub fn start(
         app_handle: tauri::AppHandle,
         frame_rx: flume::Receiver<CaptureFrame>,
         _config: CaptureConfig,
         stop_flag: Arc<AtomicBool>,
+        latest_frame: Arc<Mutex<Option<CaptureFrame>>>,
     ) -> JoinHandle<()> {
         std::thread::Builder::new()
             .name("capture-pipeline".into())
@@ -74,20 +79,11 @@ impl FramePipeline {
                     fps_counter += 1;
                     last_frame_size = frame.jpeg_data.len() as u64;
 
-                    // Base64-encode the JPEG data.
-                    let b64 = BASE64_STANDARD.encode(&frame.jpeg_data);
-
-                    let payload = FramePayload {
-                        data: b64,
-                        width: frame.width,
-                        height: frame.height,
-                        timestamp: frame.timestamp_ms,
-                    };
-
-                    // Emit the frame event — if it fails we count it as a drop.
-                    if let Err(e) = app_handle.emit(CAPTURE_FRAME_EVENT, &payload) {
-                        log::warn!("[FramePipeline] failed to emit frame event: {e}");
-                        dropped_frames += 1;
+                    // Overwrite the latest frame — base64 encoding happens lazily
+                    // in the `get_latest_frame` command, only for frames the
+                    // frontend actually pulls, instead of on every captured frame.
+                    if let Ok(mut slot) = latest_frame.lock() {
+                        *slot = Some(frame);
                     }
 
                     // Update FPS rolling window (~1 second).

@@ -30,13 +30,22 @@ export async function processScreenFrame(sessionId, frameB64, transcript) {
     // 3. Parse and validate the response
     const result = await fixingScreenParser.parse(response.content);
 
+    // The model routinely returns usable guide blocks while still flagging
+    // isInstructional: false — an app window or a browser tab being *taught
+    // from* trips the "idle/browser/desktop" rule in the prompt. Gating on the
+    // boolean therefore threw away every block on a real workshop screen and
+    // the guide stayed empty forever. Blocks are the actual product, so they
+    // decide: the boolean only matters when there is nothing to show anyway.
+    const hasContent = result.guideBlocks.length > 0;
+
     // 4. Update memory if the AI generated instructional content
-    if (result.isInstructional && result.summary) {
+    if (hasContent && result.summary) {
       await memory.addTeachingContext(result.summary);
     }
 
     return {
-      guideBlocks: result.isInstructional ? result.guideBlocks : [],
+      isInstructional: result.isInstructional,
+      guideBlocks: hasContent ? result.guideBlocks : [],
       comprehensionQuestion: result.comprehensionQuestion,
       summary: result.summary,
     };

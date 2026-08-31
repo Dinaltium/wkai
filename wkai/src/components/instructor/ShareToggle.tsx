@@ -2,7 +2,9 @@ import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 
 export function ShareToggle() {
-  const { streamingToStudents, setStreamingToStudents } = useAppStore();
+  const { streamingToStudents, setStreamingToStudents, settings, sessionAiSettings } = useAppStore();
+  // Effective state: session override once initialized, global default before that.
+  const autoSaving = sessionAiSettings?.saveLocalRecording ?? settings.saveLocalRecording;
 
   function handleToggle() {
     const next = !streamingToStudents;
@@ -41,6 +43,14 @@ export function ShareToggle() {
           ? "Students see a live preview of your screen."
           : "Students only receive guide blocks, not your screen."}
       </p>
+      {/* Without this it silently writes every capture to disk with no other
+          indicator anywhere in this view. Reflects the effective (session
+          override, if set) state, not just the global default. */}
+      {autoSaving && (
+        <p className="text-[10px] text-amber-400 flex items-center gap-1">
+          ● Auto-saving to disk this session
+        </p>
+      )}
     </div>
   );
 }
