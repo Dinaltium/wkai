@@ -1,15 +1,8 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useStore } from "../store";
+import { getBackendWsUrl } from "../lib/api";
 import type { WsMessage, Session, GuideBlock, ComprehensionQuestion, SharedFile, ErrorResolution, ChatMessage } from "../types";
 
-function getBackendWs(): string {
-  let wsUrl = (import.meta.env.VITE_BACKEND_WS ?? "ws://localhost:4000").trim();
-  if (!/^wss?:\/\//i.test(wsUrl)) {
-    wsUrl = wsUrl.replace(/^https?:\/\//i, "");
-    wsUrl = `ws://${wsUrl}`;
-  }
-  return wsUrl;
-}
 
 export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);
@@ -24,7 +17,7 @@ export function useRoomSocket(roomCode: string) {
       console.error("[WS] No join token — cannot connect. Rejoin the room.");
       return;
     }
-    const url = `${getBackendWs()}/ws?token=${encodeURIComponent(joinToken)}`;
+    const url = `${getBackendWsUrl()}/ws?token=${encodeURIComponent(joinToken)}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
