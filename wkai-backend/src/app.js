@@ -8,6 +8,7 @@ import { aiRouter } from "./routes/ai.js";
 import { filesRouter } from "./routes/files.js";
 import { runnerRouter } from "./routes/runner.js";
 import { workspaceRouter } from "./routes/workspaces.js";
+import { webrtcRouter } from "./routes/webrtc.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { debugLog, debugEnabled } from "./utils/debug.js";
 
@@ -92,6 +93,7 @@ app.use("/api/ai", aiRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/run", runnerRouter);
 app.use("/api/workspaces", workspaceRouter);
+app.use("/api/webrtc", webrtcRouter);
 
 // ─── Error Handler ────────────────────────────────────────────────────────────
 

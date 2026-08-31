@@ -1,31 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WebRtcIceCandidatePayload, WebRtcOfferPayload } from "../types";
 import { useStore } from "../store";
-
-// See useWebRtcPublisher.ts on the instructor side for why TURN is needed
-// here — STUN-only gathering left only an unresolvable mDNS host candidate
-// and a public-IP srflx candidate with no NAT-hairpin path, confirmed via
-// candidate logging.
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443?transport=tcp",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-  ],
-};
+import { getRtcConfig } from "../lib/ice";
 
 export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -58,7 +34,7 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
       if (!payload?.sdp) return;
 
       closePeer();
-      const peer = new RTCPeerConnection(RTC_CONFIG);
+      const peer = new RTCPeerConnection(await getRtcConfig());
       peerRef.current = peer;
 
       peer.onicecandidate = (iceEvent) => {

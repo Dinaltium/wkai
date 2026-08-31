@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useAppStore } from "../store";
+import { getRtcConfig } from "../lib/ice";
 import type {
   WebRtcAnswerPayload,
   WebRtcIceCandidatePayload,
@@ -10,33 +11,6 @@ import type {
 type WsSend = <T>(type: WsEventType | string, payload: T) => void;
 type WsOn = <T>(type: WsEventType, handler: (payload: T) => void) => void;
 type WsOff = (type: WsEventType) => void;
-
-// STUN alone gave ICE exactly two candidate types: a host candidate as an
-// mDNS `.local` name (often unresolvable across processes/firewalls) and a
-// server-reflexive candidate at the public IP (fails without NAT hairpin
-// support, which most routers lack). With neither reachable and no relay
-// fallback, ICE had nothing left to try — confirmed via onicecandidate
-// logging, not guessed. A TURN relay is the actual fix.
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443?transport=tcp",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-  ],
-};
 
 /// Upper bound for the outgoing screen share. Desktop content at native
 /// resolution needs far more headroom than the browser's default ramp.
@@ -103,7 +77,7 @@ export function useWebRtcPublisher(
       return;
     }
     pendingOffersRef.current.delete(studentId);
-    const peer = new RTCPeerConnection(RTC_CONFIG);
+    const peer = new RTCPeerConnection(await getRtcConfig());
     peersRef.current.set(studentId, peer);
 
     stream.getTracks().forEach((track) => {
