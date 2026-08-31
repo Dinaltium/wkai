@@ -41,6 +41,7 @@ export function useNativeCapture() {
   const capturingRef = useRef(false);
   const lastFrameTimestampRef = useRef(0);
   const pumpActiveRef = useRef(false);
+  const pumpTimerRef = useRef<number | null>(null);
 
   // Attach canvas for rendering
   const attachCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -84,12 +85,37 @@ export function useNativeCapture() {
     });
   }, []);
 
+  // Pushes the just-drawn canvas contents into the outgoing track. Only
+  // CanvasCaptureMediaStreamTrack has requestFrame, and only a stream created
+  // with captureStream(0) needs it.
+  const requestTrackFrame = useCallback(() => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const [track] = stream.getVideoTracks();
+    const canvasTrack = track as CanvasCaptureMediaStreamTrack | undefined;
+    if (canvasTrack && typeof canvasTrack.requestFrame === "function") {
+      canvasTrack.requestFrame();
+    }
+  }, []);
+
   // Creates the captureStream on the first drawn frame and releases anyone
   // waiting in getStream(). Deliberately not created before a frame exists —
   // an empty canvas yields a track WebRTC will not negotiate against.
+  //
+  // captureStream(0) rather than captureStream(fps): an fps argument ties frame
+  // production to the page painting, and this canvas is deliberately mounted
+  // 1x1 and transparent, in a window the instructor is expected to minimise
+  // while they teach. Under those conditions the browser stops compositing and
+  // the track quietly stops emitting — the desktop equivalent of the camera
+  // being unplugged, with no error anywhere. With 0 we own frame production
+  // and push each captured frame explicitly via requestFrame().
   const publishStream = useCallback((canvas: HTMLCanvasElement) => {
-    if (streamRef.current) return;
-    streamRef.current = canvas.captureStream(targetFpsRef.current);
+    if (streamRef.current) {
+      requestTrackFrame();
+      return;
+    }
+    streamRef.current = canvas.captureStream(0);
+    requestTrackFrame();
     const waiters = onStreamReadyRef.current;
     onStreamReadyRef.current = [];
     waiters.forEach((resolve) => resolve(streamRef.current!));
@@ -167,10 +193,18 @@ export function useNativeCapture() {
               decodingRef.current = false;
             });
         }
-        window.requestAnimationFrame(pumpTick);
       };
+
+      // A timer, not requestAnimationFrame. rAF does not fire while the window
+      // is minimised or fully occluded, which is the normal state of this app
+      // during a workshop — the instructor is looking at the thing being
+      // captured, not at WKAI. On rAF the pull loop stopped there, the canvas
+      // stopped being drawn, and the outgoing track went silent while capture
+      // and the AI screen-frame path both carried on working, which is why
+      // this looked like a WebRTC fault rather than a paint one.
       pumpActiveRef.current = true;
-      window.requestAnimationFrame(pumpTick);
+      const pumpIntervalMs = Math.max(16, Math.round(1000 / (targetFpsRef.current || 30)));
+      pumpTimerRef.current = window.setInterval(pumpTick, pumpIntervalMs);
 
       // Listen to status events
       const unStatus = await listen<CaptureStatus>(
@@ -208,6 +242,10 @@ export function useNativeCapture() {
 
     return () => {
       pumpActiveRef.current = false;
+      if (pumpTimerRef.current !== null) {
+        window.clearInterval(pumpTimerRef.current);
+        pumpTimerRef.current = null;
+      }
       unlisteners.forEach((fn) => fn());
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
