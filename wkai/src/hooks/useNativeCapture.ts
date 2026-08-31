@@ -202,9 +202,21 @@ export function useNativeCapture() {
       // stopped being drawn, and the outgoing track went silent while capture
       // and the AI screen-frame path both carried on working, which is why
       // this looked like a WebRTC fault rather than a paint one.
+      //
+      // Self-rescheduling rather than a fixed setInterval so the selected
+      // framerate is read every tick: getStream() sets it after this loop has
+      // already started, and the instructor can change it mid-session.
+      const scheduleNextPump = () => {
+        if (!pumpActiveRef.current) return;
+        const fps = targetFpsRef.current || 30;
+        const delay = Math.max(8, Math.round(1000 / fps));
+        pumpTimerRef.current = window.setTimeout(() => {
+          pumpTick();
+          scheduleNextPump();
+        }, delay);
+      };
       pumpActiveRef.current = true;
-      const pumpIntervalMs = Math.max(16, Math.round(1000 / (targetFpsRef.current || 30)));
-      pumpTimerRef.current = window.setInterval(pumpTick, pumpIntervalMs);
+      scheduleNextPump();
 
       // Listen to status events
       const unStatus = await listen<CaptureStatus>(
@@ -243,7 +255,7 @@ export function useNativeCapture() {
     return () => {
       pumpActiveRef.current = false;
       if (pumpTimerRef.current !== null) {
-        window.clearInterval(pumpTimerRef.current);
+        window.clearTimeout(pumpTimerRef.current);
         pumpTimerRef.current = null;
       }
       unlisteners.forEach((fn) => fn());
