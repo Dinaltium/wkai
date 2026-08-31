@@ -68,8 +68,17 @@ export function JoinPage() {
       setSharedFiles(data.sharedFiles);
       navigate(`/room/${roomCode}`, { replace: true });
     } catch (err) {
-      const msg = axios.isAxiosError(err) ? err.response?.data?.error : undefined;
-      setError(msg || "Room not found. Check the code and try again.");
+      if (axios.isAxiosError(err)) {
+        if (err.response?.data?.error) {
+          setError(err.response.data.error);
+        } else if (!err.response) {
+          setError("Cannot reach backend server. Please check that the backend is running and the URL is correct.");
+        } else {
+          setError("Room not found. Check the code and try again.");
+        }
+      } else {
+        setError("Room not found. Check the code and try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -1,8 +1,15 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useStore } from "../store";
-import type { WsMessage, Session, GuideBlock, ComprehensionQuestion, SharedFile, ErrorResolution } from "../types";
+import type { WsMessage, Session, GuideBlock, ComprehensionQuestion, SharedFile, ErrorResolution, ChatMessage } from "../types";
 
-const BACKEND_WS = import.meta.env.VITE_BACKEND_WS ?? "ws://localhost:4000";
+function getBackendWs(): string {
+  let wsUrl = (import.meta.env.VITE_BACKEND_WS ?? "ws://localhost:4000").trim();
+  if (!/^wss?:\/\//i.test(wsUrl)) {
+    wsUrl = wsUrl.replace(/^https?:\/\//i, "");
+    wsUrl = `ws://${wsUrl}`;
+  }
+  return wsUrl;
+}
 
 export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);
@@ -17,7 +24,7 @@ export function useRoomSocket(roomCode: string) {
       console.error("[WS] No join token — cannot connect. Rejoin the room.");
       return;
     }
-    const url = `${BACKEND_WS}/ws?token=${encodeURIComponent(joinToken)}`;
+    const url = `${getBackendWs()}/ws?token=${encodeURIComponent(joinToken)}`;
     ws.current = new WebSocket(url);
 
     ws.current.onopen = () => {
@@ -49,7 +56,7 @@ export function useRoomSocket(roomCode: string) {
   function dispatch(msg: WsMessage) {
     switch (msg.type) {
       case "session-state": {
-        const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[]; studentCount?: number; instructorOnline?: boolean };
+        const p = msg.payload as { session: Session; guideBlocks: GuideBlock[]; sharedFiles: SharedFile[]; chatMessages?: ChatMessage[]; studentCount?: number; instructorOnline?: boolean };
         useStore.getState().setSession(p.session);
         // Only replace from fields the server actually sent. Defaulting to []
         // meant an older server (or any payload missing these) silently wiped
@@ -59,6 +66,9 @@ export function useRoomSocket(roomCode: string) {
         if (typeof p.studentCount === "number") {
           useStore.getState().setStudentCount(p.studentCount);
         }
+        // Same reasoning as the guide and shared files above: the Q&A thread
+        // only lived in client memory, so a reload lost every question asked.
+        if (p.chatMessages) useStore.getState().setChatMessages(p.chatMessages);
         if (typeof p.instructorOnline === "boolean" && !useStore.getState().sessionEnded) {
           useStore.getState().setInstructorOffline(!p.instructorOnline);
         }
@@ -77,6 +87,31 @@ export function useRoomSocket(roomCode: string) {
       case "student-left":
         useStore.getState().setStudentCount((msg.payload as { count: number }).count);
         break;
+      case "student-message": {
+        // Server ack for our own question — clears the optimistic "Sending…"
+        // state on the bubble we already rendered locally.
+        const p = msg.payload as { messageId: string };
+        useStore.getState().updateChatMessage(p.messageId, { pending: false });
+        break;
+      }
+      case "instructor-reply":
+      case "ai-reply": {
+        const p = msg.payload as { messageId: string; reply: string; timestamp?: string };
+        useStore.getState().updateChatMessage(p.messageId, { pending: false });
+        useStore.getState().addChatMessage({
+          id: `${p.messageId}_reply`,
+          role: msg.type === "ai-reply" ? "ai" : "instructor",
+          text: p.reply,
+          timestamp: p.timestamp ?? new Date().toISOString(),
+        });
+        break;
+      }
+      case "colab-assist-response": {
+        const p = msg.payload as { advice: string; followUpQuestions?: string[] };
+        useStore.getState().setColabAdvice(p.advice);
+        useStore.getState().setColabFollowUps(p.followUpQuestions ?? []);
+        break;
+      }
       case "error-resolved":
         useStore.getState().setResolution(msg.payload as ErrorResolution);
         break;

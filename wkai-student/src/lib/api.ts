@@ -2,11 +2,15 @@ import axios from "axios";
 import type { Session, GuideBlock, SharedFile } from "../types";
 
 function getBackendUrl(): string {
-  return (
+  let url = (
     sessionStorage.getItem('wkai_backend_url') ??
     import.meta.env.VITE_BACKEND_URL ??
     'http://localhost:4000'
-  );
+  ).trim();
+  if (url && !/^https?:\/\//i.test(url)) {
+    url = `http://${url}`;
+  }
+  return url;
 }
 
 const api = axios.create({ baseURL: getBackendUrl() });
