@@ -27,7 +27,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
     outputs:
-      committed: ${{ steps.commit.outputs.committed }}
+      tagged: ${{ steps.tag.outputs.tagged }}
       version: ${{ steps.version.outputs.value }}
 
     steps:
@@ -62,8 +62,21 @@ jobs:
             echo "value=patch" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve base version from newest release tag
+        id: base
+        shell: bash
+        run: |
+          git fetch --tags --force
+          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST" ]; then
+            LATEST="v$(node -p "require('./wkai/package.json').version")"
+            echo "No v* tags found, falling back to package.json version $LATEST"
+          fi
+          echo "Newest release tag: $LATEST"
+          echo "value=$LATEST" >> "$GITHUB_OUTPUT"
+
       - name: Bump app version
-        run: node ./scripts/bump-version.mjs "${{ steps.bump.outputs.value }}"
+        run: node ./scripts/bump-version.mjs "${{ steps.bump.outputs.value }}" --from "${{ steps.base.outputs.value }}"
         working-directory: wkai
 
       - name: Read bumped version
@@ -80,28 +93,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add wkai/package.json wkai/src-tauri/tauri.conf.json wkai/src-tauri/Cargo.toml wkai/src-tauri/Cargo.lock wkai/package-lock.json
-          if git diff --cached --quiet; then
-            echo "committed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           git commit -m "chore(release): bump app version to v${{ steps.version.outputs.value }} [skip release]"
-          echo "committed=true" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
-        if: steps.commit.outputs.committed == 'true'
+        id: tag
         shell: bash
         run: |
-          if git rev-parse "v${{ steps.version.outputs.value }}" >/dev/null 2>&1; then
-            echo "Tag v${{ steps.version.outputs.value }} already exists, skipping."
-            exit 0
+          TAG="v${{ steps.version.outputs.value }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists - refusing to overwrite an existing release."
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
-          git tag "v${{ steps.version.outputs.value }}"
+          git tag "$TAG"
           git push origin HEAD:refs/heads/${RELEASE_BRANCH} --force
-          git push origin "v${{ steps.version.outputs.value }}"
+          git push origin "$TAG"
+          echo "tagged=true" >> "$GITHUB_OUTPUT"
 
   build-release:
     needs: bump-and-tag
-    if: needs.bump-and-tag.outputs.committed == 'true'
+    if: needs.bump-and-tag.outputs.tagged == 'true'
     env:
       HAS_TAURI_SIGNING: ${{ secrets.TAURI_PRIVATE_KEY != '' && secrets.TAURI_KEY_PASSWORD != '' }}
     strategy:

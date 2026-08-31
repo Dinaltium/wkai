@@ -11,8 +11,23 @@ const tauriConfigPath = path.join(root, "src-tauri", "tauri.conf.json");
 const cargoTomlPath = path.join(root, "src-tauri", "Cargo.toml");
 
 const cliArgs = process.argv.slice(2);
-const bumpType = cliArgs.find((arg) => !arg.startsWith("-")) ?? "patch";
-const dryRun = process.argv.includes("--dry-run");
+const dryRun = cliArgs.includes("--dry-run");
+
+// --from <version> / --from=<version> overrides the base version we bump from.
+// CI passes the newest released tag here so the next version never depends on
+// whatever version happens to sit on the checked-out branch.
+const fromInline = cliArgs.find((arg) => arg.startsWith("--from="));
+const fromIndex = cliArgs.indexOf("--from");
+const fromVersion = fromInline
+  ? fromInline.slice("--from=".length).replace(/^v/, "")
+  : fromIndex !== -1 && cliArgs[fromIndex + 1]
+    ? cliArgs[fromIndex + 1].replace(/^v/, "")
+    : undefined;
+
+const positional = cliArgs.filter(
+  (arg, i) => !arg.startsWith("-") && !(fromIndex !== -1 && i === fromIndex + 1)
+);
+const bumpType = positional[0] ?? "patch";
 
 if (!["patch", "minor", "major"].includes(bumpType)) {
   console.error(`Invalid bump type: ${bumpType}. Use patch, minor, or major.`);
@@ -79,7 +94,11 @@ if (packageVersion !== tauriVersion || tauriVersion !== cargoVersion) {
   );
 }
 
-const baseVersion = tauriVersion;
+const baseVersion = fromVersion ?? tauriVersion;
+if (fromVersion) {
+  parseSemver(fromVersion);
+  console.log(`Using base version from --from: ${fromVersion}`);
+}
 const nextVersion = bumpSemver(baseVersion, bumpType);
 
 packageJson.version = nextVersion;
