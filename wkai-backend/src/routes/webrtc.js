@@ -31,6 +31,20 @@ function buildIceServers() {
 
   if (turnUrls.length && username && credential) {
     servers.push({ urls: turnUrls, username, credential });
+  } else {
+    // No configured relay. Keep the public openrelay project as a last resort
+    // rather than dropping to STUN-only: it costs nothing to offer, and a peer
+    // with no direct path has no other option. It is a shared free service, so
+    // treat it as best-effort, not as a substitute for real TURN credentials.
+    servers.push({
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    });
   }
 
   return servers;
@@ -38,13 +52,16 @@ function buildIceServers() {
 
 webrtcRouter.get("/ice", (_req, res) => {
   const iceServers = buildIceServers();
+  const hasConfiguredTurn = Boolean(
+    process.env.TURN_URL && process.env.TURN_USERNAME && process.env.TURN_PASSWORD
+  );
   const hasTurn = iceServers.some((s) =>
     (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => u.startsWith("turn:") || u.startsWith("turns:"))
   );
-  if (!hasTurn) {
+  if (!hasConfiguredTurn) {
     // Worth saying out loud: without a relay, any pair that cannot reach each
     // other directly will fail ICE with no other symptom than silence.
-    console.warn("[WebRTC] No TURN configured (TURN_URL/TURN_USERNAME/TURN_PASSWORD) — relay-only peers will fail");
+    console.warn("[WebRTC] No TURN configured (TURN_URL/TURN_USERNAME/TURN_PASSWORD) — falling back to the shared public relay, which is best-effort");
   }
   res.json({ iceServers, hasTurn });
 });
