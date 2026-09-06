@@ -221,12 +221,19 @@ Unit tests need nothing running:
 npm run test:unit
 ```
 
-The end-to-end suites boot their own stack — throwaway Postgres and Redis on
-their own ports, a backend, and the student app — so they never touch the one
-you have running for development. Docker is required.
+The end-to-end suites boot their own stack — Postgres and Redis, a backend, and
+the student app — so they never touch the one you have running for development.
 
 ```bash
 npm run test:e2e
+```
+
+With Docker installed, the datastores are throwaway containers on their own
+ports and you need to configure nothing. Without it, point the suites at a
+scratch database and a Redis you already have:
+
+```bash
+WKAI_E2E_DATABASE_URL=postgres://user:pass@host/wkai_e2e WKAI_E2E_REDIS_URL=redis://host:6379 npm run test:e2e
 ```
 
 Everything at once:

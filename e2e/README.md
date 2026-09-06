@@ -12,8 +12,33 @@ need nothing running. These do the opposite: they exercise the wire.
 
 ## Requirements
 
-- **Docker** with the compose plugin — the backend needs Postgres and Redis.
+- **Postgres and Redis.** The backend connects to both before it accepts
+  traffic, so there is no running it without them. Two ways to supply them —
+  see below.
 - **Chromium for Playwright**, once: `npm run test:e2e:install`.
+
+### Supplying Postgres and Redis
+
+**Default — Docker.** With Docker and its compose plugin installed, the harness
+starts throwaway containers and removes them afterwards. Nothing to configure,
+and the test database cannot outlive the run.
+
+**Without Docker — bring your own.** Set both variables and the harness skips
+Docker entirely:
+
+```bash
+WKAI_E2E_DATABASE_URL=postgres://user:pass@host/wkai_e2e WKAI_E2E_REDIS_URL=redis://host:6379 npm run test:e2e
+```
+
+Either both are set or neither is; half a stack from each source fails loudly
+rather than half-working.
+
+Point these at a **scratch** database. The suites create and end real sessions,
+so they leave rows behind, and running them against the database in
+`wkai-backend/.env` would mix test sessions into your development data. A
+separate Neon branch or database costs nothing and keeps them apart. The schema
+is applied on startup with `CREATE ... IF NOT EXISTS` migrations, so an empty
+database is all that is needed.
 
 ## Running
 

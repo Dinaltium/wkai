@@ -47,6 +47,29 @@ export const BACKEND_WS_URL = `ws://127.0.0.1:${PORTS.backend}/ws`;
 export const STUDENT_URL = `http://127.0.0.1:${PORTS.student}`;
 
 /**
+ * Datastores the suites run against.
+ *
+ * By default the harness starts throwaway containers, which is the only way to
+ * guarantee a clean schema and leave the developer's own data alone. Docker is
+ * not universal though — this repo's own .env points at a hosted Neon
+ * database — so setting both WKAI_E2E_DATABASE_URL and WKAI_E2E_REDIS_URL
+ * skips Docker entirely and runs against whatever they name.
+ *
+ * Both are required together: half a stack from each source would be a
+ * confusing way to fail.
+ */
+const externalDatabaseUrl = process.env.WKAI_E2E_DATABASE_URL?.trim();
+const externalRedisUrl = process.env.WKAI_E2E_REDIS_URL?.trim();
+export const USING_EXTERNAL_DATASTORES = Boolean(externalDatabaseUrl && externalRedisUrl);
+
+if (Boolean(externalDatabaseUrl) !== Boolean(externalRedisUrl)) {
+  throw new Error(
+    "Set both WKAI_E2E_DATABASE_URL and WKAI_E2E_REDIS_URL, or neither. " +
+      "With neither, the harness starts throwaway containers with Docker."
+  );
+}
+
+/**
  * Environment the backend under test runs with.
  *
  * GROQ_API_KEY carries a placeholder because src/ai/groqClient.js constructs
@@ -57,8 +80,9 @@ export const STUDENT_URL = `http://127.0.0.1:${PORTS.student}`;
 export const BACKEND_ENV = {
   NODE_ENV: "test",
   PORT: String(PORTS.backend),
-  DATABASE_URL: `postgres://wkai:wkai_password@127.0.0.1:${PORTS.postgres}/wkai_e2e`,
-  REDIS_URL: `redis://127.0.0.1:${PORTS.redis}`,
+  DATABASE_URL:
+    externalDatabaseUrl ?? `postgres://wkai:wkai_password@127.0.0.1:${PORTS.postgres}/wkai_e2e`,
+  REDIS_URL: externalRedisUrl ?? `redis://127.0.0.1:${PORTS.redis}`,
   STUDENT_JOIN_TOKEN_SECRET: "e2e-only-signing-secret-not-used-anywhere-else",
   GROQ_API_KEY: "e2e-placeholder-no-ai-route-is-exercised",
   CORS_ALLOWED_ORIGINS: STUDENT_URL,
@@ -143,14 +167,29 @@ export function assertDockerAvailable() {
   const probe = spawnSync(binary("docker"), ["compose", "version"], { stdio: "ignore" });
   if (probe.status !== 0) {
     throw new Error(
-      "Docker (with the compose plugin) is required for the end-to-end suites — " +
-        "the backend needs Postgres and Redis. Start Docker Desktop and retry."
+      "The backend needs Postgres and Redis, and Docker (with the compose plugin) " +
+        "is how this harness supplies them. Either start Docker Desktop, or point " +
+        "the suites at datastores you already have by setting both " +
+        "WKAI_E2E_DATABASE_URL and WKAI_E2E_REDIS_URL. See e2e/README.md."
     );
   }
 }
 
-/** Brings up the throwaway Postgres/Redis and applies the schema. */
+/** Brings up the Postgres/Redis the suites will use, and applies the schema. */
 export async function startDatabases() {
+  if (USING_EXTERNAL_DATASTORES) {
+    // The schema still has to exist; every migration is CREATE ... IF NOT
+    // EXISTS, so this is safe to run against a database that already has it.
+    log("using the datastores named by WKAI_E2E_DATABASE_URL / WKAI_E2E_REDIS_URL");
+    log("NOTE: tests create and end real sessions in that database — point it at a scratch one");
+    run(process.execPath, ["src/db/migrate.js"], {
+      cwd: BACKEND_DIR,
+      env: BACKEND_ENV,
+      label: "schema migration",
+    });
+    return;
+  }
+
   assertDockerAvailable();
   log("starting throwaway postgres + redis");
   // --wait blocks on the healthchecks; older compose builds lack it, so fall
@@ -225,10 +264,10 @@ export function stopProcesses() {
   children.clear();
 }
 
-/** Stops processes and removes the containers and their data. */
+/** Stops processes and, unless the datastores are external, removes them too. */
 export function stopStack({ keepDatabases = false } = {}) {
   stopProcesses();
-  if (keepDatabases) return;
+  if (keepDatabases || USING_EXTERNAL_DATASTORES) return;
   log("removing throwaway containers");
   spawnSync(binary("docker"), composeArgs("down", "-v"), { stdio: "inherit" });
 }
