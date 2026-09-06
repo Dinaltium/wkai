@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Markdown } from "../shared/Markdown";
 import { useStore } from "../../store";
 import type { GuideBlock } from "../../types";
 import { clsx } from "clsx";
@@ -110,7 +111,7 @@ function GuideCard({ block, index }: { block: GuideBlock; index: number }) {
         <h3 className="text-sm font-semibold leading-snug text-wkai-text">{block.title}</h3>
       )}
 
-      <p className="max-w-[70ch] text-sm leading-relaxed text-wkai-text">{block.content}</p>
+      <Markdown className="max-w-[70ch] text-sm leading-relaxed text-wkai-text" text={block.content} />
 
       {block.code && <CodeBlock code={block.code} language={block.language} />}
     </article>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Markdown } from "../shared/Markdown";
 import { useStore } from "../../store";
 import {
   Bug,
@@ -175,7 +176,7 @@ function ResolutionCard({
             <span className="badge ml-auto bg-warn/15 text-warn">Setup issue</span>
           )}
         </div>
-        <p className="max-w-[70ch] text-sm leading-relaxed text-wkai-text">{resolution.diagnosis}</p>
+        <Markdown className="max-w-[70ch] text-sm leading-relaxed text-wkai-text" text={resolution.diagnosis} />
       </div>
 
       {resolution.fixCommand && (

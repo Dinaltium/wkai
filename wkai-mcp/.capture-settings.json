@@ -1,0 +1,12 @@
+{
+  "inputName": "Window Capture",
+  "inputSettings": {
+    "window": "WKAI — Workshop AI - Google Chrome:Chrome_WidgetWin_1:chrome.exe",
+    "method": 2,
+    "priority": 0,
+    "cursor": true,
+    "client_area": true,
+    "compatibility": false
+  },
+  "overlay": true
+}

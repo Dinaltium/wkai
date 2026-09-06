@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Markdown } from "../shared/Markdown";
 import { useStore } from "../../store";
 import { Monitor, Volume2, VolumeX, Maximize2 } from "lucide-react";
 
@@ -90,7 +91,7 @@ export function ScreenPreview({ remoteStream }: ScreenPreviewProps) {
           <p className="text-xs font-semibold text-accent-text">AI live notes</p>
           <p className="text-xs italic text-wkai-text-dim">“{latestLiveExplanation.transcript}”</p>
           <p className="max-w-[70ch] text-sm leading-relaxed text-wkai-text">
-            {latestLiveExplanation.explanation}
+            <Markdown text={latestLiveExplanation.explanation} />
           </p>
         </div>
       )}

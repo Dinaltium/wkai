@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Markdown } from "../shared/Markdown";
 import { useStore } from "../../store";
 import { CheckCircle, XCircle, Lock } from "lucide-react";
 import { clsx } from "clsx";
@@ -155,7 +156,7 @@ export function ComprehensionModal({ send }: Props) {
             )}
           >
             <span className="font-semibold">{correct ? "Correct. " : "Not quite. "}</span>
-            <span className="text-wkai-text">{pendingQuestion.explanation}</span>
+            <Markdown className="inline text-wkai-text" text={pendingQuestion.explanation} />
           </div>
         )}
 

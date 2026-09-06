@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Markdown } from "../shared/Markdown";
 import { useStore } from "../../store";
 import { Send, Loader2, MessageSquare } from "lucide-react";
 import { clsx } from "clsx";
@@ -158,8 +159,11 @@ function MessageBubble({ msg, studentName }: { msg: ChatMessage; studentName: st
             <Loader2 size={12} className="animate-spin" />
             Sending…
           </span>
-        ) : (
+        ) : isStudent ? (
           msg.text
+        ) : (
+          // Instructor and AI answers are model-written and arrive as Markdown.
+          <Markdown text={msg.text} />
         )}
       </div>
     </div>
