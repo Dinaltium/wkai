@@ -9,17 +9,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@monaco-editor/react": "^4.6.0",
+    "axios": "^1.7.7",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.11.0",
+    "gsap": "^3.15.0",
+    "lucide-react": "^0.454.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
-    "zustand": "^5.0.0",
-    "axios": "^1.7.7",
-    "@monaco-editor/react": "^4.6.0",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
-    "lucide-react": "^0.454.0",
-    "clsx": "^2.1.1",
-    "framer-motion": "^11.11.0"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
