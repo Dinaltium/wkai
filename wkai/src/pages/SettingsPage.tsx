@@ -40,7 +40,7 @@ export function SettingsPage() {
 
         {/* Appearance */}
         <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-wkai-text">
             Appearance
           </h2>
           <ThemeControls />
@@ -48,7 +48,7 @@ export function SettingsPage() {
 
         {/* Profile */}
         <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-wkai-text">
             Profile
           </h2>
           <Field label="Your Name">
@@ -65,7 +65,7 @@ export function SettingsPage() {
         {/* Network Info */}
         {networkInfo?.localIp && (
           <section className="card space-y-3 p-4">
-            <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+            <h2 className="text-xs font-semibold text-wkai-text">
               Network
             </h2>
             <div className="rounded-lg bg-wkai-bg border border-wkai-border p-3 space-y-2">
@@ -91,7 +91,7 @@ export function SettingsPage() {
 
         {/* AI */}
         <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-wkai-text">
             AI: Groq
           </h2>
           <Field
@@ -160,7 +160,7 @@ export function SettingsPage() {
 
         {/* Capture */}
         <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-wkai-text">
             Capture
           </h2>
           <Field label="Framerate">
@@ -204,7 +204,7 @@ export function SettingsPage() {
 
         {/* Recording */}
         <section className="card space-y-4 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-wkai-text">
             Recording
           </h2>
           <div className="flex items-center justify-between">
@@ -266,7 +266,7 @@ export function SettingsPage() {
         </section>
 
         <section className="card space-y-5 p-4">
-          <h2 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+          <h2 className="text-xs font-semibold text-wkai-text">
             Testing
           </h2>
           <MicTest />
