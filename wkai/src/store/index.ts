@@ -197,7 +197,7 @@ export const useAppStore = create<AppStore>((set) => ({
   addDebugLog: (message, level = "info") =>
     set((s) => ({
       debugLogs: [
-        ...s.debugLogs.slice(-49),
+        ...s.debugLogs.slice(-299),
         {
           id: Math.random().toString(36).slice(2),
           timestamp: new Date().toLocaleTimeString(),

@@ -31,7 +31,7 @@ export function DeviceSelector({
     <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+        <h3 className="text-xs font-semibold text-wkai-text">
           Sources
         </h3>
         <button

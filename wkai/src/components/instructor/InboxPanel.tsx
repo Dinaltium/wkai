@@ -25,7 +25,7 @@ export function InboxPanel({ send }: Props) {
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between border-b border-wkai-border px-4 py-3">
-        <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+        <p className="text-xs font-semibold text-wkai-text">
           Student Q&A Inbox
         </p>
         <span className="text-xs text-wkai-text-dim">{inboxMessages.length} message(s)</span>

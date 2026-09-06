@@ -36,7 +36,7 @@ export function SessionAiSettingsPanel() {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+      <p className="text-xs font-semibold text-wkai-text">
         AI &amp; Recording
       </p>
       {ITEMS.map((item) => {

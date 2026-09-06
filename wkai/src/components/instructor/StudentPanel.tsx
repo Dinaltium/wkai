@@ -7,7 +7,7 @@ export function StudentPanel() {
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between border-b border-wkai-border px-4 py-3">
-        <p className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+        <p className="text-xs font-semibold text-wkai-text">
           Students
         </p>
         <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-medium text-accent-text">

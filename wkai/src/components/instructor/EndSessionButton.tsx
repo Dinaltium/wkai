@@ -1,24 +1,39 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { StopCircle, Loader2 } from "lucide-react";
+import { Loader2, StopCircle } from "lucide-react";
+import { clsx } from "clsx";
 import { useAppStore } from "../../store";
 import { endSession } from "../../lib/tauri";
 
+/**
+ * Ending a session is destructive for everyone in the room, so it asks twice.
+ * The confirm state times out on its own rather than sticking around armed.
+ */
 export function EndSessionButton({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const { setSession, clearGuide } = useAppStore();
+  const timeoutRef = useRef<number | null>(null);
+  const { setSession, clearGuide, addDebugLog } = useAppStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   async function handleEnd() {
     if (!confirm) {
       setConfirm(true);
-      setTimeout(() => setConfirm(false), 3000);
+      timeoutRef.current = window.setTimeout(() => setConfirm(false), 4000);
       return;
     }
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
 
     setLoading(true);
     try {
+      // Flush any in-progress recording first — the listener lives in
+      // useSessionRecorder, which owns the MediaRecorder.
       window.dispatchEvent(new Event("wkai:force-stop-recording"));
       const { settings, session } = useAppStore.getState();
       await endSession(sessionId, settings.backendUrl, session?.instructorToken);
@@ -26,7 +41,8 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
       clearGuide();
       navigate("/");
     } catch (err) {
-      console.error("Failed to end session", err);
+      addDebugLog(`Could not end the session: ${String(err)}`, "error");
+      setConfirm(false);
     } finally {
       setLoading(false);
     }
@@ -36,18 +52,16 @@ export function EndSessionButton({ sessionId }: { sessionId: string }) {
     <button
       onClick={handleEnd}
       disabled={loading}
-      className={`w-full flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all ${
+      className={clsx(
+        "btn h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-semibold",
         confirm
-          ? "bg-red-500 text-white hover:bg-red-600"
-          : "btn-danger"
-      }`}
-    >
-      {loading ? (
-        <Loader2 size={13} className="animate-spin" />
-      ) : (
-        <StopCircle size={13} />
+          ? "bg-danger text-white hover:brightness-110"
+          : "border border-danger/30 bg-danger/10 text-danger hover:bg-danger/20"
       )}
-      {loading ? "Closing session..." : confirm ? "Tap again to confirm" : "End Session"}
+      title="End the session for everyone"
+    >
+      {loading ? <Loader2 size={16} className="animate-spin" /> : <StopCircle size={16} />}
+      {loading ? "Ending…" : confirm ? "Tap again to end" : "End session"}
     </button>
   );
 }

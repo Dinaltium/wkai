@@ -61,7 +61,7 @@ export function CaptureControls({
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-medium text-wkai-text-dim uppercase tracking-wide">
+      <h3 className="text-xs font-semibold text-wkai-text">
         Controls
       </h3>
 
