@@ -3,7 +3,8 @@
 param(
   [Parameter(Mandatory = $true)][int]$ProcessId,
   [int]$X = -1, [int]$Y = -1, [int]$W = -1, [int]$H = -1,
-  [switch]$Focus
+  [switch]$Focus,
+  [switch]$Maximize
 )
 
 Add-Type @"
@@ -28,8 +29,15 @@ if ($W -gt 0 -and $H -gt 0) {
   Start-Sleep -Milliseconds 400
 }
 
+if ($Maximize) {
+  [void][Win]::ShowWindow($h, 3)   # SW_MAXIMIZE
+  Start-Sleep -Milliseconds 400
+}
+
 if ($Focus) {
-  [void][Win]::ShowWindow($h, 9)
+  # SW_SHOW, not SW_RESTORE: restoring un-maximises a maximised window, which
+  # silently changes the framing of a take that was already set up.
+  [void][Win]::ShowWindow($h, 5)
   [void][Win]::SetForegroundWindow($h)
   Start-Sleep -Milliseconds 400
 }

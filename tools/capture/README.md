@@ -91,3 +91,26 @@ out of marketing material.
 
 The scripts own the mouse and keyboard. Touching either mid-take corrupts the
 shot.
+
+## One command, one take
+
+`take.mjs` records the whole student demo unattended — it opens a room, drives
+the browser through joining it, speaks as the instructor so the guide writes
+itself, answers the question the pointer types, shares a file, and stops.
+
+```bash
+node take.mjs
+```
+
+```bash
+node take.mjs --dry
+```
+
+`--dry` runs the choreography without OBS, for checking coordinates after a UI
+change.
+
+This exists because driving a take by hand produces footage that is mostly dead
+air: the tape keeps rolling between beats while whoever is steering decides what
+to do next. The first hand-driven take of this same material ran sixteen
+minutes for about ninety seconds of content. Scripted, it is seventy seconds
+with nothing to trim.
