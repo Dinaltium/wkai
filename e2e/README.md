@@ -15,7 +15,10 @@ need nothing running. These do the opposite: they exercise the wire.
 - **Postgres and Redis.** The backend connects to both before it accepts
   traffic, so there is no running it without them. Two ways to supply them —
   see below.
-- **Chromium for Playwright**, once: `npm run test:e2e:install`.
+- **A browser.** The suites use the Chrome already installed on the machine, so
+  there is normally nothing to install. `npm run test:e2e:install` fetches
+  Playwright's own pinned build instead — worth it in CI, ~400 MB on a laptop —
+  and `WKAI_E2E_BUNDLED_BROWSER=true` switches the run over to it.
 
 ### Supplying Postgres and Redis
 
@@ -39,6 +42,12 @@ so they leave rows behind, and running them against the database in
 separate Neon branch or database costs nothing and keeps them apart. The schema
 is applied on startup with `CREATE ... IF NOT EXISTS` migrations, so an empty
 database is all that is needed.
+
+Neon covers Postgres but not Redis; any hosted Redis works for the second URL,
+including the free tiers, and the client already handles `rediss://`.
+
+Between the two hosted datastores and the system Chrome, a full end-to-end run
+needs no local disk beyond the repo.
 
 ## Running
 

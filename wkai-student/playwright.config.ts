@@ -34,6 +34,17 @@ export default defineConfig({
   },
 
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // Playwright's own Chrome for Testing build is a ~400 MB download that
+        // has to be re-fetched on every Playwright upgrade. The Chrome already
+        // installed on the machine runs the same engine, so it is the default
+        // here and the suites cost no disk at all. CI, where the pinned build
+        // is worth having, sets WKAI_E2E_BUNDLED_BROWSER=true.
+        ...(process.env.WKAI_E2E_BUNDLED_BROWSER === "true" ? {} : { channel: "chrome" }),
+      },
+    },
   ],
 });
