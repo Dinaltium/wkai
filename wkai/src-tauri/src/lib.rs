@@ -60,7 +60,15 @@ pub fn run() {
             // Native recording (FFmpeg-driven) managed state.
             app.manage(commands::recording::RecordingManager::default());
 
-            setup_tray(app)?;
+            if let Err(e) = setup_tray(app) {
+                log::error!("Failed to setup tray: {e}");
+            }
+
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+
             Ok(())
         })
 
@@ -69,6 +77,14 @@ pub fn run() {
 }
 
 fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std::error::Error>> {
+    let icon = match app.default_window_icon() {
+        Some(i) => i.clone(),
+        None => {
+            log::warn!("No default window icon found for tray");
+            return Ok(());
+        }
+    };
+
     let quit = MenuItem::with_id(app, "quit", "Quit WKAI", true, None::<&str>)?;
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
@@ -77,7 +93,7 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std::error:
     let menu = Menu::with_items(app, &[&status, &separator, &show, &quit])?;
 
     let _tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
