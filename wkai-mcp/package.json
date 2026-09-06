@@ -1,0 +1,23 @@
+{
+  "name": "wkai-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that lets an AI agent run a WKAI workshop session — open a room, watch students arrive, answer questions, push material, end it",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "wkai-mcp": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test \"tests/*.test.js\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

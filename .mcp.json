@@ -4,6 +4,15 @@
       "command": "agentic-obs",
       "args": [],
       "env": {}
+    },
+    "wkai": {
+      "command": "node",
+      "args": [
+        "wkai-mcp/src/index.js"
+      ],
+      "env": {
+        "WKAI_BACKEND_URL": "http://localhost:4000"
+      }
     }
   }
 }
