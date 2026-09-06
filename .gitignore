@@ -305,3 +305,6 @@ playwright/.cache/
 
 # Capture tool deps
 tools/capture/node_modules/
+
+# Vendored third-party tooling
+vendor/

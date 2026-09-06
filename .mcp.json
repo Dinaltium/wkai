@@ -13,6 +13,19 @@
       "env": {
         "WKAI_BACKEND_URL": "http://localhost:4000"
       }
+    },
+    "resolve": {
+      "command": "vendor/davinci-resolve-mcp/venv/Scripts/python.exe",
+      "args": [
+        "vendor/davinci-resolve-mcp/src/server.py"
+      ],
+      "env": {
+        "RESOLVE_SCRIPT_API": "C:ProgramDataBlackmagic DesignDaVinci ResolveSupportDeveloperScripting",
+        "RESOLVE_SCRIPT_LIB": "C:Program FilesBlackmagic DesignDaVinci Resolve\fusionscript.dll",
+        "PYTHONPATH": "C:ProgramDataBlackmagic DesignDaVinci ResolveSupportDeveloperScriptingModules",
+        "DAVINCI_RESOLVE_BRIDGE": "1",
+        "PYTHONUTF8": "1"
+      }
     }
   }
 }
