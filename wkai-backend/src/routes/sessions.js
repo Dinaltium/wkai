@@ -31,24 +31,34 @@ import {
 export const sessionRouter = Router();
 
 /**
- * Caps are configurable so a test run — which legitimately joins a room far
- * more often than a person does — can raise them without the limiter being
- * weakened for anyone else. Unset means the production values below.
+ * Both the caps and the window they are counted over are configurable, so a
+ * deployment can tune the throttle without a code change — and so a test run,
+ * which legitimately joins a room far more often than a person does, can raise
+ * them without the limiter being weakened for anyone else.
+ *
+ * A value that is not a positive integer falls back to the default rather than
+ * being honoured: a typo in an environment variable must not quietly turn a
+ * brute-force control off. Values are read once, at startup, so changing one
+ * takes a restart.
  */
-function limitFromEnv(name, fallback) {
+function limitFromEnv(name, fallback, minimum = 1) {
   const parsed = Number(process.env[name]);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed >= minimum ? parsed : fallback;
 }
+
+// A floor of one second: a window shorter than that admits a burst per window
+// often enough to be no limit at all.
+const RATE_LIMIT_WINDOW_MS = limitFromEnv("RATE_LIMIT_WINDOW_MS", 60_000, 1000);
 
 // Throttle room-code guessing: join is the brute-force surface (6-char code).
 const joinLimiter = rateLimit({
-  windowMs: 60_000,
+  windowMs: RATE_LIMIT_WINDOW_MS,
   max: limitFromEnv("RATE_LIMIT_JOIN_MAX", 10),
   name: "join attempts",
 });
 // Session creation is cheaper to abuse but still worth a looser cap.
 const createLimiter = rateLimit({
-  windowMs: 60_000,
+  windowMs: RATE_LIMIT_WINDOW_MS,
   max: limitFromEnv("RATE_LIMIT_CREATE_MAX", 20),
   name: "session creations",
 });
