@@ -7,6 +7,7 @@ import { FloatingDock } from "../components/marketing/FloatingDock";
 import { Accordion } from "../components/marketing/Accordion";
 import { PinnedSteps } from "../components/marketing/PinnedSteps";
 import { HorizontalFeatures } from "../components/marketing/HorizontalFeatures";
+import { FramedWindowVideo } from "../components/marketing/FramedWindowVideo";
 import { SettingsFab } from "../components/shared/SettingsFab";
 import { EASE, gsap, prefersReducedMotion } from "../lib/motion";
 
@@ -133,6 +134,16 @@ function Hero() {
             </li>
           ))}
         </ul>
+
+        {/* Product Showcase Window (matching aoagents.dev presentation) */}
+        <div className="hero-fade mt-12 w-full">
+          <FramedWindowVideo
+            src="/videos/wkai-showcase-master.mp4"
+            title="wkai · Ada Lovelace · Intro to Python loops"
+            badge="Live Session"
+            className="w-full max-w-5xl shadow-2xl"
+          />
+        </div>
 
         <p className="hero-fade mt-14 flex items-center gap-2 text-xs text-zinc-500">
           <ArrowDown size={13} className="animate-bounce" />

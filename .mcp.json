@@ -20,9 +20,9 @@
         "vendor/davinci-resolve-mcp/src/server.py"
       ],
       "env": {
-        "RESOLVE_SCRIPT_API": "C:ProgramDataBlackmagic DesignDaVinci ResolveSupportDeveloperScripting",
-        "RESOLVE_SCRIPT_LIB": "C:Program FilesBlackmagic DesignDaVinci Resolve\fusionscript.dll",
-        "PYTHONPATH": "C:ProgramDataBlackmagic DesignDaVinci ResolveSupportDeveloperScriptingModules",
+        "RESOLVE_SCRIPT_API": "C:/ProgramData/Blackmagic Design/DaVinci Resolve/Support/Developer/Scripting",
+        "RESOLVE_SCRIPT_LIB": "C:/Program Files/Blackmagic Design/DaVinci Resolve/fusionscript.dll",
+        "PYTHONPATH": "C:/ProgramData/Blackmagic Design/DaVinci Resolve/Support/Developer/Scripting/Modules",
         "DAVINCI_RESOLVE_BRIDGE": "1",
         "PYTHONUTF8": "1"
       }
