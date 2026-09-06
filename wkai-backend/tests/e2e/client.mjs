@@ -65,6 +65,23 @@ export async function joinSession(roomCode, studentName = "E2E Student", session
 }
 
 /**
+ * Joins, and fails loudly if the room refused.
+ *
+ * A refused join used to surface much later and somewhere else: the undefined
+ * token went to the WebSocket, which answered "error", and the test failed
+ * ten seconds on with a timeout that said nothing about the real cause.
+ */
+export async function joinSessionOrThrow(roomCode, studentName, sessionPassword) {
+  const { status, data } = await joinSession(roomCode, studentName, sessionPassword);
+  if (status !== 200) {
+    throw new Error(
+      `join ${roomCode} as ${studentName} failed with ${status}: ${JSON.stringify(data)}`
+    );
+  }
+  return data;
+}
+
+/**
  * A connected socket that records everything it receives.
  *
  * Tests await a message *type* rather than the next frame: the server sends
@@ -87,7 +104,7 @@ export class TestSocket {
       }
       this.received.push(msg);
       for (const waiter of [...this.waiters]) {
-        if (waiter.type === msg.type) {
+        if (waiter.matches(msg)) {
           this.waiters.splice(this.waiters.indexOf(waiter), 1);
           clearTimeout(waiter.timer);
           waiter.resolve(msg);
@@ -108,12 +125,20 @@ export class TestSocket {
     return socket;
   }
 
-  /** Resolves with the first message of `type`, including ones already seen. */
-  waitFor(type, timeoutMs = 10_000) {
-    const already = this.received.find((m) => m.type === type);
+  /**
+   * Resolves with the first message of `type`, including ones already seen.
+   *
+   * `where` narrows it further, which matters for types the server sends in
+   * more than one shape: an instructor receives a bare `{count}` student-joined
+   * for itself on connect, and the full `{studentId, studentName, ...}` one
+   * when a student actually arrives.
+   */
+  waitFor(type, { timeoutMs = 10_000, where = () => true } = {}) {
+    const matches = (m) => m.type === type && where(m);
+    const already = this.received.find(matches);
     if (already) return Promise.resolve(already);
     return new Promise((resolve, reject) => {
-      const waiter = { type, resolve };
+      const waiter = { type, matches, resolve };
       waiter.timer = setTimeout(() => {
         this.waiters.splice(this.waiters.indexOf(waiter), 1);
         reject(
@@ -130,7 +155,7 @@ export class TestSocket {
   /** Asserts a message type does NOT arrive — used for the role-gate tests. */
   async expectNever(type, windowMs = 1500) {
     try {
-      await this.waitFor(type, windowMs);
+      await this.waitFor(type, { timeoutMs: windowMs });
       return false;
     } catch {
       return true;

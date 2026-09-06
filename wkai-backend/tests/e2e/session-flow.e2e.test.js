@@ -13,7 +13,15 @@
  */
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
-import { api, createSession, joinSession, randomRoomCode, TestSocket, BACKEND_URL } from "./client.mjs";
+import {
+  api,
+  createSession,
+  joinSession,
+  joinSessionOrThrow,
+  randomRoomCode,
+  TestSocket,
+  BACKEND_URL,
+} from "./client.mjs";
 
 const sockets = [];
 
@@ -123,10 +131,14 @@ describe("the live room over WebSockets", () => {
     const instructor = track(await TestSocket.connect(instructorToken, "instructor"));
     await instructor.waitFor("session-state");
 
-    const join = await joinSession(roomCode, "Grace");
-    const student = track(await TestSocket.connect(join.data.joinToken, "student"));
+    const join = await joinSessionOrThrow(roomCode, "Grace");
+    const student = track(await TestSocket.connect(join.joinToken, "student"));
 
-    const joined = await instructor.waitFor("student-joined");
+    // An instructor also gets a bare {count} student-joined for itself on
+    // connect, so match on the one that actually names a student.
+    const joined = await instructor.waitFor("student-joined", {
+      where: (m) => m.payload?.studentId !== undefined,
+    });
     assert.equal(joined.payload.studentName, "Grace");
     assert.ok(joined.payload.count >= 1);
 
@@ -144,8 +156,8 @@ describe("the live room over WebSockets", () => {
     const instructor = track(await TestSocket.connect(instructorToken, "instructor"));
     await instructor.waitFor("session-state");
 
-    const join = await joinSession(roomCode, "Grace");
-    const student = track(await TestSocket.connect(join.data.joinToken, "student"));
+    const join = await joinSessionOrThrow(roomCode, "Grace");
+    const student = track(await TestSocket.connect(join.joinToken, "student"));
     await student.waitFor("session-state");
 
     const messageId = `e2e-${Date.now()}`;
@@ -168,8 +180,8 @@ describe("the live room over WebSockets", () => {
     const instructor = track(await TestSocket.connect(instructorToken, "instructor"));
     await instructor.waitFor("session-state");
 
-    const join = await joinSession(roomCode, "Grace");
-    const student = track(await TestSocket.connect(join.data.joinToken, "student"));
+    const join = await joinSessionOrThrow(roomCode, "Grace");
+    const student = track(await TestSocket.connect(join.joinToken, "student"));
     await student.waitFor("session-state");
 
     const messageId = `e2e-${Date.now()}`;
@@ -178,7 +190,7 @@ describe("the live room over WebSockets", () => {
 
     instructor.send("instructor-reply", {
       messageId: inbox.payload.messageId ?? messageId,
-      studentId: join.data.studentId,
+      studentId: join.studentId,
       reply: "Yes — the range end is exclusive.",
     });
 
@@ -193,16 +205,16 @@ describe("the live room over WebSockets", () => {
     const instructor = track(await TestSocket.connect(instructorToken, "instructor"));
     await instructor.waitFor("session-state");
 
-    const asking = await joinSession(roomCode, "Grace");
-    const student = track(await TestSocket.connect(asking.data.joinToken, "student"));
+    const asking = await joinSessionOrThrow(roomCode, "Grace");
+    const student = track(await TestSocket.connect(asking.joinToken, "student"));
     await student.waitFor("session-state");
     student.send("student-message", { messageId: `e2e-${Date.now()}`, message: "My own question" });
     await instructor.waitFor("student-message");
     student.close();
 
     // A different student must not inherit that thread on connect.
-    const other = await joinSession(roomCode, "Alan");
-    const otherStudent = track(await TestSocket.connect(other.data.joinToken, "student"));
+    const other = await joinSessionOrThrow(roomCode, "Alan");
+    const otherStudent = track(await TestSocket.connect(other.joinToken, "student"));
     const state = await otherStudent.waitFor("session-state");
 
     assert.ok(Array.isArray(state.payload.chatMessages));
@@ -233,8 +245,8 @@ describe("WebSocket authorisation", () => {
     const instructor = track(await TestSocket.connect(instructorToken, "instructor"));
     await instructor.waitFor("session-state");
 
-    const join = await joinSession(roomCode, "Grace");
-    const student = track(await TestSocket.connect(join.data.joinToken, "student"));
+    const join = await joinSessionOrThrow(roomCode, "Grace");
+    const student = track(await TestSocket.connect(join.joinToken, "student"));
     await student.waitFor("session-state");
 
     // file-shared is instructor-only; the server drops it on a student socket.
@@ -252,8 +264,8 @@ describe("WebSocket authorisation", () => {
     const first = await createSession();
     const second = await createSession();
 
-    const join = await joinSession(first.roomCode, "Grace");
-    const socket = track(await TestSocket.connect(join.data.joinToken, "cross-session"));
+    const join = await joinSessionOrThrow(first.roomCode, "Grace");
+    const socket = track(await TestSocket.connect(join.joinToken, "cross-session"));
     const state = await socket.waitFor("session-state");
 
     assert.equal(
@@ -271,8 +283,8 @@ describe("ending a session", () => {
     const instructor = track(await TestSocket.connect(instructorToken, "instructor"));
     await instructor.waitFor("session-state");
 
-    const join = await joinSession(roomCode, "Grace");
-    const student = track(await TestSocket.connect(join.data.joinToken, "student"));
+    const join = await joinSessionOrThrow(roomCode, "Grace");
+    const student = track(await TestSocket.connect(join.joinToken, "student"));
     await student.waitFor("session-state");
 
     const ended = await api("PATCH", `/api/sessions/${session.id}/end`, {
@@ -294,15 +306,17 @@ describe("ending a session", () => {
 
   test("ending a session requires the instructor token", async () => {
     const { roomCode, session } = await createSession();
-    const join = await joinSession(roomCode, "Grace");
+    const join = await joinSessionOrThrow(roomCode, "Grace");
 
+    // The two are deliberately different: 401 is "no valid token at all",
+    // 403 is "a real token, without the privilege this route needs".
     const anonymous = await api("PATCH", `/api/sessions/${session.id}/end`);
     assert.equal(anonymous.status, 401);
 
     const asStudent = await api("PATCH", `/api/sessions/${session.id}/end`, {
-      token: join.data.joinToken,
+      token: join.joinToken,
     });
-    assert.equal(asStudent.status, 401, "a student token must not end the room");
+    assert.equal(asStudent.status, 403, "a student token must not end the room");
 
     const stillOpen = await api("GET", `/api/sessions/${roomCode}`);
     assert.equal(stillOpen.data.status, "active");

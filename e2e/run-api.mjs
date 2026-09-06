@@ -23,7 +23,9 @@ try {
   await startBackend();
 
   console.log(`[e2e] running API + WebSocket suite against ${BACKEND_URL}`);
-  const result = spawnSync(process.execPath, ["--test", "tests/e2e/"], {
+  // A bare directory is treated as a module path by Node's test runner, not as
+  // "everything under here" — it has to be a glob.
+  const result = spawnSync(process.execPath, ["--test", "tests/e2e/**/*.e2e.test.js"], {
     cwd: path.join(REPO_ROOT, "wkai-backend"),
     stdio: "inherit",
   });

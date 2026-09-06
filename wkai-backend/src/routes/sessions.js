@@ -30,10 +30,28 @@ import {
 
 export const sessionRouter = Router();
 
+/**
+ * Caps are configurable so a test run — which legitimately joins a room far
+ * more often than a person does — can raise them without the limiter being
+ * weakened for anyone else. Unset means the production values below.
+ */
+function limitFromEnv(name, fallback) {
+  const parsed = Number(process.env[name]);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 // Throttle room-code guessing: join is the brute-force surface (6-char code).
-const joinLimiter = rateLimit({ windowMs: 60_000, max: 10, name: "join attempts" });
+const joinLimiter = rateLimit({
+  windowMs: 60_000,
+  max: limitFromEnv("RATE_LIMIT_JOIN_MAX", 10),
+  name: "join attempts",
+});
 // Session creation is cheaper to abuse but still worth a looser cap.
-const createLimiter = rateLimit({ windowMs: 60_000, max: 20, name: "session creations" });
+const createLimiter = rateLimit({
+  windowMs: 60_000,
+  max: limitFromEnv("RATE_LIMIT_CREATE_MAX", 20),
+  name: "session creations",
+});
 
 // ─── POST /api/sessions — Create a new session ────────────────────────────────
 

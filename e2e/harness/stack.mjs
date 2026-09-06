@@ -25,14 +25,15 @@ const COMPOSE_PROJECT = "wkai-e2e";
 const IS_WINDOWS = process.platform === "win32";
 
 /**
- * npm is a .cmd shim on Windows and cannot be exec-ed directly; everything else
- * here is a real executable. Resolving the shim by name beats passing
- * shell:true, which makes Node concatenate the argument array into a command
- * line rather than passing it through untouched.
+ * Everything this harness launches is either Node itself or a real executable.
+ *
+ * Nothing goes through npm: since Node hardened .cmd handling (CVE-2024-27980)
+ * spawning the npm shim on Windows fails with EINVAL unless shell:true is set,
+ * and shell:true makes Node concatenate the argument array into a command line
+ * rather than passing it through untouched. Calling the underlying binaries
+ * directly sidesteps both.
  */
-function binary(name) {
-  return IS_WINDOWS && name === "npm" ? "npm.cmd" : name;
-}
+const VITE_BIN = path.join(STUDENT_DIR, "node_modules", "vite", "bin", "vite.js");
 
 /** Ports chosen well clear of the dev stack (4000/3000/5432/6379). */
 export const PORTS = {
@@ -43,7 +44,17 @@ export const PORTS = {
 };
 
 export const BACKEND_URL = `http://127.0.0.1:${PORTS.backend}`;
-export const BACKEND_WS_URL = `ws://127.0.0.1:${PORTS.backend}/ws`;
+/**
+ * Origin only — no path.
+ *
+ * VITE_BACKEND_WS is an origin as far as the student app is concerned: the
+ * socket hook appends "/ws?token=…" itself, so a value carrying the path
+ * produces ws://host/ws/ws, which nothing serves. The app then sits on
+ * "Reconnecting" forever with no error to show for it.
+ */
+export const BACKEND_WS_ORIGIN = `ws://127.0.0.1:${PORTS.backend}`;
+/** The full endpoint, for the Node client in the API suite. */
+export const BACKEND_WS_URL = `${BACKEND_WS_ORIGIN}/ws`;
 export const STUDENT_URL = `http://127.0.0.1:${PORTS.student}`;
 
 /**
@@ -87,6 +98,11 @@ export const BACKEND_ENV = {
   GROQ_API_KEY: "e2e-placeholder-no-ai-route-is-exercised",
   CORS_ALLOWED_ORIGINS: STUDENT_URL,
   WKAI_DEBUG: "false",
+  // A suite joins rooms far more often in a minute than a person ever would,
+  // and every test arrives from the same loopback address the limiter keys on.
+  // Production defaults (10 and 20 a minute) apply whenever these are unset.
+  RATE_LIMIT_JOIN_MAX: "500",
+  RATE_LIMIT_CREATE_MAX: "500",
 };
 
 const children = new Set();
@@ -100,14 +116,13 @@ function log(msg) {
 /**
  * Kills a child and everything it spawned.
  *
- * `npm run dev` on Windows is a shim that launches Vite in a grandchild
- * process; killing only the shim leaves the port held, so the next run cannot
- * bind it. The whole tree goes.
+ * Vite forks workers of its own, and killing only the parent leaves them
+ * holding the port, so the next run cannot bind it. The whole tree goes.
  */
 function killTree(child) {
   if (!child || child.exitCode !== null || child.killed) return;
   if (IS_WINDOWS) {
-    spawnSync(binary("taskkill"), ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
   } else {
     try {
       process.kill(-child.pid, "SIGKILL");
@@ -164,7 +179,7 @@ function composeArgs(...rest) {
 }
 
 export function assertDockerAvailable() {
-  const probe = spawnSync(binary("docker"), ["compose", "version"], { stdio: "ignore" });
+  const probe = spawnSync("docker", ["compose", "version"], { stdio: "ignore" });
   if (probe.status !== 0) {
     throw new Error(
       "The backend needs Postgres and Redis, and Docker (with the compose plugin) " +
@@ -194,11 +209,11 @@ export async function startDatabases() {
   log("starting throwaway postgres + redis");
   // --wait blocks on the healthchecks; older compose builds lack it, so fall
   // back to a plain up and let the migrate retry loop do the waiting.
-  const waited = spawnSync(binary("docker"), composeArgs("up", "-d", "--wait"), {
+  const waited = spawnSync("docker", composeArgs("up", "-d", "--wait"), {
     stdio: "inherit",
   });
   if (waited.status !== 0) {
-    run(binary("docker"), composeArgs("up", "-d"), { label: "docker compose up" });
+    run("docker", composeArgs("up", "-d"), { label: "docker compose up" });
   }
 
   log("applying schema");
@@ -241,15 +256,23 @@ export async function startBackend() {
 /** Starts the student Vite dev server pointed at the test backend. */
 export async function startStudentApp() {
   log(`starting student app on ${STUDENT_URL}`);
-  const child = start(binary("npm"), ["run", "dev", "--", "--port", String(PORTS.student), "--strictPort"], {
-    cwd: STUDENT_DIR,
-    env: {
-      VITE_BACKEND_URL: BACKEND_URL,
-      VITE_BACKEND_WS: BACKEND_WS_URL,
-      BROWSER: "none",
-    },
-    label: "student",
-  });
+  // --host is pinned to the loopback address the harness and Playwright both
+  // use. Vite's default binds "localhost", which on Windows resolves to ::1
+  // first, so a 127.0.0.1 request reaches nothing and the wait times out
+  // against a dev server that is running perfectly well.
+  const child = start(
+    process.execPath,
+    [VITE_BIN, "--host", "127.0.0.1", "--port", String(PORTS.student), "--strictPort"],
+    {
+      cwd: STUDENT_DIR,
+      env: {
+        VITE_BACKEND_URL: BACKEND_URL,
+        VITE_BACKEND_WS: BACKEND_WS_ORIGIN,
+        BROWSER: "none",
+      },
+      label: "student",
+    }
+  );
   await waitFor("the student dev server", async () => {
     const res = await fetch(STUDENT_URL);
     return res.ok;
@@ -269,7 +292,7 @@ export function stopStack({ keepDatabases = false } = {}) {
   stopProcesses();
   if (keepDatabases || USING_EXTERNAL_DATASTORES) return;
   log("removing throwaway containers");
-  spawnSync(binary("docker"), composeArgs("down", "-v"), { stdio: "inherit" });
+  spawnSync("docker", composeArgs("down", "-v"), { stdio: "inherit" });
 }
 
 // Never leave a port-holding process behind, however we exit.

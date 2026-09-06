@@ -38,7 +38,8 @@ test.describe("joining a workshop", () => {
   test("a code with no room behind it explains itself instead of hanging", async ({ page }) => {
     await joinRoomThroughUi(page, randomRoomCode());
 
-    await expect(page.getByRole("alert")).toContainText(/No room with that code/i);
+    // The page surfaces the backend's own wording rather than a generic one.
+    await expect(page.getByRole("alert")).toContainText(/Room not found/i);
     await expect(page).toHaveURL(/\/join$/);
   });
 
