@@ -302,3 +302,6 @@ playwright-report/
 blob-report/
 .playwright/
 playwright/.cache/
+
+# Capture tool deps
+tools/capture/node_modules/
