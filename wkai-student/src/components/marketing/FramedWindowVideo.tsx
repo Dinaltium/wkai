@@ -7,6 +7,7 @@ interface FramedWindowVideoProps {
   poster?: string;
   className?: string;
   aspectRatio?: string;
+  fillContainer?: boolean;
 }
 
 /**
@@ -21,6 +22,7 @@ export function FramedWindowVideo({
   poster,
   className = "",
   aspectRatio = "aspect-[16/10]",
+  fillContainer = false,
 }: FramedWindowVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -33,7 +35,11 @@ export function FramedWindowVideo({
   }, [src]);
 
   return (
-    <div className={`relative group isolate ${className}`}>
+    <div
+      className={`relative group isolate ${
+        fillContainer ? "flex h-full w-full flex-col" : ""
+      } ${className}`}
+    >
       {/* Subtle backdrop glow */}
       <div
         className="absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-teal-500/10 via-emerald-500/5 to-transparent blur-xl opacity-75 transition-opacity duration-700 group-hover:opacity-100"
@@ -41,9 +47,13 @@ export function FramedWindowVideo({
       />
 
       {/* Main Window Frame */}
-      <div className="relative overflow-hidden rounded-xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/80 backdrop-blur-md">
+      <div
+        className={`relative overflow-hidden rounded-xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/80 backdrop-blur-md ${
+          fillContainer ? "flex flex-1 min-h-0 flex-col" : ""
+        }`}
+      >
         {/* Titlebar / Chrome */}
-        <div className="flex h-9 items-center justify-between border-b border-white/[0.08] bg-zinc-900/60 px-3.5 backdrop-blur-sm">
+        <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/[0.08] bg-zinc-900/60 px-3.5 backdrop-blur-sm">
           {/* Traffic lights */}
           <div className="flex items-center gap-2" aria-hidden="true">
             <span className="h-3 w-3 rounded-full bg-[#ff5f56]/90 shadow-[0_0_8px_rgba(255,95,86,0.3)]" />
@@ -64,7 +74,11 @@ export function FramedWindowVideo({
         </div>
 
         {/* Video Canvas */}
-        <div className={`relative w-full overflow-hidden bg-zinc-950 ${aspectRatio}`}>
+        <div
+          className={`relative w-full overflow-hidden bg-zinc-950 ${
+            fillContainer ? "flex-1 min-h-0" : aspectRatio
+          }`}
+        >
           <video
             ref={videoRef}
             src={src}

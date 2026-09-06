@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
-import { Mic, Monitor, Users } from "lucide-react";
 import { RevealHeading } from "./Reveal";
+import { FramedWindowVideo } from "./FramedWindowVideo";
 import { gsap, prefersReducedMotion } from "../../lib/motion";
 
 const STEPS = [
@@ -112,18 +112,15 @@ export function PinnedSteps() {
               </div>
             </div>
 
-            {/* Scene column: one frame, three states.
-                The 4:3 box belongs to the stacked-and-swapping desktop layout.
-                On mobile the three scenes stack for real, so the ratio moves
-                onto each scene — on the parent it framed all three at once,
-                and its min-content then dragged the whole grid track wider
-                than the phone, which is what pushed the page sideways. */}
-            <div className="relative w-full min-w-0 lg:aspect-[4/3]">
+            {/* Scene column: one framed window, three states.
+                On desktop the three sit on top of each other and GSAP scrubs
+                between them. On mobile they stack vertically. */}
+            <div className="relative w-full min-w-0 lg:aspect-[16/10]">
               {[<CaptureScene key="a" />, <UnderstandScene key="b" />, <DeliverScene key="c" />].map(
                 (scene, i) => (
                   <div
                     key={i}
-                    className="pin-scene aspect-[4/3] inset-0 lg:absolute lg:aspect-auto [&:not(:first-child)]:mt-6 lg:[&:not(:first-child)]:mt-0"
+                    className="pin-scene aspect-[16/10] inset-0 lg:absolute lg:aspect-auto [&:not(:first-child)]:mt-6 lg:[&:not(:first-child)]:mt-0"
                   >
                     {scene}
                   </div>
@@ -137,96 +134,35 @@ export function PinnedSteps() {
   );
 }
 
-/** Shared chrome so the three states read as the same machine changing. */
-function Frame({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-wkai-border bg-wkai-surface">
-      <div className="flex items-center gap-2 border-b border-wkai-border px-3 py-2">
-        <span className="flex gap-1" aria-hidden="true">
-          <span className="h-2 w-2 rounded-full bg-wkai-border" />
-          <span className="h-2 w-2 rounded-full bg-wkai-border" />
-        </span>
-        <span className="font-mono text-[11px] text-wkai-text-dim">{label}</span>
-      </div>
-      <div className="min-h-0 flex-1 p-4">{children}</div>
-    </div>
-  );
-}
-
 function CaptureScene() {
   return (
-    <Frame label="your screen">
-      <div className="flex h-full flex-col gap-3">
-        <div className="flex items-center gap-2 text-xs text-danger">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" />
-          Recording
-          <Monitor size={13} className="ml-auto text-wkai-text-dim" />
-        </div>
-        <div className="flex-1 rounded-lg bg-gradient-to-br from-wkai-surface2 to-wkai-bg" />
-        <div className="flex items-center gap-2">
-          <Mic size={13} className="text-accent-text" />
-          <span className="flex flex-1 items-end gap-[3px]">
-            {[6, 12, 20, 9, 16, 24, 11, 7, 18, 13, 8, 15, 22, 10].map((h, i) => (
-              <span
-                key={i}
-                className="w-[3px] rounded-sm bg-accent/70"
-                style={{ height: h, animation: `pulse 1.4s ease-in-out ${i * 0.09}s infinite` }}
-              />
-            ))}
-          </span>
-        </div>
-      </div>
-    </Frame>
+    <FramedWindowVideo
+      src="/videos/wkai-feature-join.mp4"
+      title="wkai — desktop session capture"
+      badge="Recording"
+      fillContainer
+    />
   );
 }
 
 function UnderstandScene() {
   return (
-    <Frame label="what it understood">
-      <div className="grid h-full grid-cols-2 gap-3">
-        <div className="rounded-lg bg-gradient-to-br from-wkai-surface2 to-wkai-bg" />
-        <div className="flex flex-col justify-center gap-2.5">
-          {[
-            { w: "85%", strong: true },
-            { w: "70%" },
-            { w: "92%" },
-            { w: "58%", strong: true },
-            { w: "76%" },
-          ].map((l, i) => (
-            <span key={i} className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 shrink-0 bg-accent" />
-              <span
-                className={`h-2 rounded-sm ${l.strong ? "bg-wkai-text/80" : "bg-wkai-text-dim/40"}`}
-                style={{ width: l.w }}
-              />
-            </span>
-          ))}
-        </div>
-      </div>
-    </Frame>
+    <FramedWindowVideo
+      src="/videos/wkai-feature-guide.mp4"
+      title="wkai — live speech-to-text & AI context"
+      badge="AI Generating"
+      fillContainer
+    />
   );
 }
 
 function DeliverScene() {
   return (
-    <Frame label="every student, at once">
-      <div className="flex h-full flex-col gap-3">
-        <div className="flex items-center gap-2 text-xs text-wkai-text-dim">
-          <Users size={13} className="text-accent-text" />
-          14 in the room
-        </div>
-        <div className="grid flex-1 grid-cols-4 gap-2">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex flex-col justify-end gap-1 rounded-md border border-wkai-border bg-wkai-bg p-1.5"
-            >
-              <span className="h-1 w-full rounded-sm bg-accent/60" />
-              <span className="h-1 w-2/3 rounded-sm bg-wkai-text-dim/30" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </Frame>
+    <FramedWindowVideo
+      src="/videos/wkai-feature-qa.mp4"
+      title="wkai — real-time student delivery & fixes"
+      badge="Synced"
+      fillContainer
+    />
   );
 }
