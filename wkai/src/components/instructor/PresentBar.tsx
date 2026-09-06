@@ -68,7 +68,7 @@ export function PresentBar({
   const [aiOpen, setAiOpen] = useState(false);
 
   return (
-    <div className="relative flex shrink-0 items-center gap-2 overflow-x-auto border-t border-wkai-border bg-wkai-surface px-4 py-3 no-scrollbar">
+    <div className="relative z-30 flex shrink-0 items-center gap-2 border-t border-wkai-border bg-wkai-surface px-4 py-3">
       {/* Source */}
       <Popover
         open={sourceOpen}
@@ -228,13 +228,13 @@ function Popover({
   }, [open, onOpenChange]);
 
   return (
-    <div className="relative" ref={wrapRef}>
+    <div className={clsx("relative", open && "z-50")} ref={wrapRef}>
       <div onClick={() => onOpenChange(!open)}>{trigger}</div>
       {open && (
         <div
           role="dialog"
           aria-label={label}
-          className="absolute bottom-full left-0 z-dropdown mb-2 w-80 rounded-xl border border-wkai-border bg-wkai-surface p-3 shadow-2xl animate-slide-up"
+          className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-xl border border-wkai-border bg-wkai-surface p-3 shadow-2xl animate-slide-up"
         >
           <p className="mb-2 text-xs font-semibold text-wkai-text">{label}</p>
           {children}
