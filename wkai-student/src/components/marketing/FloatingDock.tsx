@@ -108,7 +108,11 @@ export function FloatingDock() {
             "shadow-[0_8px_30px_-12px_rgba(0,0,0,0.5)]"
           )}
         >
-          <Link to="/" className="flex items-center gap-2 rounded-full px-3 py-1.5" aria-label="WKAI home">
+          <Link
+            to="/"
+            className="flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 lg:min-h-0"
+            aria-label="WKAI home"
+          >
             <img src="/wkai-logo.svg" alt="" className="h-6 w-6 object-contain" />
             <span className="display text-sm tracking-[-0.02em] text-wkai-text">WKAI</span>
           </Link>
@@ -148,7 +152,7 @@ export function FloatingDock() {
 
           <Link
             to="/join"
-            className="group flex items-center gap-2 whitespace-nowrap rounded-full bg-accent py-2 pl-4 pr-3 text-sm font-semibold text-accent-fg transition-[filter] hover:brightness-110"
+            className="group flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full bg-accent py-2 pl-5 pr-4 text-sm font-semibold text-accent-fg transition-[filter] hover:brightness-110 lg:min-h-0"
           >
             Join
             <ArrowRight
@@ -161,7 +165,7 @@ export function FloatingDock() {
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="Open menu"
-            className="ml-0.5 flex h-9 w-9 items-center justify-center rounded-full text-wkai-text-dim transition-colors hover:bg-wkai-surface2 hover:text-wkai-text lg:hidden"
+            className="ml-0.5 flex h-11 w-11 items-center justify-center rounded-full text-wkai-text-dim transition-colors hover:bg-wkai-surface2 hover:text-wkai-text lg:hidden"
           >
             <Menu size={17} />
           </button>

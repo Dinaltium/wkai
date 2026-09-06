@@ -89,12 +89,12 @@ export function PinnedSteps() {
           <div className="mt-12 grid gap-12 lg:mt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-20">
             {/* Copy column. On desktop the three sit on top of each other and
                 swap; on mobile they simply stack and all stay visible. */}
-            <div className="flex gap-6">
+            <div className="flex min-w-0 gap-6">
               <div className="relative hidden w-px shrink-0 bg-wkai-border lg:block">
                 <div className="pin-rail-fill absolute inset-x-0 top-0 h-full origin-top bg-accent" />
               </div>
 
-              <div className="relative flex-1 lg:h-[16rem]">
+              <div className="relative min-w-0 flex-1 lg:h-[16rem]">
                 {STEPS.map((s, i) => (
                   <div
                     key={s.n}
@@ -112,11 +112,19 @@ export function PinnedSteps() {
               </div>
             </div>
 
-            {/* Scene column: one frame, three states. */}
-            <div className="relative aspect-[4/3] w-full">
+            {/* Scene column: one frame, three states.
+                The 4:3 box belongs to the stacked-and-swapping desktop layout.
+                On mobile the three scenes stack for real, so the ratio moves
+                onto each scene — on the parent it framed all three at once,
+                and its min-content then dragged the whole grid track wider
+                than the phone, which is what pushed the page sideways. */}
+            <div className="relative w-full min-w-0 lg:aspect-[4/3]">
               {[<CaptureScene key="a" />, <UnderstandScene key="b" />, <DeliverScene key="c" />].map(
                 (scene, i) => (
-                  <div key={i} className="pin-scene inset-0 lg:absolute [&:not(:first-child)]:mt-6 lg:[&:not(:first-child)]:mt-0">
+                  <div
+                    key={i}
+                    className="pin-scene aspect-[4/3] inset-0 lg:absolute lg:aspect-auto [&:not(:first-child)]:mt-6 lg:[&:not(:first-child)]:mt-0"
+                  >
                     {scene}
                   </div>
                 )

@@ -409,10 +409,10 @@ function Footer() {
           <span className="text-sm text-zinc-400">WKAI — Workshop AI</span>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-400 sm:ml-auto">
-          <Link className="inline-flex items-center py-2.5 transition-colors hover:text-zinc-50" to="/join">Join</Link>
-          <Link className="inline-flex items-center py-2.5 transition-colors hover:text-zinc-50" to="/download">Download</Link>
-          <a className="inline-flex items-center py-2.5 transition-colors hover:text-zinc-50" href="#how">How it works</a>
-          <a className="inline-flex items-center py-2.5 transition-colors hover:text-zinc-50" href="#faq">FAQ</a>
+          <Link className="inline-flex min-h-11 items-center py-2.5 transition-colors hover:text-zinc-50" to="/join">Join</Link>
+          <Link className="inline-flex min-h-11 items-center py-2.5 transition-colors hover:text-zinc-50" to="/download">Download</Link>
+          <a className="inline-flex min-h-11 items-center py-2.5 transition-colors hover:text-zinc-50" href="#how">How it works</a>
+          <a className="inline-flex min-h-11 items-center py-2.5 transition-colors hover:text-zinc-50" href="#faq">FAQ</a>
         </div>
       </div>
     </footer>
