@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { useStore } from "../store";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 import { RoomHeader } from "../components/shared/RoomHeader";
@@ -20,7 +21,7 @@ import { ComprehensionModal } from "../components/comprehension/ComprehensionMod
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { session, sessionEnded, instructorOffline, activeTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { session, sessionEnded, instructorOffline, activeTab, setActiveTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
   const { send } = useRoomSocket(code!);
   const { remoteStream } = useWebRtcReceiver(send);
   const bootstrappingRef = useRef(!session && !sessionEnded);
@@ -38,7 +39,10 @@ export function RoomPage() {
         if (cancelled) return;
 
         if (data.session.status === "ended") {
-          navigate("/");
+          navigate("/join", {
+            replace: true,
+            state: { error: "That session has ended. Ask your instructor for a new code." },
+          });
           return;
         }
 
@@ -49,7 +53,14 @@ export function RoomPage() {
         setGuideBlocks(data.guideBlocks);
         setSharedFiles(data.sharedFiles);
       } catch {
-        if (!cancelled) navigate("/");
+        // Send them back to the one place that can fix this — the code entry —
+        // with a reason, rather than dropping them on the marketing page.
+        if (!cancelled) {
+          navigate("/join", {
+            replace: true,
+            state: { error: `Could not join room ${code}. Check the code with your instructor.` },
+          });
+        }
       } finally {
         if (!cancelled) bootstrappingRef.current = false;
       }
@@ -62,10 +73,20 @@ export function RoomPage() {
     };
   }, [code, navigate, session, sessionEnded, setAuth, setSession, setGuideBlocks, setSharedFiles]);
 
+  // Once the session ends only Guide and Files remain; a student parked on any
+  // other tab would otherwise be left staring at an empty pane.
+  useEffect(() => {
+    if (sessionEnded && activeTab !== "guide" && activeTab !== "files") {
+      setActiveTab("guide");
+    }
+  }, [sessionEnded, activeTab, setActiveTab]);
+
   if ((bootstrappingRef.current || (!session && !sessionEnded)) && !sessionEnded) {
     return (
-      <div className="flex h-full items-center justify-center bg-wkai-bg text-wkai-text-dim">
-        Joining room...
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-wkai-bg px-6 text-center">
+        <Loader2 size={22} className="animate-spin text-accent-text" />
+        <p className="text-sm font-medium text-wkai-text">Joining room {code}</p>
+        <p className="text-xs text-wkai-text-dim">Checking the code and setting up your live connection.</p>
       </div>
     );
   }
@@ -75,9 +96,9 @@ export function RoomPage() {
       <RoomHeader />
       {sessionEnded && <SessionEndedBanner />}
       {!sessionEnded && instructorOffline && <InstructorOfflineBanner />}
-      <TabBar />
+      <TabBar sessionEnded={sessionEnded} />
 
-      <div className="flex-1 overflow-hidden">
+      <main className="min-h-0 flex-1 overflow-hidden pb-[calc(var(--nav-h)+var(--safe-b))] sm:pb-0">
         {activeTab === "guide"  && <GuideFeed />}
         {activeTab === "files"  && <FilesPanel />}
         {activeTab === "ai-helper" && <AIHelperPanel send={send} />}
@@ -85,7 +106,7 @@ export function RoomPage() {
         {activeTab === "messages" && <MessagePanel send={send} />}
         {activeTab === "editor" && <CodeEditor />}
         {activeTab === "error"  && <ErrorHelper send={send} />}
-      </div>
+      </main>
 
       {/* Comprehension gate — modal overlay */}
       {pendingQuestion && <ComprehensionModal send={send} />}

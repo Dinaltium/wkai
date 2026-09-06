@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { joinRoom } from "../lib/api";
 import { useStore } from "../store";
+import { SettingsFab } from "../components/shared/SettingsFab";
 
 export function JoinPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const handoffError = (location.state as { error?: string } | null)?.error ?? null;
   const { setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
 
   const [name, setName] = useState(localStorage.getItem("wkai_student_name") || "");
@@ -15,13 +18,11 @@ export function JoinPage() {
   const [chars, setChars] = useState<string[]>(["", "", "", "", "", ""]);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(handoffError);
 
-  // Auto-focus first input on mount if name exists, else focus name
+  // Returning student: the name is remembered, so start on the code.
   useEffect(() => {
-    if (name) {
-      refs.current[0]?.focus();
-    }
+    if (name) refs.current[0]?.focus();
   }, []);
 
   const roomCode = chars.join("").toUpperCase();
@@ -39,6 +40,8 @@ export function JoinPage() {
     if (e.key === "Backspace" && !chars[i] && i > 0) {
       refs.current[i - 1]?.focus();
     }
+    if (e.key === "ArrowLeft" && i > 0) refs.current[i - 1]?.focus();
+    if (e.key === "ArrowRight" && i < 5) refs.current[i + 1]?.focus();
   }
 
   function handlePaste(e: React.ClipboardEvent) {
@@ -50,15 +53,16 @@ export function JoinPage() {
     refs.current[Math.min(text.length, 5)]?.focus();
   }
 
-  async function handleJoin() {
-    if (!isComplete) return;
+  async function handleJoin(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!isComplete || loading) return;
     setLoading(true);
     setError(null);
     try {
       localStorage.setItem("wkai_student_name", name);
       const data = await joinRoom(roomCode, name, password.trim() || undefined);
       if (data.session.status === "ended") {
-        setError("This session has already ended.");
+        setError("That session has already ended. Ask your instructor for a new code.");
         return;
       }
       // Persist the server-assigned identity + signed token for the WS connection.
@@ -72,12 +76,12 @@ export function JoinPage() {
         if (err.response?.data?.error) {
           setError(err.response.data.error);
         } else if (!err.response) {
-          setError("Cannot reach backend server. Please check that the backend is running and the URL is correct.");
+          setError("Can't reach the WKAI server. Check your network, then try again.");
         } else {
-          setError("Room not found. Check the code and try again.");
+          setError("No room with that code. Check the six characters and try again.");
         }
       } else {
-        setError("Room not found. Check the code and try again.");
+        setError("No room with that code. Check the six characters and try again.");
       }
     } finally {
       setLoading(false);
@@ -85,92 +89,97 @@ export function JoinPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-4 py-16">
-      {/* Brand */}
-      <div className="mb-10 text-center space-y-2">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center">
-          <img src="/wkai-logo.svg" alt="WKAI Logo" className="h-14 w-14 object-contain drop-shadow-lg" />
+    <div className="flex min-h-full flex-col items-center justify-center px-4 py-10 sm:py-16">
+      <form onSubmit={handleJoin} className="w-full max-w-[22rem]">
+        <div className="mb-8 space-y-2 text-center">
+          <img src="/wkai-logo.svg" alt="" className="mx-auto mb-4 h-12 w-12 object-contain" />
+          <h1 className="text-2xl font-bold text-wkai-text">Join the workshop</h1>
+          <p className="text-sm text-wkai-text-dim">
+            Enter the six-character code your instructor showed on screen.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold text-wkai-text">Join Workshop</h1>
-        <p className="text-sm text-wkai-text-dim">
-          Enter the 6-character code your instructor shared
-        </p>
-      </div>
 
-      {/* Name input */}
-      <div className="mb-6 w-full max-w-[320px]">
-        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-wkai-text-dim">
-          Your Name
-        </label>
-        <input
-          className="h-12 w-full rounded-xl border border-wkai-border bg-wkai-surface px-4 text-sm font-medium text-wkai-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all placeholder:text-wkai-text-dim/30"
-          placeholder="e.g. Alex Smith"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoComplete="name"
-          spellCheck={false}
-        />
-      </div>
-
-      {/* Code input */}
-      <div className="flex gap-2" onPaste={handlePaste}>
-        {chars.map((ch, i) => (
+        <div className="mb-5">
+          <label htmlFor="student-name" className="mb-1.5 block text-sm font-medium text-wkai-text">
+            Your name
+          </label>
           <input
-            key={i}
-            ref={(el) => { refs.current[i] = el; }}
-            className="h-14 w-12 rounded-xl border border-wkai-border bg-wkai-surface text-center text-xl font-bold font-mono text-wkai-text uppercase
-              focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all
-              placeholder:text-wkai-border"
-            maxLength={1}
-            value={ch}
-            placeholder="·"
-            onChange={(e) => handleChar(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            autoComplete="off"
+            id="student-name"
+            className="input h-12 px-4"
+            placeholder="Alex Smith"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
             spellCheck={false}
           />
-        ))}
-      </div>
-
-      {/* Password (optional — only rooms with a password enforce it) */}
-      <div className="mt-6 w-full max-w-[320px]">
-        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-wkai-text-dim">
-          Room Password <span className="normal-case text-wkai-text-dim/60">(if required)</span>
-        </label>
-        <input
-          className="h-12 w-full rounded-xl border border-wkai-border bg-wkai-surface px-4 text-sm font-medium text-wkai-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all placeholder:text-wkai-text-dim/30"
-          type="password"
-          placeholder="Only if the instructor set one"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="off"
-        />
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2.5 text-sm text-red-400">
-          <AlertCircle size={14} />
-          {error}
+          <p className="mt-1.5 text-xs text-wkai-text-dim">
+            Shown to your instructor so they know who is asking.
+          </p>
         </div>
-      )}
 
-      {/* Join button */}
-      <button
-        className="btn-primary mt-6 px-8 py-3 text-base"
-        onClick={handleJoin}
-        disabled={!isComplete || loading}
-      >
-        {loading
-          ? <><Loader2 size={16} className="animate-spin" /> Joining…</>
-          : <><ArrowRight size={16} /> Join Session</>
-        }
-      </button>
+        <fieldset className="mb-5 min-w-0">
+          <legend className="mb-1.5 block text-sm font-medium text-wkai-text">Room code</legend>
+          <div className="flex gap-2" onPaste={handlePaste}>
+            {chars.map((ch, i) => (
+              <input
+                key={i}
+                ref={(el) => { refs.current[i] = el; }}
+                aria-label={`Room code character ${i + 1}`}
+                className="h-14 min-w-0 flex-1 rounded-xl border border-wkai-border bg-wkai-surface text-center font-mono text-xl font-bold uppercase text-wkai-text transition-colors placeholder:text-wkai-text-dim/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+                maxLength={1}
+                value={ch}
+                placeholder="·"
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete={i === 0 ? "one-time-code" : "off"}
+                onChange={(e) => handleChar(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                onFocus={(e) => e.target.select()}
+                spellCheck={false}
+              />
+            ))}
+          </div>
+        </fieldset>
 
-      <p className="mt-8 text-xs text-wkai-text-dim text-center max-w-xs">
-        WKAI automatically generates a step-by-step guide of everything your
-        instructor is teaching, in real time.
-      </p>
+        <div className="mb-5">
+          <label htmlFor="room-password" className="mb-1.5 block text-sm font-medium text-wkai-text">
+            Room password <span className="font-normal text-wkai-text-dim">(only if asked for one)</span>
+          </label>
+          <input
+            id="room-password"
+            className="input h-12 px-4"
+            type="password"
+            placeholder="Leave empty if there is none"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="mb-4 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-3 text-sm leading-relaxed text-danger"
+          >
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            {error}
+          </p>
+        )}
+
+        <button className="btn-primary w-full py-3 text-base" type="submit" disabled={!isComplete || loading}>
+          {loading
+            ? <><Loader2 size={16} className="animate-spin" /> Joining…</>
+            : <>Join session <ArrowRight size={16} /></>
+          }
+        </button>
+
+        <p className="mx-auto mt-8 max-w-[30ch] text-center text-xs leading-relaxed text-wkai-text-dim">
+          WKAI writes a step-by-step guide of the session as it happens, so you can catch up
+          without stopping the class.
+        </p>
+      </form>
+
+      <SettingsFab />
     </div>
   );
 }

@@ -1,80 +1,92 @@
+import { useState } from "react";
 import { useStore } from "../../store";
 import { clsx } from "clsx";
-import { Users, LogOut } from "lucide-react";
+import { Users, LogOut, Check, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ThemeMenu } from "./ThemeMenu";
 
 export function RoomHeader() {
-  const { session, connected, instructorOffline, studentCount, backgroundLiveEnabled, setBackgroundLiveEnabled } = useStore();
+  const { session, connected, instructorOffline, studentCount } = useStore();
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
 
   // Status reflects instructor presence, not the student's own socket: a
   // connected student with no instructor in the room is "waiting", not "live".
   const status = !connected
-    ? { label: "Reconnecting…", live: false }
+    ? { label: "Reconnecting", short: "Offline", live: false }
     : instructorOffline
-      ? { label: "Instructor offline", live: false }
-      : { label: "Live", live: true };
+      ? { label: "Instructor offline", short: "Away", live: false }
+      : { label: "Live", short: "Live", live: true };
+
+  function copyCode() {
+    if (!session?.roomCode) return;
+    navigator.clipboard?.writeText(session.roomCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-wkai-border bg-wkai-surface px-4">
-      {/* Left: brand + session title */}
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center">
-          <img src="/wkai-logo.svg" alt="WKAI Logo" className="h-7 w-7 object-contain" />
-        </div>
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-wkai-border bg-wkai-surface px-3 sm:px-4">
+      {/* Identity: who is teaching, what this session is */}
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <img src="/wkai-logo.svg" alt="" className="h-7 w-7 shrink-0 object-contain" />
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-wkai-text leading-tight">
+          <p className="truncate text-sm font-semibold leading-tight text-wkai-text">
             {session?.workshopTitle ?? "Workshop"}
           </p>
-          <p className="text-xs text-wkai-text-dim leading-tight">
-            {session?.instructorName}
+          <p className="truncate text-xs leading-tight text-wkai-text-dim">
+            {session?.instructorName ?? "Waiting for instructor"}
           </p>
         </div>
       </div>
 
-      {/* Right: status indicators + leave button */}
-      <div className="flex items-center gap-3 shrink-0">
-        <span className="flex items-center gap-1.5 text-xs text-wkai-text-dim">
-          <Users size={12} />
-          {studentCount}
-        </span>
-
-        <span className="font-mono text-xs font-bold tracking-widest text-accent-text">
-          {session?.roomCode}
-        </span>
-
+      {/* Status: the one thing a student checks constantly. Dot + word, never
+          colour alone. */}
+      <span
+        className={clsx(
+          "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+          status.live
+            ? "border-ok/30 bg-ok/10 text-ok"
+            : "border-warn/30 bg-warn/10 text-warn"
+        )}
+      >
         <span
           className={clsx(
-            "flex items-center gap-1.5 text-xs font-medium",
-            status.live ? "text-emerald-400" : "text-wkai-text-dim"
+            "h-1.5 w-1.5 rounded-full",
+            status.live ? "animate-pulse bg-ok" : "bg-warn"
           )}
-        >
-          <span
-            className={clsx(
-              "h-1.5 w-1.5 rounded-full",
-              status.live ? "bg-emerald-400 animate-pulse" : "bg-gray-600"
-            )}
-          />
-          {status.label}
-        </span>
-        <label className="hidden md:flex items-center gap-1.5 text-[11px] text-wkai-text-dim">
-          <input
-            type="checkbox"
-            checked={backgroundLiveEnabled}
-            onChange={(e) => setBackgroundLiveEnabled(e.target.checked)}
-            className="accent-[rgb(var(--accent))]"
-          />
-          Bg Live
-        </label>
+        />
+        <span className="sm:hidden">{status.short}</span>
+        <span className="hidden sm:inline">{status.label}</span>
+      </span>
+
+      <span className="hidden items-center gap-1.5 text-xs text-wkai-text-dim md:flex">
+        <Users size={13} />
+        {studentCount}
+      </span>
+
+      {session?.roomCode && (
         <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-1.5 text-xs text-wkai-text-dim hover:text-red-400 transition-colors"
-          title="Leave session"
+          type="button"
+          onClick={copyCode}
+          title="Copy room code"
+          className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-wkai-border px-2.5 py-1.5 font-mono text-xs font-bold tracking-widest text-accent-text transition-colors hover:border-accent/60 sm:flex"
         >
-          <LogOut size={13} />
-          <span className="hidden sm:inline">Leave</span>
+          {session.roomCode}
+          {copied ? <Check size={12} className="text-ok" /> : <Copy size={12} className="text-wkai-text-dim" />}
         </button>
-      </div>
+      )}
+
+      <ThemeMenu />
+
+      <button
+        onClick={() => navigate("/")}
+        className="btn-icon shrink-0 text-wkai-text-dim hover:bg-danger/10 hover:text-danger"
+        aria-label="Leave session"
+        title="Leave session"
+      >
+        <LogOut size={16} />
+      </button>
     </header>
   );
 }

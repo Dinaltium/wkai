@@ -1,20 +1,16 @@
-import { useNavigate } from "react-router-dom";
-import { LogOut, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
 
 export function InstructorOfflineBanner() {
-  const navigate = useNavigate();
   return (
-    <div className="flex items-center justify-between bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5">
-      <p className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
-        <WifiOff size={13} />
-        Instructor disconnected. Guide and shared files below stay available while you wait.
+    <div
+      role="status"
+      className="flex shrink-0 items-start gap-2 border-b border-warn/30 bg-warn/10 px-3 py-2.5 sm:px-4"
+    >
+      <WifiOff size={14} className="mt-px shrink-0 text-warn" />
+      <p className="text-xs font-medium leading-relaxed text-warn">
+        Instructor disconnected. Stay put — your guide and files keep working, and the stream
+        resumes on its own when they come back.
       </p>
-      <button
-        className="flex items-center gap-1.5 text-xs text-wkai-text-dim hover:text-wkai-text transition-colors"
-        onClick={() => navigate("/")}
-      >
-        <LogOut size={12} /> Leave
-      </button>
     </div>
   );
 }

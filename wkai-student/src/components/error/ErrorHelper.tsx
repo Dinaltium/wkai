@@ -4,13 +4,14 @@ import {
   Bug,
   Loader2,
   Terminal,
-  CheckCircle,
   AlertTriangle,
   Info,
   Copy,
   Check,
   RotateCcw,
+  LifeBuoy,
 } from "lucide-react";
+import { clsx } from "clsx";
 import type { ErrorResolution } from "../../types";
 
 interface Props {
@@ -42,7 +43,7 @@ export function ErrorHelper({ send }: Props) {
         setResolution(result);
       } catch {
         setResolution({
-          diagnosis: "Could not reach the AI service. Please check your connection.",
+          diagnosis: "Could not reach the AI service. Check your connection and try again.",
           fixCommand: null,
           fixSteps: null,
           isSetupError: false,
@@ -70,62 +71,49 @@ export function ErrorHelper({ send }: Props) {
   }
 
   function copyFix(text: string) {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard?.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="border-b border-wkai-border px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-wkai-text-dim">
-          Error Helper
-        </p>
-        <p className="text-xs text-wkai-text-dim mt-0.5">
-          Paste terminal output here. The AI will analyse the error and suggest a fix.
-        </p>
+      <div className="panel-head">
+        <div>
+          <h2 className="panel-title">Error helper</h2>
+          <p className="panel-sub">
+            Paste the red text from your terminal. You get a plain-English cause and a fix.
+          </p>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-4 p-4">
-        {/* Input area */}
-        {!resolution && (
+      <div className="scroll-area flex flex-col gap-4 p-3 sm:p-4">
+        {!resolution && !errorDiagnosing && (
           <div className="space-y-3">
+            <label className="sr-only" htmlFor="error-input">Terminal output</label>
             <textarea
-              className="input font-mono text-xs resize-none h-44 leading-relaxed"
-              placeholder="Paste terminal output here"
+              id="error-input"
+              className="input h-40 resize-none font-mono text-xs leading-relaxed sm:h-44"
+              placeholder={"Traceback (most recent call last):\n  File \"main.py\", line 3 ..."}
               value={errorText}
               onChange={(e) => setErrorText(e.target.value)}
               spellCheck={false}
             />
             <button
-              className="btn-primary w-full justify-center"
+              className="btn-primary w-full"
               onClick={handleSubmit}
-              disabled={!errorText.trim() || errorDiagnosing}
+              disabled={!errorText.trim()}
             >
-              {errorDiagnosing ? (
-                <><Loader2 size={14} className="animate-spin" /> Analysing...</>
-              ) : (
-                <><Bug size={14} /> Diagnose Error</>
-              )}
+              <Bug size={15} /> Diagnose this error
             </button>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {errorDiagnosing && (
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="relative flex h-12 w-12 items-center justify-center">
-              <Loader2 size={28} className="animate-spin text-accent-text" />
-            </div>
-            <p className="text-sm font-medium text-wkai-text">Analysing error…</p>
-            <p className="text-xs text-wkai-text-dim">
-              AI is reading your error and finding a fix
+            <p className="text-xs leading-relaxed text-wkai-text-dim">
+              Nothing you paste here is shown to the rest of the class.
             </p>
           </div>
         )}
 
-        {/* Resolution card */}
+        {errorDiagnosing && <DiagnosingState />}
+
         {resolution && !errorDiagnosing && (
           <ResolutionCard
             resolution={resolution}
@@ -135,6 +123,25 @@ export function ErrorHelper({ send }: Props) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+/** Skeleton rather than a bare spinner: it shows what is about to arrive. */
+function DiagnosingState() {
+  return (
+    <div className="space-y-3" aria-live="polite">
+      <p className="flex items-center gap-2 text-sm font-medium text-wkai-text">
+        <Loader2 size={15} className="animate-spin text-accent-text" />
+        Reading your error…
+      </p>
+      {[0, 1].map((i) => (
+        <div key={i} className="card space-y-2.5 p-4">
+          <div className="h-3 w-24 animate-pulse rounded bg-wkai-surface2" />
+          <div className="h-3 w-full animate-pulse rounded bg-wkai-surface2" />
+          <div className="h-3 w-4/5 animate-pulse rounded bg-wkai-surface2" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -152,94 +159,68 @@ function ResolutionCard({
   onCopy: (text: string) => void;
   copied: boolean;
 }) {
-  const SeverityIcon = {
-    blocking: AlertTriangle,
-    warning: AlertTriangle,
-    info: Info,
-  }[resolution.severity];
-
-  const severityColor = {
-    blocking: "text-red-400",
-    warning: "text-amber-400",
-    info: "text-sky-400",
+  const severity = {
+    blocking: { Icon: AlertTriangle, className: "text-danger", label: "Blocking" },
+    warning: { Icon: AlertTriangle, className: "text-warn", label: "Warning" },
+    info: { Icon: Info, className: "text-info", label: "Note" },
   }[resolution.severity];
 
   return (
     <div className="space-y-3 animate-slide-up">
-      {/* Diagnosis */}
-      <div className="rounded-xl border border-wkai-border bg-wkai-surface p-4 space-y-2">
+      <div className="card space-y-2 p-4">
         <div className="flex items-center gap-2">
-          <SeverityIcon size={14} className={severityColor} />
-          <span className="text-xs font-semibold uppercase tracking-widest text-wkai-text-dim">
-            Diagnosis
-          </span>
+          <severity.Icon size={15} className={clsx("shrink-0", severity.className)} />
+          <span className={clsx("text-xs font-semibold", severity.className)}>{severity.label}</span>
           {resolution.isSetupError && (
-            <span className="badge bg-amber-500/15 text-amber-400 ml-auto">
-              Setup issue
-            </span>
+            <span className="badge ml-auto bg-warn/15 text-warn">Setup issue</span>
           )}
         </div>
-        <p className="text-sm text-wkai-text leading-relaxed">
-          {resolution.diagnosis}
-        </p>
+        <p className="max-w-[70ch] text-sm leading-relaxed text-wkai-text">{resolution.diagnosis}</p>
       </div>
 
-      {/* Fix command */}
       {resolution.fixCommand && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-emerald-500/20">
-            <div className="flex items-center gap-2">
-              <Terminal size={13} className="text-emerald-400" />
-              <span className="text-xs font-semibold text-emerald-400 uppercase tracking-widest">
-                Run this fix
-              </span>
-            </div>
+        <div className="overflow-hidden rounded-xl border border-ok/30 bg-ok/5">
+          <div className="flex items-center justify-between gap-2 border-b border-ok/20 px-3 py-2 sm:px-4">
+            <span className="flex items-center gap-2 text-xs font-semibold text-ok">
+              <Terminal size={13} />
+              Run this
+            </span>
             <button
               onClick={() => onCopy(resolution.fixCommand!)}
-              className="flex items-center gap-1 text-xs text-emerald-400/70 hover:text-emerald-400 transition-colors"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ok transition-colors hover:bg-ok/10"
             >
-              {copied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+              {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
             </button>
           </div>
-          <pre className="px-4 py-3 text-sm font-mono text-emerald-300">
+          <pre className="overflow-x-auto px-3 py-3 font-mono text-sm text-wkai-text sm:px-4">
             {resolution.fixCommand}
           </pre>
         </div>
       )}
 
-      {/* Multi-step fix */}
       {resolution.fixSteps && resolution.fixSteps.length > 0 && (
-        <div className="rounded-xl border border-wkai-border bg-wkai-surface p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-wkai-text-dim mb-3">
-            Steps to fix
-          </p>
-          <ol className="space-y-2">
+        <div className="card p-4">
+          <h3 className="mb-3 text-sm font-semibold text-wkai-text">Steps to fix</h3>
+          <ol className="space-y-2.5">
             {resolution.fixSteps.map((step, i) => (
               <li key={i} className="flex gap-3 text-sm">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent-text">
                   {i + 1}
                 </span>
-                <span className="text-wkai-text leading-relaxed">{step}</span>
+                <span className="leading-relaxed text-wkai-text">{step}</span>
               </li>
             ))}
           </ol>
         </div>
       )}
 
-      {/* Success indicator */}
-      <div className="flex items-center gap-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-4 py-3">
-        <CheckCircle size={14} className="text-emerald-400 shrink-0" />
-        <p className="text-xs text-emerald-300">
-          If the fix doesn't work, ask your instructor for help.
-        </p>
-      </div>
+      <p className="flex items-start gap-2 rounded-lg border border-wkai-border bg-wkai-surface px-3 py-3 text-xs leading-relaxed text-wkai-text-dim">
+        <LifeBuoy size={14} className="mt-0.5 shrink-0 text-wkai-text-dim" />
+        Still stuck after trying this? Post it in Q&amp;A — your instructor sees it there.
+      </p>
 
-      {/* Try another */}
-      <button
-        className="btn-ghost w-full justify-center border border-wkai-border text-xs"
-        onClick={onReset}
-      >
-        <RotateCcw size={12} />
+      <button className="btn-outline w-full" onClick={onReset}>
+        <RotateCcw size={13} />
         Diagnose another error
       </button>
     </div>

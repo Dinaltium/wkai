@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../../store";
 import type { GuideBlock } from "../../types";
 import { clsx } from "clsx";
@@ -10,20 +10,45 @@ import {
   HelpCircle,
   Copy,
   Check,
+  ArrowDown,
 } from "lucide-react";
-import { useState } from "react";
 
 export function GuideFeed() {
   const { guideBlocks } = useStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [unread, setUnread] = useState(0);
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    setUnread(0);
+  }, []);
+
+  // Follow the feed only while the student is already at the bottom. Yanking
+  // the view away mid-sentence is the fastest way to lose someone who is
+  // re-reading an earlier step.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [guideBlocks]);
+    if (atBottom) scrollToBottom();
+    else setUnread((n) => n + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideBlocks.length]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAtBottom(near);
+    if (near) setUnread(0);
+  }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+    <div className="relative flex h-full flex-col overflow-hidden">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="scroll-area space-y-3 px-3 py-4 sm:px-4"
+      >
         {guideBlocks.length === 0 ? (
           <EmptyState />
         ) : (
@@ -33,6 +58,18 @@ export function GuideFeed() {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {!atBottom && (
+        <button
+          onClick={() => scrollToBottom()}
+          className="absolute bottom-4 left-1/2 z-sticky -translate-x-1/2 rounded-full border border-wkai-border bg-wkai-surface px-4 py-2 text-xs font-medium text-wkai-text shadow-lg animate-fade-in"
+        >
+          <span className="flex items-center gap-1.5">
+            <ArrowDown size={13} />
+            {unread > 0 ? `${unread} new ${unread === 1 ? "step" : "steps"}` : "Jump to latest"}
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -41,41 +78,42 @@ export function GuideFeed() {
 
 function GuideCard({ block, index }: { block: GuideBlock; index: number }) {
   const meta = BLOCK_META[block.type] ?? BLOCK_META.explanation;
+  const Icon = meta.icon;
 
   return (
-    <div
-      className={clsx(
-        "rounded-xl border p-4 space-y-2.5 animate-slide-up",
-        meta.borderClass,
-        meta.bgClass
-      )}
-      style={{ animationDelay: `${Math.min(index * 30, 200)}ms` }}
+    <article
+      className="card animate-slide-up space-y-2.5 p-3.5 sm:p-4"
+      style={{ animationDelay: `${Math.min(index * 25, 150)}ms` }}
     >
-      {/* Header row */}
       <div className="flex items-center gap-2">
-        <span className={clsx("shrink-0", meta.iconClass)}>{meta.icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-widest text-wkai-text-dim">
-          {meta.label}
+        <span
+          className={clsx(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+            meta.chipClass
+          )}
+        >
+          <Icon size={13} />
         </span>
-        <span className="ml-auto text-xs text-wkai-text-dim">
+        <span className="text-xs font-semibold text-wkai-text">{meta.label}</span>
+        <time
+          className="ml-auto shrink-0 text-xs tabular-nums text-wkai-text-dim"
+          dateTime={block.timestamp}
+        >
           {new Date(block.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           })}
-        </span>
+        </time>
       </div>
 
-      {/* Title */}
       {block.title && (
-        <p className="text-sm font-semibold text-wkai-text">{block.title}</p>
+        <h3 className="text-sm font-semibold leading-snug text-wkai-text">{block.title}</h3>
       )}
 
-      {/* Content */}
-      <p className="text-sm text-wkai-text leading-relaxed">{block.content}</p>
+      <p className="max-w-[70ch] text-sm leading-relaxed text-wkai-text">{block.content}</p>
 
-      {/* Code block */}
       {block.code && <CodeBlock code={block.code} language={block.language} />}
-    </div>
+    </article>
   );
 }
 
@@ -91,30 +129,28 @@ function CodeBlock({
   const [copied, setCopied] = useState(false);
 
   function copy() {
-    navigator.clipboard.writeText(code);
+    navigator.clipboard?.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
-    <div className="relative rounded-lg bg-wkai-bg border border-wkai-border overflow-hidden">
-      {/* Language tag + copy */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-wkai-border bg-wkai-surface">
-        <span className="text-xs font-mono text-wkai-text-dim">
-          {language ?? "code"}
-        </span>
+    <div className="overflow-hidden rounded-lg border border-wkai-border bg-wkai-bg">
+      <div className="flex items-center justify-between border-b border-wkai-border bg-wkai-surface2 px-3 py-1.5">
+        <span className="font-mono text-xs text-wkai-text-dim">{language ?? "code"}</span>
+        {/* Always visible: a hover-revealed copy button is unreachable on touch. */}
         <button
           onClick={copy}
-          className="flex items-center gap-1 text-xs text-wkai-text-dim hover:text-wkai-text transition-colors"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-wkai-text-dim transition-colors hover:bg-wkai-border hover:text-wkai-text"
         >
           {copied ? (
-            <><Check size={11} className="text-emerald-400" /> Copied</>
+            <><Check size={12} className="text-ok" /> Copied</>
           ) : (
-            <><Copy size={11} /> Copy</>
+            <><Copy size={12} /> Copy</>
           )}
         </button>
       </div>
-      <pre className="overflow-x-auto p-3 text-xs font-mono text-wkai-text leading-relaxed">
+      <pre className="overflow-x-auto p-3 text-xs font-mono leading-relaxed text-wkai-text">
         <code>{code}</code>
       </pre>
     </div>
@@ -125,23 +161,21 @@ function CodeBlock({
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-6">
+    <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-wkai-border bg-wkai-surface">
         <BookOpen size={22} className="text-wkai-text-dim" />
       </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-wkai-text">
-          Waiting for content
-        </p>
-        <p className="text-xs text-wkai-text-dim max-w-xs leading-relaxed">
-          Your guide will appear here as your instructor teaches. Each step,
-          tip, and code block is generated automatically.
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-wkai-text">Your guide starts as soon as the instructor does</p>
+        <p className="mx-auto max-w-sm text-xs leading-relaxed text-wkai-text-dim">
+          Every step, tip, and code block from the session is written here automatically,
+          so you can catch up without asking anyone to repeat themselves.
         </p>
       </div>
-      <div className="flex items-center gap-2 mt-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
-        <span className="text-xs text-accent-text">Waiting for session content</span>
-      </div>
+      <span className="flex items-center gap-2 text-xs text-accent-text">
+        <span className="h-1.5 w-1.5 animate-ping rounded-full bg-accent" />
+        Listening for session content
+      </span>
     </div>
   );
 }
@@ -150,47 +184,31 @@ function EmptyState() {
 
 const BLOCK_META: Record<
   GuideBlock["type"],
-  {
-    label: string;
-    icon: React.ReactNode;
-    iconClass: string;
-    bgClass: string;
-    borderClass: string;
-  }
+  { label: string; icon: typeof BookOpen; chipClass: string }
 > = {
   step: {
     label: "Step",
-    icon: <Footprints size={13} />,
-    iconClass: "text-accent-text",
-    bgClass: "bg-accent/5",
-    borderClass: "border-accent/20",
+    icon: Footprints,
+    chipClass: "bg-accent/15 text-accent-text",
   },
   tip: {
     label: "Tip",
-    icon: <Lightbulb size={13} />,
-    iconClass: "text-yellow-400",
-    bgClass: "bg-yellow-500/5",
-    borderClass: "border-yellow-500/20",
+    icon: Lightbulb,
+    chipClass: "bg-warn/15 text-warn",
   },
   code: {
     label: "Code",
-    icon: <Code2 size={13} />,
-    iconClass: "text-emerald-400",
-    bgClass: "bg-emerald-500/5",
-    borderClass: "border-emerald-500/20",
+    icon: Code2,
+    chipClass: "bg-ok/15 text-ok",
   },
   explanation: {
     label: "Explanation",
-    icon: <BookOpen size={13} />,
-    iconClass: "text-sky-400",
-    bgClass: "bg-sky-500/5",
-    borderClass: "border-sky-500/20",
+    icon: BookOpen,
+    chipClass: "bg-info/15 text-info",
   },
   comprehension: {
     label: "Check",
-    icon: <HelpCircle size={13} />,
-    iconClass: "text-purple-400",
-    bgClass: "bg-purple-500/5",
-    borderClass: "border-purple-500/20",
+    icon: HelpCircle,
+    chipClass: "bg-wkai-surface2 text-wkai-text-dim",
   },
 };

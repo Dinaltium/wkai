@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../../store";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, MessageSquare } from "lucide-react";
 import { clsx } from "clsx";
 import type { ChatMessage } from "../../types";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 
 interface Props {
   send: <T>(type: string, payload: T) => void;
@@ -13,6 +14,9 @@ export function MessagePanel({ send }: Props) {
   const studentName = localStorage.getItem("wkai_student_name") ?? "Student";
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Enter sends on a keyboard; on a touch keyboard Enter must insert a newline
+  // or half the questions get sent half-written.
+  const hasKeyboard = useMediaQuery("(pointer: fine)");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,47 +72,64 @@ export function MessagePanel({ send }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-wkai-border px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-wkai-text-dim">
-          Ask a Question
-        </p>
-        <p className="text-xs text-wkai-text-dim mt-0.5">
-          Your question will be seen by the instructor. If they are busy, the AI will respond within 45 seconds.
-        </p>
+      <div className="panel-head">
+        <div>
+          <h2 className="panel-title">Ask a question</h2>
+          <p className="panel-sub">
+            Your instructor sees this. If they are mid-demo, the AI answers within about 45 seconds.
+          </p>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="scroll-area space-y-3 px-3 py-4 sm:px-4" aria-live="polite">
         {chatMessages.length === 0 ? (
-          <p className="text-center text-xs text-wkai-text-dim py-8">
-            No messages yet. Ask a question.
-          </p>
+          <EmptyMessages />
         ) : (
-          chatMessages.map((m: ChatMessage) => <MessageBubble key={m.id} msg={m} studentName={studentName} />)
+          chatMessages.map((m: ChatMessage) => (
+            <MessageBubble key={m.id} msg={m} studentName={studentName} />
+          ))
         )}
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-wkai-border p-3 flex gap-2">
+      <div className="flex shrink-0 items-end gap-2 border-t border-wkai-border bg-wkai-surface p-3">
+        <label className="sr-only" htmlFor="question-input">Your question</label>
         <textarea
-          className="input resize-none text-sm flex-1 h-20"
-          placeholder="Type your question..."
+          id="question-input"
+          className="input h-16 flex-1 resize-none text-sm sm:h-20"
+          placeholder="What should I do when the install fails?"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (hasKeyboard && e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSend();
             }
           }}
         />
         <button
-          className="btn-primary self-end"
+          className="btn-primary btn-icon shrink-0"
           onClick={handleSend}
           disabled={!text.trim()}
+          aria-label="Send question"
         >
-          <Send size={14} />
+          <Send size={15} />
         </button>
       </div>
+    </div>
+  );
+}
+
+function EmptyMessages() {
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-wkai-border bg-wkai-surface">
+        <MessageSquare size={20} className="text-wkai-text-dim" />
+      </div>
+      <p className="text-sm font-medium text-wkai-text">No questions yet</p>
+      <p className="max-w-xs text-xs leading-relaxed text-wkai-text-dim">
+        Asking here is private to you and the instructor — the rest of the class never sees it.
+      </p>
     </div>
   );
 }
@@ -119,23 +140,23 @@ function MessageBubble({ msg, studentName }: { msg: ChatMessage; studentName: st
 
   return (
     <div className={clsx("flex flex-col", isStudent ? "items-end" : "items-start")}>
-      <p className="text-xs text-wkai-text-dim mb-1 px-1">
-        {isStudent ? studentName : isAi ? "AI Assistant" : "Instructor"}
+      <p className="mb-1 px-1 text-xs text-wkai-text-dim">
+        {isStudent ? studentName : isAi ? "AI assistant" : "Instructor"}
       </p>
       <div
         className={clsx(
-          "max-w-xs rounded-xl px-4 py-2.5 text-sm",
+          "max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed sm:max-w-[28rem]",
           isStudent
-            ? "bg-accent text-white rounded-br-sm"
+            ? "rounded-br-sm bg-accent text-accent-fg"
             : isAi
-            ? "border border-amber-500/30 bg-amber-500/5 text-wkai-text rounded-bl-sm"
-            : "border border-wkai-border bg-wkai-surface text-wkai-text rounded-bl-sm"
+              ? "rounded-bl-sm border border-warn/30 bg-warn/5 text-wkai-text"
+              : "rounded-bl-sm border border-wkai-border bg-wkai-surface text-wkai-text"
         )}
       >
         {msg.pending ? (
-          <span className="flex items-center gap-2 text-xs opacity-70">
+          <span className="flex items-center gap-2 text-xs opacity-80">
             <Loader2 size={12} className="animate-spin" />
-            Sending...
+            Sending…
           </span>
         ) : (
           msg.text

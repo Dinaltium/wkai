@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Brain, Loader2, Link2, ClipboardList, Sparkles } from "lucide-react";
+import { clsx } from "clsx";
 import { useStore } from "../../store";
 
 interface Props {
@@ -23,8 +24,8 @@ export function ColabAssistPanel({ send }: Props) {
   const placeholder = useMemo(
     () =>
       mode === "url"
-        ? "Paste your Colab notebook URL"
-        : "Paste Colab output, traceback, or code snippet",
+        ? "https://colab.research.google.com/drive/…"
+        : "Paste Colab output, a traceback, or the cell you are stuck on",
     [mode]
   );
 
@@ -61,25 +62,31 @@ export function ColabAssistPanel({ send }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-wkai-border px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-wkai-text-dim">
-          Colab Assistant
-        </p>
+      <div className="panel-head">
+        <div>
+          <h2 className="panel-title">Colab assistant</h2>
+          <p className="panel-sub">Share a notebook or its output and get feedback with workshop context.</p>
+        </div>
       </div>
-      <div className="p-4 space-y-3 overflow-y-auto">
-        <div className="flex gap-2">
+
+      <div className="scroll-area space-y-3 p-3 sm:p-4">
+        <div className="seg" role="tablist" aria-label="Input type">
           <button
-            className={`btn-ghost text-xs ${mode === "paste" ? "border border-accent text-accent-text" : ""}`}
+            role="tab"
+            aria-selected={mode === "paste"}
+            className={clsx("seg-item", mode === "paste" && "seg-item-active")}
             onClick={() => setMode("paste")}
           >
-            <ClipboardList size={12} />
-            Paste Output
+            <ClipboardList size={13} />
+            Paste output
           </button>
           <button
-            className={`btn-ghost text-xs ${mode === "url" ? "border border-accent text-accent-text" : ""}`}
+            role="tab"
+            aria-selected={mode === "url"}
+            className={clsx("seg-item", mode === "url" && "seg-item-active")}
             onClick={() => setMode("url")}
           >
-            <Link2 size={12} />
+            <Link2 size={13} />
             Share URL
           </button>
         </div>
@@ -87,49 +94,47 @@ export function ColabAssistPanel({ send }: Props) {
         {mode === "url" ? (
           <input
             className="input"
+            type="url"
+            inputMode="url"
             placeholder={placeholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            aria-label="Colab notebook URL"
           />
         ) : (
           <textarea
-            className="input font-mono text-xs resize-none h-36"
+            className="input h-36 resize-none font-mono text-xs"
             placeholder={placeholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             spellCheck={false}
+            aria-label="Colab output"
           />
         )}
 
-        <button
-          className="btn-primary w-full justify-center"
-          disabled={!input.trim() || loading}
-          onClick={askAi}
-        >
+        <button className="btn-primary w-full" disabled={!input.trim() || loading} onClick={askAi}>
           {loading ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
-          {loading ? "Analyzing..." : "Ask AI"}
+          {loading ? "Analysing…" : "Ask AI"}
         </button>
 
         {colabAdvice && (
-          <div className="rounded-xl border border-wkai-border bg-wkai-surface p-3 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-accent-text flex items-center gap-1">
-              <Sparkles size={12} />
+          <div className="card space-y-2 p-3.5 animate-slide-up">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-accent-text">
+              <Sparkles size={13} />
               Advice
             </p>
-            <p className="text-sm text-wkai-text leading-relaxed">{colabAdvice}</p>
+            <p className="max-w-[70ch] text-sm leading-relaxed text-wkai-text">{colabAdvice}</p>
           </div>
         )}
 
         {colabFollowUps.length > 0 && (
-          <div className="rounded-xl border border-wkai-border bg-wkai-surface p-3 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-wkai-text-dim">
-              Suggested Follow-ups
-            </p>
+          <div className="card space-y-2 p-3.5">
+            <p className="text-xs font-semibold text-wkai-text">Ask a follow-up</p>
             <div className="space-y-1.5">
               {colabFollowUps.map((q: string) => (
                 <button
                   key={q}
-                  className="w-full text-left rounded-lg border border-wkai-border px-2.5 py-2 text-xs text-wkai-text-dim hover:text-wkai-text hover:border-accent transition-colors"
+                  className="w-full rounded-lg border border-wkai-border px-3 py-2.5 text-left text-xs leading-relaxed text-wkai-text-dim transition-colors hover:border-accent/60 hover:text-wkai-text"
                   onClick={() => sendFollowUp(q)}
                 >
                   {q}
