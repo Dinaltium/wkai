@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { useGSAP } from "@gsap/react";
 import { ArrowDown, ArrowRight, Check, Download } from "lucide-react";
-import { Reveal, RevealHeading, ScrollHighlightText, ScrollProgress } from "../components/marketing/Reveal";
+import { Reveal, RevealHeading, ScrollHighlightText } from "../components/marketing/Reveal";
 import { FloatingDock } from "../components/marketing/FloatingDock";
 import { Accordion } from "../components/marketing/Accordion";
 import { PinnedSteps } from "../components/marketing/PinnedSteps";
@@ -13,7 +13,6 @@ import { EASE, gsap, prefersReducedMotion } from "../lib/motion";
 export function LandingPage() {
   return (
     <div className="min-h-full bg-wkai-bg text-wkai-text">
-      <ScrollProgress />
       <FloatingDock />
       <main>
         <Hero />

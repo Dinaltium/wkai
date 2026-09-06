@@ -1,7 +1,18 @@
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
-import { clsx } from "clsx";
 import { EASE, gsap, prefersReducedMotion } from "../../lib/motion";
+
+/**
+ * Where a scroll-in starts.
+ *
+ * These used to fire at 85–88% of the viewport, which is the moment an element
+ * clips the bottom edge — so on a phone the animation had run to completion
+ * before the reader had scrolled far enough to look at it, and the content just
+ * sat there static. Starting nearer the middle means the movement happens while
+ * the element is somewhere you are actually looking.
+ */
+const REVEAL_START = "top 68%";
+const REVEAL_START_SOFT = "top 74%";
 
 /**
  * Line-mask heading reveal: each line sits in its own overflow-hidden box and
@@ -30,7 +41,7 @@ export function RevealHeading({
         duration: 1.1,
         ease: EASE,
         stagger: 0.09,
-        scrollTrigger: { trigger: root.current, start: "top 85%" },
+        scrollTrigger: { trigger: root.current, start: REVEAL_START },
       });
     },
     { scope: root }
@@ -76,7 +87,7 @@ export function Reveal({
         duration: 1,
         delay,
         ease: EASE,
-        scrollTrigger: { trigger: root.current, start: "top 88%" },
+        scrollTrigger: { trigger: root.current, start: REVEAL_START_SOFT },
       });
     },
     { scope: root }
@@ -86,38 +97,6 @@ export function Reveal({
     <div ref={root} className={className}>
       {children}
     </div>
-  );
-}
-
-/** Thin scroll-position bar pinned to the very top of the page. */
-export function ScrollProgress() {
-  const bar = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    if (prefersReducedMotion()) return;
-    gsap.fromTo(
-      bar.current,
-      { scaleX: 0 },
-      {
-        scaleX: 1,
-        ease: "none",
-        // Whole-page progress: map scroll 0 -> max directly rather than
-        // triggering off an element, which measures the wrong box here.
-        scrollTrigger: { start: 0, end: "max", scrub: 0.3 },
-      }
-    );
-  });
-
-  return (
-    <div
-      ref={bar}
-      aria-hidden="true"
-      className={clsx(
-        "fixed inset-x-0 top-0 z-toast h-[2px] origin-left bg-teal-400",
-        "pointer-events-none"
-      )}
-      style={{ transform: "scaleX(0)" }}
-    />
   );
 }
 
@@ -149,8 +128,8 @@ export function ScrollHighlightText({
           stagger: 0.5,
           scrollTrigger: {
             trigger: root.current,
-            start: "top 78%",
-            end: "bottom 55%",
+            start: "top 72%",
+            end: "bottom 65%",
             scrub: 0.35,
           },
         }
@@ -168,5 +147,57 @@ export function ScrollHighlightText({
         </span>
       ))}
     </p>
+  );
+}
+
+/**
+ * Monospace label that types itself in when it scrolls into view, with a caret
+ * that blinks while it runs.
+ *
+ * The full string is always in the DOM for assistive tech and for a page with
+ * no JS; only a visual copy is animated. Width is reserved in `ch` up front so
+ * a label typing itself never reflows the heading underneath it.
+ */
+export function TypeLine({ text, className }: { text: string; className?: string }) {
+  const out = useRef<HTMLSpanElement>(null);
+  const root = useRef<HTMLSpanElement>(null);
+
+  useGSAP(
+    () => {
+      const el = out.current;
+      if (!el || prefersReducedMotion()) return;
+
+      const state = { n: 0 };
+      el.textContent = "";
+
+      gsap.to(state, {
+        n: text.length,
+        duration: Math.min(1.2, text.length * 0.055),
+        ease: "none",
+        scrollTrigger: { trigger: root.current, start: REVEAL_START, once: true },
+        onUpdate: () => {
+          el.textContent = text.slice(0, Math.round(state.n));
+        },
+        onComplete: () => {
+          el.textContent = text;
+          el.dataset.done = "true";
+        },
+      });
+    },
+    { scope: root }
+  );
+
+  return (
+    <span
+      ref={root}
+      className={className}
+      style={{ minWidth: `${text.length}ch` }}
+      aria-label={text}
+    >
+      <span ref={out} aria-hidden="true">
+        {text}
+      </span>
+      <span className="type-caret" aria-hidden="true" />
+    </span>
   );
 }

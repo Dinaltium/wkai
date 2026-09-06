@@ -199,3 +199,30 @@
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* Caret for TypeLine. Blinks while the label is typing, then rests — a caret
+   that keeps flashing next to finished text reads as an unfinished field. */
+.type-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 0.15em;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0.85;
+  animation: type-caret-blink 1s steps(1) infinite;
+}
+
+[data-done="true"] + .type-caret {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes type-caret-blink {
+  0%, 50% { opacity: 0.85; }
+  50.01%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .type-caret { display: none; }
+}

@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import { Check } from "lucide-react";
 import { CheckVisual, ErrorVisual, GuideVisual, RoomVisual } from "./FeatureVisuals";
+import { TypeLine } from "./Reveal";
 import { gsap, prefersReducedMotion } from "../../lib/motion";
 
 const FEATURES = [
@@ -117,7 +118,10 @@ export function HorizontalFeatures() {
           >
             <div className="lg:w-[42%]">
               <p className="font-mono text-xs uppercase tracking-[0.16em] text-accent-text">
-                {String(i + 1).padStart(2, "0")} · {f.kicker}
+                <TypeLine
+                  text={`${String(i + 1).padStart(2, "0")} · ${f.kicker}`}
+                  className="inline-flex items-center"
+                />
               </p>
               <h3 className="display mt-4 max-w-[18ch] text-2xl text-wkai-text sm:text-4xl">
                 {f.title}
