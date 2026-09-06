@@ -31,18 +31,19 @@ export function ThemeControls() {
                 aria-label={`Accent ${p.name}`}
                 aria-pressed={active}
                 className={clsx(
-                  "flex h-7 w-7 items-center justify-center rounded-full border transition-transform hover:scale-110",
-                  active ? "border-wkai-text" : "border-transparent"
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110",
+                  "[@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11",
+                  active && "ring-2 ring-wkai-text ring-offset-2 ring-offset-wkai-surface"
                 )}
                 style={{ backgroundColor: p.hex }}
               >
-                {active && <Check size={13} className="text-white drop-shadow" />}
+                {active && <Check size={14} className="text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]" />}
               </button>
             );
           })}
           {/* custom color */}
           <label
-            className="flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-wkai-border"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-wkai-border [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
             title="Custom color"
             style={{ background: "conic-gradient(from 180deg, #f43f5e, #f59e0b, #10b981, #3b82f6, #8b5cf6, #f43f5e)" }}
           >
@@ -50,7 +51,7 @@ export function ThemeControls() {
               type="color"
               value={accent}
               onChange={(e) => setAccent(e.target.value)}
-              className="h-8 w-8 cursor-pointer opacity-0"
+              className="h-12 w-12 cursor-pointer opacity-0"
               aria-label="Custom accent color"
             />
           </label>

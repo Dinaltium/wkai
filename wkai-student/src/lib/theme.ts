@@ -41,18 +41,34 @@ function towards([r, g, b]: RGB, target: number, amt: number): RGB {
   return [r, g, b].map((v) => Math.round(v + (target - v) * amt)) as RGB;
 }
 
+function contrast(a: RGB, b: RGB): number {
+  const l1 = relLuminance(a);
+  const l2 = relLuminance(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+const NEAR_BLACK: RGB = [8, 10, 12];
+const NEAR_WHITE: RGB = [250, 250, 250];
+const PAGE_BG: Record<ThemeMode, RGB> = { dark: [12, 12, 14], light: [250, 250, 250] };
+const AA = 4.5;
+
 function applyAccent(hex: string, mode: ThemeMode) {
   const rgb = hexToRgb(hex);
-  const lum = relLuminance(rgb);
-  // Text on an accent fill: dark if the accent is bright, else near-white.
-  const fg: RGB = lum > 0.45 ? [8, 10, 12] : [250, 250, 250];
-  // Accent used as text/icon on the page background: keep it legible.
+
+  // Text on an accent fill: whichever end of the ramp actually reads better.
+  // A fixed luminance threshold put white on mid-tone accents like teal, which
+  // lands around 2.4:1 — the primary button label failed WCAG AA outright.
+  const fg: RGB = contrast(NEAR_BLACK, rgb) >= contrast(NEAR_WHITE, rgb) ? NEAR_BLACK : NEAR_WHITE;
+
+  // Accent used as text/icon on the page background: walk it toward the page's
+  // far end until it clears AA, so any picked colour stays readable.
+  const bg = PAGE_BG[mode];
+  const target = mode === "light" ? 0 : 255;
   let text: RGB = rgb;
-  if (mode === "light") {
-    text = lum > 0.3 ? towards(rgb, 0, 0.4) : rgb; // darken on light pages
-  } else {
-    text = lum < 0.25 ? towards(rgb, 255, 0.45) : rgb; // lighten very dark accents on dark pages
+  for (let amt = 0.05; amt <= 0.9 && contrast(text, bg) < AA; amt += 0.05) {
+    text = towards(rgb, target, amt);
   }
+
   const s = document.documentElement.style;
   s.setProperty("--accent", rgb.join(" "));
   s.setProperty("--accent-fg", fg.join(" "));
