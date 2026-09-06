@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "obs": {
+      "command": "agentic-obs",
+      "args": [],
+      "env": {}
+    }
+  }
+}
