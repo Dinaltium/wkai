@@ -1,0 +1,21 @@
+{
+  "name": "wkai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WKAI monorepo — orchestration scripts for the backend, the student web app, and the instructor desktop app",
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix wkai-student run build && npm --prefix wkai run build",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "npm --prefix wkai-backend test",
+    "test:e2e": "npm run test:e2e:api && npm run test:e2e:ui",
+    "test:e2e:api": "node e2e/run-api.mjs",
+    "test:e2e:ui": "npm --prefix wkai-student run test:e2e",
+    "test:e2e:install": "npm --prefix wkai-student run test:e2e:install",
+    "e2e:up": "node e2e/harness/stack.mjs up",
+    "e2e:down": "node e2e/harness/stack.mjs down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

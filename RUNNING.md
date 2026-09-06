@@ -213,12 +213,40 @@ If port 3000 is in use, Vite auto-assigns 3001. Check the terminal output for th
 
 ---
 
+## Running the Tests
+
+Unit tests need nothing running:
+
+```bash
+npm run test:unit
+```
+
+The end-to-end suites boot their own stack — throwaway Postgres and Redis on
+their own ports, a backend, and the student app — so they never touch the one
+you have running for development. Docker is required.
+
+```bash
+npm run test:e2e
+```
+
+Everything at once:
+
+```bash
+npm test
+```
+
+See `e2e/README.md` for running a single suite, keeping the stack up between
+runs, and installing the Playwright browser.
+
+---
+
 ## Project Structure
 
 ```
 ~/Projects/wkai/          # WSL2
 C:\Projects\WKAI\wkai\    # Windows
 
+├── e2e/               # End-to-end harness and test orchestration
 ├── wkai/              # Instructor desktop app (Tauri + React)
 ├── wkai-backend/      # Backend server (Node.js + WebSocket)
 └── wkai-student/      # Student web app (React + Vite)

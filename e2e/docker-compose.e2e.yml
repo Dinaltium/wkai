@@ -1,0 +1,38 @@
+# Throwaway datastores for the end-to-end suites.
+#
+# Deliberately NOT the dev compose file: different project name, different
+# ports, and no named volumes. A test run must never write into — or reset —
+# the Postgres a developer has a real workshop sitting in, and every run has
+# to start from an empty schema for its assertions to mean anything.
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wkai-e2e-postgres
+    environment:
+      POSTGRES_USER: wkai
+      POSTGRES_PASSWORD: wkai_password
+      POSTGRES_DB: wkai_e2e
+    ports:
+      - "55432:5432"
+    # tmpfs, so the data dies with the container and cannot outlive a run.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wkai -d wkai_e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: wkai-e2e-redis
+    ports:
+      - "56379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

@@ -295,3 +295,10 @@ FINAL REPORT*.docx
 *.pdf
 CAOS REPORT.docx
 WKAI_REPORT_REAL.*
+
+# Playwright end-to-end artifacts
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+playwright/.cache/
