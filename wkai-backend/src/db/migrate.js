@@ -107,6 +107,92 @@ const MIGRATIONS = [
     resolved        BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
+
+  // ─── Assessments (quizzes and tests) ───────────────────────────────────────
+  // One table for both because they are the same object with different rules:
+  // a quiz is formative (optionally not scored, navigation free, no proctoring),
+  // a test is summative (scored, often linear, proctored). Keeping them apart
+  // would have duplicated questions, attempts, answers and grading wholesale.
+  `CREATE TABLE IF NOT EXISTS assessments (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id           UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    kind                 TEXT NOT NULL CHECK (kind IN ('quiz','test')),
+    title                TEXT NOT NULL,
+    status               TEXT NOT NULL DEFAULT 'draft'
+                         CHECK (status IN ('draft','live','closed')),
+    -- 'linear' = one question at a time, no going back. 'free' = revisit any.
+    navigation           TEXT NOT NULL DEFAULT 'free'
+                         CHECK (navigation IN ('linear','free')),
+    proctored            BOOLEAN NOT NULL DEFAULT FALSE,
+    -- A practice quiz can be run without it counting against the student.
+    counts_toward_score  BOOLEAN NOT NULL DEFAULT TRUE,
+    source               TEXT NOT NULL DEFAULT 'manual'
+                         CHECK (source IN ('manual','ai','kahoot')),
+    kahoot_url           TEXT,
+    time_limit_seconds   INT,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    launched_at          TIMESTAMPTZ,
+    closed_at            TIMESTAMPTZ
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS assessments_session_idx ON assessments (session_id)`,
+
+  `CREATE TABLE IF NOT EXISTS assessment_questions (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assessment_id  UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+    position       INT NOT NULL,
+    prompt         TEXT NOT NULL,
+    options        JSONB NOT NULL,          -- string[]
+    correct_index  INT NOT NULL,
+    explanation    TEXT,
+    points         INT NOT NULL DEFAULT 1,
+    -- Free-text label ("promises", "list comprehensions") used to say what a
+    -- student is weak at, rather than only how many they got wrong.
+    topic          TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS assessment_questions_assessment_idx
+     ON assessment_questions (assessment_id, position)`,
+
+  `CREATE TABLE IF NOT EXISTS assessment_attempts (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assessment_id   UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+    student_id      TEXT NOT NULL,
+    student_name    TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'in_progress'
+                    CHECK (status IN ('in_progress','submitted','locked')),
+    score           NUMERIC,
+    max_score       NUMERIC,
+    ai_summary      TEXT,
+    violation_count INT NOT NULL DEFAULT 0,
+    started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    submitted_at    TIMESTAMPTZ,
+    UNIQUE (assessment_id, student_id)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS assessment_answers (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    attempt_id     UUID NOT NULL REFERENCES assessment_attempts(id) ON DELETE CASCADE,
+    question_id    UUID NOT NULL REFERENCES assessment_questions(id) ON DELETE CASCADE,
+    selected_index INT,
+    is_correct     BOOLEAN,
+    answered_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (attempt_id, question_id)
+  )`,
+
+  // Proctoring flags: what happened, when, on whose attempt. Recorded rather
+  // than only counted so the instructor can judge a single alt-tab differently
+  // from six of them.
+  `CREATE TABLE IF NOT EXISTS assessment_events (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    attempt_id  UUID NOT NULL REFERENCES assessment_attempts(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    detail      TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS assessment_events_attempt_idx ON assessment_events (attempt_id)`,
 ];
 
 async function runMigrations() {
