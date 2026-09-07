@@ -3,6 +3,7 @@ import { textLLM, callWithRetry } from "../groqClient.js";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { buildSessionContext } from "../sessionContext.js";
 import { getLangSmithConfig } from "../langsmith.js";
+import { UNTRUSTED_INPUT_RULES, wrapUntrusted } from "../untrusted.js";
 
 const MessageAgentState = Annotation.Root({
   sessionId: Annotation({ reducer: (_, v) => v }),
@@ -29,9 +30,11 @@ Rules:
 - Do not claim certainty when unsure.
 - If related to setup/runtime issues, suggest concrete version-check commands (for example: node -v, npm -v, python --version) before proposing fixes.
 - If additional context is missing, ask one short clarifying question.
-- If unrelated to workshop context, redirect politely.`,
+- If unrelated to workshop context, redirect politely.
+
+${UNTRUSTED_INPUT_RULES}`,
   ],
-  ["human", "Student {student_name} asks: {message}"],
+  ["human", "A student asks:\n{message}"],
 ]);
 
 async function loadContextNode(state) {
@@ -47,8 +50,7 @@ async function generateResponseNode(state) {
     const res = await callWithRetry(() =>
       chain.invoke({
         session_context: state.sessionContext || "No prior context.",
-        student_name: state.studentName,
-        message: state.message,
+        message: wrapUntrusted("student question", state.message),
       })
     );
     return { response: String(res.content ?? "").trim() || null };

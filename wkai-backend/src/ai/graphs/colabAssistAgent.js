@@ -6,6 +6,7 @@ import { textLLM, callWithRetry } from "../groqClient.js";
 import { buildSessionContext } from "../sessionContext.js";
 import { extractJsonBlock } from "../jsonBlock.js";
 import { getLangSmithConfig } from "../langsmith.js";
+import { UNTRUSTED_INPUT_RULES, wrapUntrusted } from "../untrusted.js";
 
 const ColabAssistState = Annotation.Root({
   sessionId: Annotation({ reducer: (_, v) => v }),
@@ -48,6 +49,8 @@ Rules:
 - Keep language student-friendly.
 - Return 2-3 concise follow-up questions that help unblock the student.
 
+${UNTRUSTED_INPUT_RULES}
+
 {format_instructions}`,
   ],
 ]);
@@ -63,7 +66,8 @@ async function analyzeColabNode(state) {
       chain.invoke({
         session_context: state.sessionContext || "No prior context.",
         content_type: state.contentType || "log",
-        colab_content: state.colabContent,
+        // Pasted notebook cells, outputs and comments are student-controlled.
+        colab_content: wrapUntrusted("student notebook content", state.colabContent),
         format_instructions: outputParser.getFormatInstructions(),
       })
     );

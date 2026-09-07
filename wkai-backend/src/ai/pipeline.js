@@ -2,6 +2,35 @@ import { visionLLM, callWithRetry } from "./groqClient.js";
 import { screenAnalysisPrompt, fixingScreenParser } from "./prompts.js";
 import { getSessionMemory } from "./memory.js";
 
+// Blocks the model produces when it has nothing to say. They read as content
+// but carry none, and they are most of what makes the guide feel random.
+const FILLER_PATTERNS = [
+  /^the (instructor|screen|user) (is|appears to be)/i,
+  /^(this|the) (screen|frame|image) (shows|displays)/i,
+  /(unclear|cannot determine|not visible|unable to (see|read|determine))/i,
+  /continue (watching|following along)/i,
+];
+
+const MIN_CONTENT_CHARS = 25;
+
+/**
+ * Drop blocks that are not actually grounded content. The prompt asks the
+ * model to stay silent when it cannot see what is being taught; this enforces
+ * it, because a vision model asked for 1-3 blocks will nearly always produce
+ * 1-3 blocks.
+ */
+export function filterUngroundedBlocks(blocks = []) {
+  return blocks.filter((block) => {
+    const content = String(block?.content ?? "").trim();
+    if (content.length < MIN_CONTENT_CHARS) return false;
+    if (FILLER_PATTERNS.some((pattern) => pattern.test(content))) return false;
+    // A "code" block with no code is a description of code, which is what the
+    // explanation type is for — and usually means the model invented it.
+    if (block.type === "code" && !String(block.code ?? "").trim()) return false;
+    return true;
+  });
+}
+
 /**
  * processScreenFrame
  * 
@@ -36,7 +65,8 @@ export async function processScreenFrame(sessionId, frameB64, transcript) {
     // boolean therefore threw away every block on a real workshop screen and
     // the guide stayed empty forever. Blocks are the actual product, so they
     // decide: the boolean only matters when there is nothing to show anyway.
-    const hasContent = result.guideBlocks.length > 0;
+    const guideBlocks = filterUngroundedBlocks(result.guideBlocks);
+    const hasContent = guideBlocks.length > 0;
 
     // 4. Update memory if the AI generated instructional content
     if (hasContent && result.summary) {
@@ -45,7 +75,7 @@ export async function processScreenFrame(sessionId, frameB64, transcript) {
 
     return {
       isInstructional: result.isInstructional,
-      guideBlocks: hasContent ? result.guideBlocks : [],
+      guideBlocks,
       comprehensionQuestion: result.comprehensionQuestion,
       summary: result.summary,
     };
