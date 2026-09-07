@@ -32,7 +32,21 @@ export function useNativeCapture() {
   const [error, setError] = useState<string | null>(null);
   const addDebugLog = useAppStore((s) => s.addDebugLog);
 
-  // Canvas rendering refs
+  // The canvas frames are actually decoded into. It is created here rather
+  // than taken from the DOM because `captureStream()` dies with the element:
+  // when the session view unmounts (the instructor opens Settings) a
+  // DOM-owned canvas takes the outgoing video track down with it, and no
+  // amount of re-sharing afterwards revives it. This one outlives any view.
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const getCaptureCanvas = () => {
+    if (!captureCanvasRef.current) {
+      captureCanvasRef.current = document.createElement("canvas");
+    }
+    return captureCanvasRef.current;
+  };
+
+  // Optional on-screen preview. Whatever view is mounted attaches its own
+  // canvas here and gets a copy of each frame; nothing depends on it existing.
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // True while a frame is being decoded. The pull loop skips a tick rather
   // than queuing while this is set — the backend hands out "current state",
@@ -161,11 +175,7 @@ export function useNativeCapture() {
           new Blob([jpegBytes], { type: "image/jpeg" })
         );
 
-        const canvas = canvasRef.current;
-        if (!canvas) {
-          bitmap.close();
-          return;
-        }
+        const canvas = getCaptureCanvas();
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
           canvas.height = height;
@@ -178,11 +188,21 @@ export function useNativeCapture() {
         ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
         bitmap.close();
         publishStream(canvas);
+
+        // Mirror onto whatever preview canvas is mounted right now, if any.
+        const preview = canvasRef.current;
+        if (preview) {
+          if (preview.width !== width || preview.height !== height) {
+            preview.width = width;
+            preview.height = height;
+          }
+          preview.getContext("2d", { alpha: false })?.drawImage(canvas, 0, 0);
+        }
       };
 
       const pumpTick = () => {
         if (!pumpActiveRef.current) return;
-        if (canvasRef.current && capturingRef.current && !decodingRef.current) {
+        if (capturingRef.current && !decodingRef.current) {
           decodingRef.current = true;
           invoke<ArrayBuffer>("get_latest_frame")
             .then((buf) => (buf && buf.byteLength > 0 ? drawFrame(buf) : undefined))

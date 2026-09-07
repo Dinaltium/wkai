@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "../store";
 import { getRtcConfig } from "../lib/ice";
 import type {
@@ -151,6 +151,25 @@ export function useWebRtcPublisher(
   };
   createPeerRef.current = createPeerForStudent;
 
+  // A new capture stream (source switched, or quality/framerate changed
+  // mid-session) means every existing peer is still sending tracks from a
+  // stream that has been stopped. Renegotiate rather than leaving students on
+  // a frozen frame.
+  const lastStreamRef = useRef<MediaStream | null>(null);
+  useEffect(() => {
+    if (!sharedDisplayStream) {
+      lastStreamRef.current = null;
+      return;
+    }
+    const previous = lastStreamRef.current;
+    lastStreamRef.current = sharedDisplayStream;
+    if (!previous || previous === sharedDisplayStream) return;
+    addDebugLog("Capture stream replaced — re-offering to every student", "info");
+    [...peersRef.current.keys()].forEach((studentId) => {
+      void createPeerRef.current(studentId, true);
+    });
+  }, [sharedDisplayStream, addDebugLog]);
+
   useEffect(() => {
     if (!sessionId || !streamingToStudents) return;
     // sharedDisplayStream is a dep: the capture stream often becomes ready AFTER
@@ -220,6 +239,21 @@ export function useWebRtcPublisher(
     [...peersRef.current.keys()].forEach(closePeer);
   }, [streamingToStudents, send]);
 
+  // Swapping the microphone must not renegotiate: replaceTrack keeps the
+  // existing sender (and the student's connection) intact.
+  const replaceAudioTrack = useCallback(async (track: MediaStreamTrack | null) => {
+    for (const peer of peersRef.current.values()) {
+      for (const sender of peer.getSenders()) {
+        if (sender.track?.kind !== "audio") continue;
+        try {
+          await sender.replaceTrack(track);
+        } catch {
+          addDebugLog("Could not swap the outgoing microphone track", "warn");
+        }
+      }
+    }
+  }, [addDebugLog]);
+
   useEffect(() => {
     return () => {
       [...peersRef.current.keys()].forEach(closePeer);
@@ -228,4 +262,6 @@ export function useWebRtcPublisher(
       setSharedDisplayStream(null);
     };
   }, [setSharedDisplayStream]);
+
+  return { replaceAudioTrack };
 }

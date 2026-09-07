@@ -1,13 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { clsx } from "clsx";
-import { BookOpen, FolderOpen, MessageSquare, Users } from "lucide-react";
-import { isTauri } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
+import { BookOpen, ClipboardList, FolderOpen, MessageSquare, Users } from "lucide-react";
 import { useAppStore } from "../store";
-import { useWebSocket } from "../hooks/useWebSocket";
-import { useWebRtcPublisher } from "../hooks/useWebRtcPublisher";
-import { useNativeCapture } from "../hooks/useNativeCapture";
-import { useCaptureDevices } from "../hooks/useCaptureDevices";
-import { useSessionRecorder } from "../hooks/useSessionRecorder";
+import { useSessionRuntime } from "../session/SessionRuntimeProvider";
 import { GuidePanel } from "../components/instructor/GuidePanel";
 import { FileSharePanel } from "../components/instructor/FileSharePanel";
 import { StudentPanel } from "../components/instructor/StudentPanel";
@@ -17,165 +11,82 @@ import { ShareIntentToast } from "../components/instructor/ShareIntentToast";
 import { SessionAiSettingsPanel } from "../components/instructor/SessionAiSettingsPanel";
 import { StagePreview } from "../components/instructor/StagePreview";
 import { PresentBar } from "../components/instructor/PresentBar";
+import { AssessmentPanel } from "../components/instructor/AssessmentPanel";
+import { SessionRailTabs, type RailTabDef } from "../components/instructor/SessionRailTabs";
 import { DeviceSelector } from "../components/nativeCapture/DeviceSelector";
-import type { CaptureTarget } from "../types/nativeCapture";
-import { captureScreen, startAudioCapture, stopAudioCapture } from "../lib/tauri";
 
-const SCREEN_FRAME_INTERVAL_MS = 25_000;
+const RAIL_WIDTH_KEY = "wkai_session_rail_width";
+const RAIL_MIN_WIDTH = 260;
+const RAIL_MAX_WIDTH = 640;
 
-type RailTab = "guide" | "files" | "people" | "qa";
+function clampRailWidth(width: number) {
+  return Math.min(RAIL_MAX_WIDTH, Math.max(RAIL_MIN_WIDTH, Math.round(width)));
+}
 
-const RAIL_TABS: { id: RailTab; label: string; icon: typeof BookOpen }[] = [
+function readStoredRailWidth() {
+  const raw = Number(localStorage.getItem(RAIL_WIDTH_KEY));
+  return Number.isFinite(raw) && raw > 0 ? clampRailWidth(raw) : 320;
+}
+
+type RailTab = "guide" | "files" | "people" | "qa" | "tests";
+
+const RAIL_TABS: RailTabDef<RailTab>[] = [
   { id: "guide", label: "Guide", icon: BookOpen },
   { id: "files", label: "Files", icon: FolderOpen },
   { id: "people", label: "People", icon: Users },
   { id: "qa", label: "Q&A", icon: MessageSquare },
+  { id: "tests", label: "Quiz", icon: ClipboardList },
 ];
 
+/**
+ * The session view is only a view. Capture, WebRTC, the socket and the
+ * recorder all live in SessionRuntimeProvider above the router, so leaving
+ * this page (for Settings, say) no longer takes the stream down with it.
+ */
 export function SessionPage() {
-  const { session, settings, studentCount, streamingToStudents, setStreamingToStudents } = useAppStore();
-  const { send, on, off } = useWebSocket({
-    sessionId: session?.id ?? null,
-    backendUrl: settings.backendUrl,
-    token: session?.instructorToken,
-  });
-  useWebRtcPublisher(session?.id ?? null, send, on, off);
+  const { session, studentCount, streamingToStudents, setStreamingToStudents } = useAppStore();
+  const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
+  const addDebugLog = useAppStore((s) => s.addDebugLog);
+  const { send, capture, devices, recorder, selectedTarget, setSelectedTarget, sourceLabel, selectCamera, cameraStream } =
+    useSessionRuntime();
 
   const [railTab, setRailTab] = useState<RailTab>("guide");
   const [sourceOpen, setSourceOpen] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState<CaptureTarget | null>(null);
-  const capture = useNativeCapture();
-  const devices = useCaptureDevices();
-  const recorder = useSessionRecorder(session?.roomCode ?? "session");
-  const setSharedDisplayStream = useAppStore((s) => s.setSharedDisplayStream);
-  const addDebugLog = useAppStore((s) => s.addDebugLog);
-  const sessionAiSettings = useAppStore((s) => s.sessionAiSettings);
-  const initSessionAiSettings = useAppStore((s) => s.initSessionAiSettings);
-  // Mic track lives outside the native-capture stream (getUserMedia, not
-  // canvas.captureStream) so it needs its own handle to stop on cleanup —
-  // capture.stopCapture() only knows about its own video track.
-  const micStreamRef = useRef<MediaStream | null>(null);
+  const [railWidth, setRailWidth] = useState(readStoredRailWidth);
 
-  // Seed the session-level AI/recording overrides from the global defaults
-  // once per session.
   useEffect(() => {
-    if (session) initSessionAiSettings();
-  }, [session?.id]);
+    localStorage.setItem(RAIL_WIDTH_KEY, String(railWidth));
+  }, [railWidth]);
 
-  // Auto-start capture when target is selected
+  // A width dragged out on a maximised window must not survive into a small
+  // one: the rail is fixed-px and the stage is what gets squeezed, so a
+  // restored 640px rail on a 900px window left almost nothing for the preview.
   useEffect(() => {
-    if (selectedTarget) {
-      const fps = settings.captureFramerate === "auto" ? 30 : parseInt(String(settings.captureFramerate));
-      // 0 = capture at the display's native width. Only "low" downscales:
-      // resizing a 1920x1200 frame costs ~64ms against ~50ms for the encode, so
-      // for every other preset native is both sharper and faster.
-      const previewWidth = settings.captureQuality === "low" ? 1280 : 0;
-      capture
-        .startCapture(selectedTarget, { fps, quality: settings.captureQuality, preview_width: previewWidth })
-        .then(async () => {
-          const stream = await capture.getStream(fps);
-          if (!stream) {
-            addDebugLog(
-              "Capture started but produced no frames — live stream and recording unavailable",
-              "error"
-            );
-            return;
-          }
-
-          // Add the instructor's mic to the same stream so it rides along
-          // wherever this stream already goes — WebRTC, local recording, and
-          // the mute control in the bar.
-          try {
-            const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-            micStreamRef.current = mic;
-            mic.getAudioTracks().forEach((track) => stream.addTrack(track));
-            addDebugLog("Microphone added to live stream — students will hear audio", "success");
-          } catch (err) {
-            addDebugLog(
-              `Microphone unavailable, streaming video only: ${err instanceof Error ? err.message : String(err)}`,
-              "warn"
-            );
-          }
-
-          setSharedDisplayStream(stream);
-        });
-    } else {
-      capture.stopCapture().then(() => {
-        micStreamRef.current?.getTracks().forEach((t) => t.stop());
-        micStreamRef.current = null;
-        setSharedDisplayStream(null);
-      });
-    }
-  }, [selectedTarget]); // Intentionally omitting settings so it doesn't restart on setting change
-
-  // Drive local disk recording off the session-level toggle instead of
-  // baking it into the one-shot startCapture() call.
-  const sharedDisplayStream = useAppStore((s) => s.sharedDisplayStream);
-  useEffect(() => {
-    if (!sharedDisplayStream || !sessionAiSettings) return;
-    if (sessionAiSettings.saveLocalRecording) {
-      capture.startLocalRecording(settings.recordingDirectory || "", settings.recordingFormat || "mp4");
-    } else {
-      capture.stopLocalRecording();
-    }
-  }, [sharedDisplayStream, sessionAiSettings?.saveLocalRecording]);
-
-  // Periodic screen-frame → AI guide-block generation. Separate xcap-based grab
-  // rather than reusing the native-capture pipeline: that pipeline is tuned for
-  // continuous low-latency streaming, not an occasional AI snapshot.
-  //
-  // Gated on the session override, not the raw global setting — each tick is a
-  // real Groq vision call.
-  useEffect(() => {
-    if (!selectedTarget || !isTauri()) return;
-    if (!sessionAiSettings?.aiGuideBlocksEnabled) return;
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const frameB64 = await captureScreen();
-        if (!cancelled) send("screen-frame", { frameB64 });
-      } catch (err) {
-        addDebugLog(
-          `Screen frame capture failed: ${err instanceof Error ? err.message : String(err)}`,
-          "warn"
-        );
-      }
-    };
-    void tick();
-    const interval = window.setInterval(tick, SCREEN_FRAME_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [selectedTarget, send, sessionAiSettings?.aiGuideBlocksEnabled]);
-
-  // Mic → Whisper → guide blocks. Keyed on the session rather than the capture
-  // target: what the instructor says is worth transcribing whether or not a
-  // screen source is selected.
-  useEffect(() => {
-    if (!session?.id || !isTauri()) return;
-    if (!sessionAiSettings?.aiTranscriptionEnabled) return;
-
-    startAudioCapture(session.id, settings.micDevice)
-      .then((device) =>
-        addDebugLog(`Microphone transcription started on "${device}" — speech becomes guide blocks`, "success")
-      )
-      .catch((err) => addDebugLog(`Could not start microphone transcription: ${err}`, "error"));
-
-    return () => {
-      void stopAudioCapture();
-    };
-  }, [session?.id, sessionAiSettings?.aiTranscriptionEnabled, settings.micDevice]);
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      capture.stopCapture();
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-      setSharedDisplayStream(null);
-    };
+    const clampToWindow = () =>
+      setRailWidth((w) => Math.min(w, Math.max(RAIL_MIN_WIDTH, window.innerWidth * 0.45)));
+    clampToWindow();
+    window.addEventListener("resize", clampToWindow);
+    return () => window.removeEventListener("resize", clampToWindow);
   }, []);
+
+  // Pointer capture rather than window listeners: the drag keeps working when
+  // the cursor crosses the video canvas, which swallows mouse events.
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    const startX = event.clientX;
+    const startWidth = railWidth;
+
+    const onMove = (e: PointerEvent) => setRailWidth(clampRailWidth(startWidth + (startX - e.clientX)));
+    const onUp = () => {
+      handle.releasePointerCapture(event.pointerId);
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+  }
 
   if (!session) {
     return (
@@ -187,16 +98,6 @@ export function SessionPage() {
       </div>
     );
   }
-
-  const sourceLabel = (() => {
-    if (!selectedTarget) return null;
-    if (selectedTarget.type === "monitor") {
-      const m = devices.monitors.find((x) => x.id === selectedTarget.id);
-      return m ? `${m.name} · ${m.width}×${m.height}` : "Screen";
-    }
-    const w = devices.windows.find((x) => x.id === selectedTarget.id);
-    return w ? w.title || w.appName : "Window";
-  })();
 
   function handleTogglePresent() {
     if (!streamingToStudents && !sharedDisplayStream) {
@@ -213,81 +114,103 @@ export function SessionPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* ─── Stage: what you are sharing, plus the controls ────────── */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <StagePreview
-          canvasRef={capture.canvasRef}
-          attachCanvas={capture.attachCanvas}
-          status={capture.status.status}
-          sourceLabel={sourceLabel}
-          presenting={streamingToStudents}
-          recording={recorder.recording.isRecording}
-          onPickSource={() => setSourceOpen(true)}
+    // Column, not row: the control bar runs the full width of the window
+    // beneath both the stage and the rail, the way a call app does it. Nested
+    // inside the stage column it stopped at the rail edge, leaving the
+    // session's main controls boxed into two thirds of the screen.
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex min-h-0 flex-1">
+        {/* ─── Stage: what you are sharing ─────────────────────────── */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <StagePreview
+            canvasRef={capture.canvasRef}
+            attachCanvas={capture.attachCanvas}
+            status={cameraStream ? "capturing" : capture.status.status}
+            previewStream={cameraStream}
+            sourceLabel={sourceLabel}
+            presenting={streamingToStudents}
+            recording={recorder.recording.isRecording}
+            onPickSource={() => setSourceOpen(true)}
+          />
+        </div>
+
+        {/* Drag handle. The rail was a fixed 20rem, which is too narrow for a
+            code-heavy guide block and too wide when the stage matters more. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the side panel"
+          tabIndex={0}
+          onPointerDown={startResize}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") setRailWidth((w) => clampRailWidth(w + 24));
+            if (e.key === "ArrowRight") setRailWidth((w) => clampRailWidth(w - 24));
+          }}
+          className="w-1 shrink-0 cursor-col-resize bg-wkai-border transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
         />
 
-        <PresentBar
-          sessionId={session.id}
-          presenting={streamingToStudents}
-          canPresent={!!sharedDisplayStream}
-          onTogglePresent={handleTogglePresent}
-          muted={recorder.recording.isMuted}
-          onToggleMute={recorder.toggleMute}
-          recording={recorder.recording}
-          starting={recorder.starting}
-          canRecord={recorder.canRecord}
-          onStartRecording={() => void recorder.start()}
-          onStopRecording={recorder.stop}
-          onTogglePause={recorder.togglePause}
-          lastRecording={recorder.last}
-          sourceOpen={sourceOpen}
-          onSourceOpenChange={setSourceOpen}
-          sourcePanel={
-            <DeviceSelector
-              monitors={devices.monitors}
-              windows={devices.windows}
-              selectedTarget={selectedTarget}
-              onSelect={(t) => {
-                setSelectedTarget(t);
-                setSourceOpen(false);
-              }}
-              isLoading={devices.isLoading}
-              onRefresh={devices.refreshDevices}
-            />
-          }
-          aiPanel={<SessionAiSettingsPanel />}
-        />
+        {/* ─── Right rail: everything the session produces ──────────── */}
+        <aside
+          className="flex shrink-0 flex-col border-l border-wkai-border"
+          style={{ width: railWidth }}
+        >
+          <SessionRailTabs
+            tabs={RAIL_TABS.map((t) =>
+              t.id === "people" ? { ...t, badge: studentCount } : t
+            )}
+            active={railTab}
+            onChange={setRailTab}
+            width={railWidth}
+          />
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {railTab === "guide" && <GuidePanel />}
+            {railTab === "files" && <FileSharePanel sessionId={session.id} send={send} />}
+            {railTab === "people" && <StudentPanel send={send} />}
+            {railTab === "qa" && <InboxPanel send={send} />}
+            {railTab === "tests" && <AssessmentPanel />}
+          </div>
+        </aside>
       </div>
 
-      {/* ─── Right rail: everything the session produces ───────────── */}
-      <aside className="flex w-[20rem] shrink-0 flex-col border-l border-wkai-border 2xl:w-[22rem]">
-        <div className="flex shrink-0 border-b border-wkai-border bg-wkai-surface" role="tablist">
-          {RAIL_TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={railTab === id}
-              onClick={() => setRailTab(id)}
-              className={clsx(
-                "flex h-11 flex-1 items-center justify-center gap-1.5 text-xs font-medium transition-colors",
-                railTab === id
-                  ? "border-b-2 border-accent text-accent-text"
-                  : "text-wkai-text-dim hover:text-wkai-text"
-              )}
-            >
-              <Icon size={14} />
-              {id === "people" ? `${label} (${studentCount})` : label}
-            </button>
-          ))}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {railTab === "guide" && <GuidePanel />}
-          {railTab === "files" && <FileSharePanel sessionId={session.id} send={send} />}
-          {railTab === "people" && <StudentPanel />}
-          {railTab === "qa" && <InboxPanel send={send} />}
-        </div>
-      </aside>
+      {/* ─── Controls: one row across the whole window ──────────────── */}
+      <PresentBar
+        sessionId={session.id}
+        presenting={streamingToStudents}
+        canPresent={!!sharedDisplayStream}
+        onTogglePresent={handleTogglePresent}
+        muted={recorder.recording.isMuted}
+        onToggleMute={recorder.toggleMute}
+        recording={recorder.recording}
+        starting={recorder.starting}
+        canRecord={recorder.canRecord}
+        onStartRecording={() => void recorder.start()}
+        onStopRecording={recorder.stop}
+        onTogglePause={recorder.togglePause}
+        lastRecording={recorder.last}
+        sourceOpen={sourceOpen}
+        onSourceOpenChange={setSourceOpen}
+        sourcePanel={
+          <DeviceSelector
+            monitors={devices.monitors}
+            windows={devices.windows}
+            cameras={devices.cameras}
+            selectedCameraLabel={cameraStream ? sourceLabel : null}
+            onSelectCamera={(deviceId, label) => {
+              void selectCamera(deviceId, label);
+              setSourceOpen(false);
+            }}
+            selectedTarget={selectedTarget}
+            onSelect={(t) => {
+              setSelectedTarget(t);
+              setSourceOpen(false);
+            }}
+            isLoading={devices.isLoading}
+            onRefresh={devices.refreshDevices}
+          />
+        }
+        aiPanel={<SessionAiSettingsPanel />}
+      />
 
       {/* LangGraph "share this file" intent, confirmed with one tap. */}
       <ShareIntentToast sessionId={session.id} />

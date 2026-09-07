@@ -1,4 +1,4 @@
-import { type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { MonitorUp } from "lucide-react";
 import { clsx } from "clsx";
 import type { CaptureStatusType } from "../../types/nativeCapture";
@@ -11,6 +11,8 @@ interface Props {
   presenting: boolean;
   recording: boolean;
   onPickSource: () => void;
+  /** Set when the source is a camera: there is no capture canvas to draw. */
+  previewStream?: MediaStream | null;
 }
 
 /**
@@ -31,8 +33,14 @@ export function StagePreview({
   presenting,
   recording,
   onPickSource,
+  previewStream = null,
 }: Props) {
   const capturing = status === "capturing";
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = previewStream;
+  }, [previewStream]);
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-4">
@@ -43,12 +51,25 @@ export function StagePreview({
         )}
         style={{ aspectRatio: "16 / 9" }}
       >
+        {previewStream && (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className="h-full w-full object-contain"
+          />
+        )}
+
         <canvas
           ref={(el) => {
             (canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el;
             attachCanvas(el);
           }}
-          className={clsx("h-full w-full object-contain", !capturing && "opacity-0")}
+          className={clsx(
+            "h-full w-full object-contain",
+            (!capturing || previewStream) && "hidden"
+          )}
         />
 
         {!capturing && (

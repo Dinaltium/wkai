@@ -13,10 +13,24 @@ interface UseWsOptions {
 export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
   const ws = useRef<WebSocket | null>(null);
   const handlers = useRef<Map<WsEventType, Handler>>(new Map());
+  // Set while a socket is being torn down on purpose (unmount, or a new
+  // connect). Without it the `onclose` reconnect fired for deliberate closes
+  // too, and the resulting zombie socket reconnected 3s later with the same
+  // instructor token — the server keeps one socket per role, so the zombie
+  // evicted the live one and every later offer went out on a CLOSED socket.
+  // That is why the stream never recovered after visiting Settings.
+  const intentionalCloseRef = useRef(false);
+  const reconnectTimerRef = useRef<number | null>(null);
   const { setStudentCount, addGuideBlock, addSharedFile } = useAppStore();
 
   const connect = useCallback(() => {
     if (!sessionId || !token) return;
+    // Drop any socket from a previous connect before opening another.
+    if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
+      intentionalCloseRef.current = true;
+      ws.current.close();
+    }
+    intentionalCloseRef.current = false;
     const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws?token=${encodeURIComponent(token)}`;
     ws.current = new WebSocket(wsUrl);
 
@@ -97,6 +111,33 @@ export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
             }
             break;
           }
+          case "assessment-progress":
+          case "assessment-submitted":
+          case "assessment-violation": {
+            // The panel and the results view both refetch on this rather than
+            // maintaining their own copy of an ever-changing roster.
+            window.dispatchEvent(
+              new CustomEvent("wkai:assessment-activity", { detail: msg.payload })
+            );
+            const p = msg.payload as {
+              studentName?: string;
+              score?: number;
+              maxScore?: number;
+              kind?: string;
+            };
+            if (msg.type === "assessment-submitted") {
+              useAppStore.getState().addDebugLog(
+                `${p.studentName ?? "A student"} submitted — ${p.score ?? 0}/${p.maxScore ?? 0}`,
+                "info"
+              );
+            } else if (msg.type === "assessment-violation") {
+              useAppStore.getState().addDebugLog(
+                `${p.studentName ?? "A student"} left the test window (${p.kind ?? "flag"})`,
+                "warn"
+              );
+            }
+            break;
+          }
           case "share-intent-detected":
             // LangGraph intent agent detected "share this file" in audio
             window.dispatchEvent(new CustomEvent("wkai:shareIntent", { detail: msg.payload }));
@@ -107,7 +148,10 @@ export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
       }
     };
 
-    ws.current.onclose = () => setTimeout(connect, 3000);
+    ws.current.onclose = () => {
+      if (intentionalCloseRef.current) return;
+      reconnectTimerRef.current = window.setTimeout(connect, 3000);
+    };
     ws.current.onerror = (err) => console.error("[WKAI WS] Error", err);
   }, [sessionId, backendUrl, token]);
 
@@ -130,6 +174,11 @@ export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
     window.addEventListener("wkai:transcript", handleTranscript);
 
     return () => {
+      intentionalCloseRef.current = true;
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       ws.current?.close();
       window.removeEventListener("wkai:transcript", handleTranscript);
     };

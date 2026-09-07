@@ -5,7 +5,9 @@ import { useAppStore } from "../../store";
 import { clsx } from "clsx";
 import { DebugPanel } from "../instructor/DebugPanel";
 import { UpdateManager } from "./UpdateManager";
+import { MediaPermissionDialog } from "./MediaPermissionDialog";
 import { SessionClock } from "./SessionClock";
+import { SessionRuntimeProvider } from "../../session/SessionRuntimeProvider";
 
 const TITLES: Record<string, string> = {
   "/": "Start a workshop",
@@ -23,6 +25,7 @@ export function AppShell() {
   const inSession = !!session;
 
   return (
+    <SessionRuntimeProvider>
     <div className="flex h-full w-full bg-wkai-bg text-wkai-text">
       {/* ─── Navigation rail ─────────────────────────────────────────── */}
       <aside className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1 border-r border-wkai-border bg-wkai-surface py-3">
@@ -91,7 +94,9 @@ export function AppShell() {
 
       {debugPanelOpen && <DebugPanel />}
       <UpdateManager />
+      <MediaPermissionDialog />
     </div>
+    </SessionRuntimeProvider>
   );
 }
 
