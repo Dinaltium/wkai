@@ -10,12 +10,27 @@ import {
   HelpCircle,
 } from "lucide-react";
 
+const STICK_TO_BOTTOM_PX = 80;
+
 export function GuidePanel() {
   const { guideBlocks } = useAppStore();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Whether the instructor is still reading the newest block. Scrolling back
+  // to re-read an earlier one clears it — the old code scrolled to the bottom
+  // on every incoming block regardless, so any attempt to look back was
+  // yanked away within seconds.
+  const stickToBottomRef = useRef(true);
 
-  // Auto-scroll to latest block
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_TO_BOTTOM_PX;
+  };
+
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [guideBlocks]);
 
@@ -25,7 +40,11 @@ export function GuidePanel() {
         <h2 className="text-sm font-medium">Live Guide</h2>
       </div>
 
-      <div className="flex-1 overflow-auto px-5 py-4 space-y-3">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-auto px-5 py-4 space-y-3"
+      >
         {guideBlocks.length === 0 ? (
           <EmptyGuide />
         ) : (

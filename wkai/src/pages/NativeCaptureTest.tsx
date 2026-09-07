@@ -151,6 +151,10 @@ export function NativeCaptureTest() {
               <DeviceSelector
                 monitors={devices.monitors}
                 windows={devices.windows}
+                cameras={devices.cameras}
+                // Diagnostics only lists cameras: presenting one is a session
+                // action and belongs to the session view.
+                onSelectCamera={() => undefined}
                 selectedTarget={selectedTarget}
                 onSelect={setSelectedTarget}
                 isLoading={devices.isLoading}

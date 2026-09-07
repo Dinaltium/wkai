@@ -148,6 +148,11 @@ export type WsEventType =
   | "webrtc-request-offer"
   | "student-list"
   | "ai-frame-result"
+  | "assessment-progress"
+  | "assessment-submitted"
+  | "assessment-violation"
+  | "remove-student"
+  | "share-intent-detected"
   | "session-state";
 
 export interface WsEvent<T = unknown> {
@@ -175,6 +180,8 @@ export interface AppSettings {
   aiTranscriptionEnabled: boolean;
   /** Input device name for transcription. Empty = system default. */
   micDevice: string;
+  /** getUserMedia deviceId for the mic students hear. Empty = system default. */
+  micDeviceId: string;
 }
 
 /**

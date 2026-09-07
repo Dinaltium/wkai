@@ -90,6 +90,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   aiGuideBlocksEnabled: true,
   aiTranscriptionEnabled: true,
   micDevice: "",
+  micDeviceId: "",
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";
