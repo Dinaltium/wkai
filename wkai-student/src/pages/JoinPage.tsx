@@ -129,9 +129,12 @@ export function JoinPage() {
                 maxLength={1}
                 value={ch}
                 placeholder="·"
+                name={`room-code-${i + 1}`}
                 inputMode="text"
                 autoCapitalize="characters"
                 autoComplete={i === 0 ? "one-time-code" : "off"}
+                data-lpignore="true"
+                data-1p-ignore
                 onChange={(e) => handleChar(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
                 onFocus={(e) => e.target.select()}
@@ -145,14 +148,23 @@ export function JoinPage() {
           <label htmlFor="room-password" className="mb-1.5 block text-sm font-medium text-wkai-text">
             Room password <span className="font-normal text-wkai-text-dim">(only if asked for one)</span>
           </label>
+          {/* "new-password", not "off": Chrome ignores autocomplete="off" on a
+              password field when it holds a saved credential, and fills it as a
+              PAIR — the password plus the nearest preceding text input, which
+              here is the last room-code box. That is why opening this page
+              silently populated the sixth character and the password. Marked
+              for the third-party managers too, which use their own attributes. */}
           <input
             id="room-password"
+            name="room-password"
             className="input h-12 px-4"
             type="password"
             placeholder="Leave empty if there is none"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="off"
+            autoComplete="new-password"
+            data-lpignore="true"
+            data-1p-ignore
           />
         </div>
 
