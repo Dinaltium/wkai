@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useStore } from "../store";
@@ -17,11 +17,18 @@ import { InstructorOfflineBanner } from "../components/shared/InstructorOfflineB
 import { CodeEditor } from "../components/shared/CodeEditor";
 import { ErrorHelper } from "../components/error/ErrorHelper";
 import { ComprehensionModal } from "../components/comprehension/ComprehensionModal";
+import { AssessmentPanel } from "../components/quiz/AssessmentPanel";
+import { InstructorAwayModal } from "../components/shared/InstructorAwayModal";
+import { RemovedFromSessionModal } from "../components/shared/RemovedFromSessionModal";
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { session, sessionEnded, instructorOffline, activeTab, setActiveTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { session, sessionEnded, instructorOffline, removedFromSession, activeTab, setActiveTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  // "I know, I am staying" — dismissing the away prompt drops back to the
+  // banner rather than nagging every time the instructor's socket flaps.
+  const [awayDismissed, setAwayDismissed] = useState(false);
+  const [removalDismissed, setRemovalDismissed] = useState(false);
   const { send } = useRoomSocket(code!);
   const { remoteStream } = useWebRtcReceiver(send);
   const bootstrappingRef = useRef(!session && !sessionEnded);
@@ -73,6 +80,11 @@ export function RoomPage() {
     };
   }, [code, navigate, session, sessionEnded, setAuth, setSession, setGuideBlocks, setSharedFiles]);
 
+  // A returning instructor makes the prompt relevant again next time.
+  useEffect(() => {
+    if (!instructorOffline) setAwayDismissed(false);
+  }, [instructorOffline]);
+
   // Once the session ends only Guide and Files remain; a student parked on any
   // other tab would otherwise be left staring at an empty pane.
   useEffect(() => {
@@ -106,10 +118,19 @@ export function RoomPage() {
         {activeTab === "messages" && <MessagePanel send={send} />}
         {activeTab === "editor" && <CodeEditor />}
         {activeTab === "error"  && <ErrorHelper send={send} />}
+        {activeTab === "quiz"   && <AssessmentPanel />}
       </main>
 
       {/* Comprehension gate — modal overlay */}
-      {pendingQuestion && <ComprehensionModal send={send} />}
+      {pendingQuestion && !removedFromSession && <ComprehensionModal send={send} />}
+
+      {removedFromSession && !removalDismissed && (
+        <RemovedFromSessionModal onReview={() => setRemovalDismissed(true)} />
+      )}
+
+      {!removedFromSession && !sessionEnded && instructorOffline && !awayDismissed && (
+        <InstructorAwayModal onStay={() => setAwayDismissed(true)} />
+      )}
     </div>
   );
 }

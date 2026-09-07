@@ -9,6 +9,8 @@ import {
   getStudentCount,
   setTranscript,
   getTranscript,
+  addRemovedStudent,
+  isStudentRemoved,
 } from "../db/redis.js";
 import { query } from "../db/client.js";
 import { formatGuideBlock, formatSharedFile, formatStudentMessage } from "../utils/formatters.js";
@@ -19,6 +21,7 @@ import { fetchNotebook } from "../ai/colabFetch.js";
 import { processScreenFrame } from "../ai/pipeline.js";
 import { runQueued } from "../ai/sessionQueue.js";
 import { verifySessionToken } from "../auth/sessionAccess.js";
+import { contentWords, isLowSignalTranscript, isStockHallucination } from "../ai/transcriptQuality.js";
 
 // Map of sessionId → Map(clientKey → WebSocket client)
 const rooms = new Map();
@@ -41,6 +44,9 @@ const AI_FALLBACK_DELAY_MS = 45_000;
 // until there is enough substance to summarize, then flush.
 const transcriptBuffers = new Map();
 const TRANSCRIPT_FLUSH_CHARS = 180;
+// Real content words (filler removed) a buffer must carry before it is worth
+// an LLM call and a card in front of students.
+const MIN_FLUSH_CONTENT_WORDS = 12;
 
 export function initWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -95,6 +101,16 @@ export function initWebSocketServer(httpServer) {
 
     const sessionId = rows[0].id;
     const roomCode = rows[0].room_code;
+    // A student the instructor removed does not get back in on a fresh token.
+    if (!isInstructor && (await isStudentRemoved(sessionId, studentId, studentName))) {
+      ws.send(JSON.stringify({
+        type: "removed-from-session",
+        payload: { message: "The instructor removed you from this session." },
+      }));
+      ws.close();
+      return;
+    }
+
     const clientKey = isInstructor ? "instructor" : `student:${studentId}`;
 
     if (!rooms.has(sessionId)) rooms.set(sessionId, new Map());
@@ -145,6 +161,10 @@ export function initWebSocketServer(httpServer) {
         case "file-shared":
           if (ws.role !== "instructor") break;
           handleFileShared(sessionId, msg.payload);
+          break;
+        case "remove-student":
+          if (ws.role !== "instructor") break;
+          handleRemoveStudent(sessionId, msg.payload);
           break;
         case "colab-assist-request":
           if (ws.role !== "student") break;
@@ -282,6 +302,14 @@ async function handleAudioTranscript(ws, payload) {
   const { sessionId } = ws;
   const { transcript, recentFiles = [] } = payload;
 
+  // Known ASR noise only. Whisper answers silence with fluent stock sentences,
+  // and every one that got through became a guide card or a false "share this
+  // file" prompt. Anything the instructor actually said carries on from here
+  // even when it is brief — it is still context for the vision pipeline and
+  // still worth checking for a share intent. Whether it is substantial enough
+  // to become a card is decided later, in summarizeSpeech.
+  if (isStockHallucination(transcript)) return;
+
   // Store latest transcript in Redis for next screen frame to pick up
   await setTranscript(sessionId, transcript);
 
@@ -323,7 +351,15 @@ async function summarizeSpeech(ws, transcript) {
     transcriptBuffers.set(sessionId, buffered);
     return;
   }
+
+  // Length alone was the flush test, so 180 characters of "okay so, um, right,
+  // yeah, let us see" flushed and came back as a paragraph of invented
+  // teaching. Substance decides now; a buffer that is all filler is dropped
+  // rather than carried forward, or it would flush again on the next chunk.
   transcriptBuffers.delete(sessionId);
+  if (isLowSignalTranscript(buffered) || contentWords(buffered).length < MIN_FLUSH_CONTENT_WORDS) {
+    return;
+  }
 
   try {
     const explanation = await runQueued(sessionId, () =>
@@ -750,6 +786,50 @@ export function cleanupSession(sessionId) {
 }
 
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
+
+/**
+ * Remove a student from the room on the instructor's say-so: tell them why,
+ * close their socket, and remember the removal so a fresh join token does not
+ * simply walk them back in.
+ */
+async function handleRemoveStudent(sessionId, payload) {
+  const studentId = payload?.studentId;
+  if (!studentId) return;
+
+  const room = rooms.get(sessionId);
+  const socket = room?.get(`student:${studentId}`);
+  const studentName = socket?.studentName ?? payload?.studentName ?? null;
+  const reason = String(payload?.reason ?? "").trim().slice(0, 200);
+
+  await addRemovedStudent(sessionId, studentId, studentName);
+
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "removed-from-session",
+      payload: {
+        message: reason || "The instructor removed you from this session.",
+      },
+    }));
+    // Give the frame a tick to leave before the socket goes: closing straight
+    // after send() drops it on some transports, and then the student sees a
+    // bare disconnect with no explanation.
+    setTimeout(() => {
+      try { socket.close(); } catch { /* already gone */ }
+    }, 250);
+  }
+
+  const count = await decrementStudentCount(sessionId, studentId);
+  broadcast(sessionId, { type: "student-left", payload: { count, studentId } });
+  broadcastToInstructor(sessionId, {
+    type: "student-list",
+    payload: {
+      students: Array.from(rooms.get(sessionId)?.values() ?? [])
+        .filter((c) => c.role === "student" && c.studentId !== studentId)
+        .map((c) => ({ studentId: c.studentId, studentName: c.studentName, joinedAt: c.joinedAt })),
+    },
+  });
+  console.log(`[WS] Removed student ${studentId} from session ${sessionId}`);
+}
 
 export function broadcast(sessionId, msg, exclude = null) {
   const clients = rooms.get(sessionId);
