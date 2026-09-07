@@ -1,6 +1,6 @@
 import { useStore } from "../../store";
 import type { RoomTab } from "../../types";
-import { BookOpen, FolderOpen, Bot, Monitor, MessageSquare } from "lucide-react";
+import { BookOpen, FolderOpen, Bot, Monitor, MessageSquare, ClipboardList } from "lucide-react";
 import { clsx } from "clsx";
 
 const TABS: { id: RoomTab; label: string; icon: typeof BookOpen }[] = [
@@ -9,6 +9,7 @@ const TABS: { id: RoomTab; label: string; icon: typeof BookOpen }[] = [
   { id: "ai-helper", label: "AI Helper", icon: Bot },
   { id: "live",      label: "Live",      icon: Monitor },
   { id: "messages",  label: "Q&A",       icon: MessageSquare },
+  { id: "quiz",      label: "Quiz",      icon: ClipboardList },
 ];
 
 interface Props {
@@ -20,7 +21,7 @@ interface Props {
  * tab strip under the header from `sm` up.
  */
 export function TabBar({ sessionEnded = false }: Props) {
-  const { activeTab, setActiveTab, newFileCount } = useStore();
+  const { activeTab, setActiveTab, newFileCount, pendingAssessment, setPendingAssessment } = useStore();
   const visibleTabs = sessionEnded
     ? TABS.filter((t) => t.id === "guide" || t.id === "files")
     : TABS;
@@ -39,12 +40,22 @@ export function TabBar({ sessionEnded = false }: Props) {
       {visibleTabs.map((tab) => {
         const active = activeTab === tab.id;
         const Icon = tab.icon;
-        const badge = tab.id === "files" && newFileCount > 0 ? newFileCount : 0;
+        // A quiz opening is worth one dot, not a count — there is only ever
+        // "something is waiting for you" to say.
+        const badge =
+          tab.id === "files" && newFileCount > 0
+            ? newFileCount
+            : tab.id === "quiz" && pendingAssessment
+              ? 1
+              : 0;
 
         return (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              if (tab.id === "quiz") setPendingAssessment(null);
+              setActiveTab(tab.id);
+            }}
             aria-current={active ? "page" : undefined}
             className={clsx(
               "relative flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium",

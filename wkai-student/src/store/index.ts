@@ -25,6 +25,14 @@ interface StudentStore {
   sessionEnded: boolean;
   setSessionEnded: (v: boolean) => void;
   instructorOffline: boolean;
+  /** Set when the instructor removed this student from the room. */
+  removedFromSession: string | null;
+  /** Drop the cached identity so the next mount re-joins from scratch. */
+  clearAuth: () => void;
+  /** Set when an assessment opens, so the tab can nudge; cleared on visit. */
+  pendingAssessment: { title: string; kind: "quiz" | "test" } | null;
+  setPendingAssessment: (v: { title: string; kind: "quiz" | "test" } | null) => void;
+  setRemovedFromSession: (message: string | null) => void;
   setInstructorOffline: (v: boolean) => void;
 
   // ─── Connection ────────────────────────────────────────────────────────────
@@ -124,6 +132,15 @@ export const useStore = create<StudentStore>((set) => ({
     set({ studentId, joinToken });
   },
 
+  clearAuth: () => {
+    // The cached token belongs to a session the server no longer has. Keeping
+    // it means every reload reconnects to a dead id and the room stays stuck
+    // on "Session over" even when that room code is live again.
+    sessionStorage.removeItem(JOIN_TOKEN_KEY);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    set({ joinToken: null, session: null, sessionEnded: false });
+  },
+
   session: readStoredSession(),
   setSession: (session) => {
     if (session) {
@@ -141,6 +158,10 @@ export const useStore = create<StudentStore>((set) => ({
   setSessionEnded: (sessionEnded) => set({ sessionEnded }),
   instructorOffline: false,
   setInstructorOffline: (instructorOffline) => set({ instructorOffline }),
+  removedFromSession: null,
+  pendingAssessment: null,
+  setPendingAssessment: (pendingAssessment) => set({ pendingAssessment }),
+  setRemovedFromSession: (removedFromSession) => set({ removedFromSession }),
 
   connected: false,
   setConnected: (connected) => set({ connected }),

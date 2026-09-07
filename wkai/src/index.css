@@ -182,3 +182,33 @@
     display: none;
   }
 }
+
+/* ─── Printing an assessment report ───────────────────────────────────────────
+   "Save as PDF" is the browser's own print pipeline, so the print sheet has to
+   remove the app around the report: everything is hidden, then the report and
+   its ancestors are put back, unclipped and full width. Without the ancestor
+   rule the report inherits the app shell's overflow and prints one page. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #assessment-report,
+  #assessment-report * {
+    visibility: visible;
+  }
+
+  #assessment-report {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    background: #fff;
+    color: #000;
+  }
+
+  #assessment-report .print\:hidden {
+    display: none !important;
+  }
+}

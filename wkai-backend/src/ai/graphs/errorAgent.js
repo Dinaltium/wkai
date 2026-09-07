@@ -7,6 +7,7 @@ import {
   errorResolutionParser,
   fixingErrorParser,
 } from "../prompts.js";
+import { wrapUntrusted } from "../untrusted.js";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,12 @@ async function classifyErrorNode(state) {
   // Inject the classification into the error message for the LLM, and pull in
   // what the workshop has actually taught so the fix matches the room's stack
   // (its libraries, its pinned versions) instead of a generic one.
-  const enrichedMessage = `[Error class: ${errorClass}]\n\n${state.errorMessage}`;
+  // The error text is whatever the student's program (or the student) produced,
+  // so it is fenced as untrusted before it reaches the model.
+  const enrichedMessage = `[Error class: ${errorClass}]\n\n${wrapUntrusted(
+    "student error output",
+    state.errorMessage
+  )}`;
   const sessionContext = await buildSessionContext(state.sessionId, state.errorMessage);
   return { errorMessage: enrichedMessage, sessionContext };
 }

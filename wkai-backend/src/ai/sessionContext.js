@@ -19,6 +19,13 @@ import { getSessionMemory } from "./memory.js";
  */
 
 const MAX_CONTEXT_CHARS = 5_000;
+// Retrieval thresholds. Without them any block sharing a single incidental
+// token with the question was pulled in as "related", and the model dutifully
+// answered from it — which is what made the assistant feel like it was
+// changing the subject at random.
+const MIN_RETRIEVAL_SCORE = 0.8;
+/** A hit must be at least this good relative to the best hit to come along. */
+const RELATIVE_SCORE_FLOOR = 0.4;
 const RECENT_BLOCKS = 3;
 const RETRIEVED_BLOCKS = 5;
 // Earlier sessions in the same workspace are the "folder memory": a course that
@@ -65,17 +72,29 @@ export function rankBlocks(blocks, queryTokens) {
     return tokens;
   });
 
-  return blocks
+  const uniqueQueryTokens = [...new Set(queryTokens)];
+
+  const scored = blocks
     .map((block, index) => {
       let score = 0;
-      for (const token of queryTokens) {
+      let matched = 0;
+      for (const token of uniqueQueryTokens) {
         if (!blockTokens[index].has(token)) continue;
+        matched += 1;
         score += Math.log(1 + blocks.length / (documentFrequency.get(token) ?? 1));
       }
-      return { block, score };
+      return { block, score, matched };
     })
-    .filter((entry) => entry.score > 0)
+    // A term shared by most of the session scores below the floor on its own,
+    // which is exactly the match that used to drag in an unrelated block.
+    .filter((entry) => entry.matched > 0 && entry.score >= MIN_RETRIEVAL_SCORE)
     .sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return [];
+
+  // Anything far weaker than the best hit is noise, not context.
+  const floor = scored[0].score * RELATIVE_SCORE_FLOOR;
+  return scored.filter((entry) => entry.score >= floor);
 }
 
 function renderBlock(block) {
@@ -176,7 +195,18 @@ export async function buildSessionContext(sessionId, queryText = "") {
       sections.push(`Running summary:\n${memoryContext}`);
     }
 
-    return sections.join("\n\n").slice(0, MAX_CONTEXT_CHARS);
+    if (!sections.length) return "";
+
+    // Say what this material is and, more importantly, what it is not: a
+    // licence to answer from whatever happens to be in the block list.
+    const preamble =
+      "The following is recorded workshop material, retrieved by keyword match. " +
+      "It may not be relevant to the question. Use only the parts that clearly " +
+      "are; if none apply, answer from the question alone and say plainly what " +
+      "you do not know. Never present retrieved material as something the " +
+      'instructor said just now unless it appears under "Most recent in this session".';
+
+    return [preamble, ...sections].join("\n\n").slice(0, MAX_CONTEXT_CHARS);
   } catch (err) {
     // Context is an enhancement, never a dependency — an agent still answers
     // without it, just generically.

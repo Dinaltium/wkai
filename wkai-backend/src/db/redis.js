@@ -76,6 +76,47 @@ export async function clearStudentConnections(sessionId) {
   await redis.del(`students_active:${sessionId}`);
 }
 
+// ─── Removed (kicked) students ────────────────────────────────────────────────
+// A join hands out a fresh random studentId every time, so banning the id alone
+// would only survive until the student clicked "join" again. The display name
+// is stored alongside it: not identity-grade, but it is what an instructor
+// actually means by "remove this person from my room".
+
+function removedKey(sessionId) {
+  return `students_removed:${sessionId}`;
+}
+
+function nameMember(studentName) {
+  return `name:${String(studentName ?? "").trim().toLowerCase()}`;
+}
+
+export async function addRemovedStudent(sessionId, studentId, studentName) {
+  const key = removedKey(sessionId);
+  const members = [`id:${studentId}`];
+  if (studentName) members.push(nameMember(studentName));
+  await redis.sAdd(key, members);
+  await redis.expire(key, STUDENT_SET_TTL_SECONDS);
+}
+
+export async function isStudentRemoved(sessionId, studentId, studentName) {
+  const key = removedKey(sessionId);
+  const checks = [redis.sIsMember(key, `id:${studentId}`)];
+  if (studentName) checks.push(redis.sIsMember(key, nameMember(studentName)));
+  const results = await Promise.all(checks);
+  return results.some(Boolean);
+}
+
+export async function readmitStudent(sessionId, studentId, studentName) {
+  const key = removedKey(sessionId);
+  const members = [`id:${studentId}`];
+  if (studentName) members.push(nameMember(studentName));
+  await redis.sRem(key, members);
+}
+
+export async function clearRemovedStudents(sessionId) {
+  await redis.del(removedKey(sessionId));
+}
+
 /** Track the LiveKit RTMP ingress id for a session (for teardown on end). */
 export async function setSessionIngress(sessionId, ingressId) {
   await redis.setEx(`livekit_ingress:${sessionId}`, 86_400, ingressId);

@@ -1,9 +1,10 @@
 import { useAppStore } from "../store";
-import { Save, Network } from "lucide-react";
+import { Save, Network, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MicTest } from "../components/instructor/MicTest";
 import { AITest } from "../components/instructor/AITest";
 import { ThemeControls } from "../components/shared/ThemeControls";
+import { CHECK_FOR_UPDATES_EVENT } from "../components/shared/UpdateManager";
 import { listAudioInputDevices } from "../lib/tauri";
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -263,6 +264,22 @@ export function SettingsPage() {
               <option value="webm">WebM</option>
             </select>
           </Field>
+        </section>
+
+        {/* Updates */}
+        <section className="card space-y-3 p-4">
+          <h2 className="text-xs font-semibold text-wkai-text">Updates</h2>
+          <p className="text-xs text-wkai-text-dim">
+            WKAI checks for a new release every hour while it is open. Check now if you are
+            expecting one.
+          </p>
+          <button
+            className="btn-secondary btn-sm"
+            onClick={() => window.dispatchEvent(new Event(CHECK_FOR_UPDATES_EVENT))}
+          >
+            <RefreshCw size={14} />
+            Check for updates
+          </button>
         </section>
 
         <section className="card space-y-5 p-4">

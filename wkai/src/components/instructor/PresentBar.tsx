@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Check,
+  ChevronUp,
   Circle,
+  Gauge,
   Download,
   Loader2,
   Mic,
@@ -8,6 +11,7 @@ import {
   MonitorUp,
   Pause,
   Play,
+  Share2,
   Sparkles,
   Square,
 } from "lucide-react";
@@ -15,6 +19,10 @@ import { clsx } from "clsx";
 import type { LastRecording } from "../../hooks/useSessionRecorder";
 import type { RecordingState } from "../../types";
 import { EndSessionButton } from "./EndSessionButton";
+import { CaptureQualityPanel } from "./CaptureQualityPanel";
+import { ShareSessionDialog } from "./ShareSessionDialog";
+import { useAppStore } from "../../store";
+import { useSessionRuntime } from "../../session/SessionRuntimeProvider";
 
 interface Props {
   sessionId: string;
@@ -66,6 +74,8 @@ export function PresentBar({
   onSourceOpenChange,
 }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <div className="relative z-30 flex shrink-0 items-center gap-2 border-t border-wkai-border bg-wkai-surface px-4 py-3">
@@ -87,17 +97,27 @@ export function PresentBar({
         {sourcePanel}
       </Popover>
 
-      {/* Mic */}
-      <button
-        onClick={onToggleMute}
-        disabled={!canRecord}
-        className={clsx("ctl", muted && "ctl-danger")}
-        title={muted ? "Unmute your microphone" : "Mute your microphone"}
-        aria-label={muted ? "Unmute your microphone" : "Mute your microphone"}
-        aria-pressed={muted}
+      {/* Mic — icon mutes, the chevron picks the device (the way every call
+          app does it). */}
+      <MicControl muted={muted} disabled={!canRecord} onToggleMute={onToggleMute} />
+
+      {/* Stream quality, in the bar rather than three clicks away in Settings. */}
+      <Popover
+        open={qualityOpen}
+        onOpenChange={setQualityOpen}
+        label="Stream quality"
+        trigger={
+          <button
+            className={clsx("ctl", qualityOpen && "ctl-on")}
+            title="Framerate and quality"
+            aria-label="Framerate and quality"
+          >
+            <Gauge size={18} />
+          </button>
+        }
       >
-        {muted ? <MicOff size={18} /> : <Mic size={18} />}
-      </button>
+        <CaptureQualityPanel />
+      </Popover>
 
       {/* Recording */}
       {!recording.isRecording ? (
@@ -178,6 +198,14 @@ export function PresentBar({
       </button>
 
       <div className="ml-auto flex items-center gap-2">
+        <button
+          className="btn-secondary btn-sm whitespace-nowrap"
+          onClick={() => setShareOpen(true)}
+          title="Show the room code and join link"
+        >
+          <Share2 size={14} />
+          Invite
+        </button>
         {lastRecording && (
           <a
             href={lastRecording.url}
@@ -191,6 +219,8 @@ export function PresentBar({
         )}
         <EndSessionButton sessionId={sessionId} />
       </div>
+
+      {shareOpen && <ShareSessionDialog onClose={() => setShareOpen(false)} />}
     </div>
   );
 }
@@ -241,5 +271,126 @@ function Popover({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Mute is one click on the icon; the device list is behind the chevron. The
+ * button used to be mute-only, which left changing microphone mid-session as a
+ * trip to Settings.
+ */
+function MicControl({
+  muted,
+  disabled,
+  onToggleMute,
+}: {
+  muted: boolean;
+  disabled: boolean;
+  onToggleMute: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const selectedId = useAppStore((s) => s.settings.micDeviceId);
+  const { switchMicrophone } = useSessionRuntime();
+
+  // Labels are blank until the page holds a mic permission, so the list is
+  // only worth reading once there is something to show.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void navigator.mediaDevices
+      .enumerateDevices()
+      .then((all) => {
+        if (!cancelled) setDevices(all.filter((d) => d.kind === "audioinput"));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  return (
+    <div className="flex items-stretch">
+      <button
+        onClick={onToggleMute}
+        disabled={disabled}
+        className={clsx("ctl rounded-r-none pr-2", muted && "ctl-danger")}
+        title={muted ? "Unmute your microphone" : "Mute your microphone"}
+        aria-label={muted ? "Unmute your microphone" : "Mute your microphone"}
+        aria-pressed={muted}
+      >
+        {muted ? <MicOff size={18} /> : <Mic size={18} />}
+      </button>
+
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        label="Microphone"
+        trigger={
+          <button
+            className={clsx("ctl w-6 rounded-l-none border-l-0 px-0", open && "ctl-on")}
+            title="Choose a microphone"
+            aria-label="Choose a microphone"
+          >
+            <ChevronUp size={14} />
+          </button>
+        }
+      >
+        <div className="space-y-1">
+          <MicOption
+            label="System default"
+            active={!selectedId}
+            onClick={() => {
+              void switchMicrophone("");
+              setOpen(false);
+            }}
+          />
+          {devices.map((d) => (
+            <MicOption
+              key={d.deviceId}
+              label={d.label || "Microphone"}
+              active={selectedId === d.deviceId}
+              onClick={() => {
+                void switchMicrophone(d.deviceId);
+                setOpen(false);
+              }}
+            />
+          ))}
+          <button
+            onClick={() => {
+              onToggleMute();
+              setOpen(false);
+            }}
+            disabled={disabled}
+            className="mt-1 w-full rounded-md border border-wkai-border px-2 py-1.5 text-left text-xs text-wkai-text-dim hover:text-wkai-text"
+          >
+            {muted ? "Unmute microphone" : "Mute microphone"}
+          </button>
+        </div>
+      </Popover>
+    </div>
+  );
+}
+
+function MicOption({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+        active ? "bg-accent/15 text-accent-text" : "text-wkai-text hover:bg-wkai-surface2"
+      )}
+    >
+      <Check size={13} className={clsx(!active && "opacity-0")} />
+      <span className="truncate">{label}</span>
+    </button>
   );
 }

@@ -15,17 +15,11 @@
       "name": "student",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
-        "exec",
-        "--",
-        "vite",
-        "--port",
-        "3001",
-        "--strictPort",
-        "--host",
-        "0.0.0.0"
+        "run",
+        "dev"
       ],
       "cwd": "wkai-student",
-      "port": 3001
+      "port": 3000
     },
     {
       "name": "instructor",

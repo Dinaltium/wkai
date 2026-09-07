@@ -8,6 +8,9 @@ export function useRoomSocket(roomCode: string) {
   const ws = useRef<WebSocket | null>(null);
   const shouldReconnect = useRef(true);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // One clean-join retry per mount, so a genuinely ended room still settles on
+  // the ended state instead of looping join → ended → join.
+  const rejoinAttempted = useRef(false);
   const joinToken = useStore((s) => s.joinToken);
 
   const connect = useCallback(() => {
@@ -117,12 +120,52 @@ export function useRoomSocket(roomCode: string) {
           useStore.getState().setLatestLiveExplanation(msg.payload as any);
         }
         break;
-      case "session-ended":
+      case "session-ended": {
         shouldReconnect.current = false;
+        useStore.getState().setConnected(false);
+        ws.current?.close();
+
+        // "Session over" is the right answer for a room that genuinely ended —
+        // but the server sends this for an unknown session id too, and a
+        // cached token outlives the session it was issued for. So the first
+        // time this arrives on a resumed identity, throw the identity away and
+        // let RoomPage join this room code fresh; only believe it if the room
+        // is still gone after a clean join.
+        if (!rejoinAttempted.current && useStore.getState().joinToken) {
+          rejoinAttempted.current = true;
+          useStore.getState().clearAuth();
+          break;
+        }
+
         useStore.getState().setSessionEnded(true);
+        break;
+      }
+      case "removed-from-session": {
+        // Not a dropped connection — a decision. Stop reconnecting, or the
+        // client would spend the rest of the lesson being refused every 3s.
+        shouldReconnect.current = false;
+        const p = msg.payload as { message?: string };
+        useStore.getState().setRemovedFromSession(
+          p?.message || "The instructor removed you from this session."
+        );
         useStore.getState().setConnected(false);
         ws.current?.close();
         break;
+      }
+      case "assessment-launched":
+      case "assessment-closed": {
+        // The panel owns the list; it refetches rather than trusting a payload
+        // that may have arrived out of order with the HTTP view.
+        window.dispatchEvent(new CustomEvent("wkai:assessment-changed", { detail: msg.payload }));
+        if (msg.type === "assessment-launched") {
+          const p = msg.payload as { title?: string; kind?: string };
+          useStore.getState().setPendingAssessment({
+            title: p.title ?? "Assessment",
+            kind: p.kind === "test" ? "test" : "quiz",
+          });
+        }
+        break;
+      }
       case "instructor-offline":
         if (!useStore.getState().sessionEnded) {
           useStore.getState().setInstructorOffline(true);

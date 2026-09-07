@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Monitor, AppWindow, RefreshCw, Crown } from "lucide-react";
+import { Monitor, AppWindow, RefreshCw, Crown, Camera, Smartphone } from "lucide-react";
 import type {
   MonitorInfo,
   WindowInfo,
@@ -9,17 +9,23 @@ import type {
 interface DeviceSelectorProps {
   monitors: MonitorInfo[];
   windows: WindowInfo[];
+  cameras: MediaDeviceInfo[];
+  selectedCameraLabel?: string | null;
+  onSelectCamera: (deviceId: string, label: string) => void;
   selectedTarget: CaptureTarget | null;
   onSelect: (target: CaptureTarget) => void;
   isLoading: boolean;
   onRefresh: () => void;
 }
 
-type Tab = "monitors" | "windows";
+type Tab = "monitors" | "windows" | "cameras";
 
 export function DeviceSelector({
   monitors,
   windows,
+  cameras,
+  selectedCameraLabel,
+  onSelectCamera,
   selectedTarget,
   onSelect,
   isLoading,
@@ -70,6 +76,17 @@ export function DeviceSelector({
         >
           <AppWindow size={12} />
           Windows
+        </button>
+        <button
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-md transition-all ${
+            tab === "cameras"
+              ? "bg-wkai-surface text-wkai-text shadow-sm"
+              : "text-wkai-text-dim hover:text-wkai-text"
+          }`}
+          onClick={() => setTab("cameras")}
+        >
+          <Camera size={12} />
+          Camera
         </button>
       </div>
 
@@ -141,6 +158,43 @@ export function DeviceSelector({
               </button>
             );
           })}
+
+        {tab === "cameras" &&
+          cameras.map((c, index) => {
+            const label = c.label || `Camera ${index + 1}`;
+            const isSelected = selectedCameraLabel === label;
+            return (
+              <button
+                key={c.deviceId || label}
+                onClick={() => onSelectCamera(c.deviceId, label)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
+                  isSelected
+                    ? "bg-accent/15 border border-accent/40 text-wkai-text"
+                    : "bg-wkai-bg border border-transparent hover:border-wkai-border hover:bg-wkai-surface text-wkai-text-dim"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Camera size={12} className="shrink-0" />
+                  <span className="font-medium text-wkai-text truncate">{label}</span>
+                </div>
+              </button>
+            );
+          })}
+
+        {tab === "cameras" && (
+          <p className="flex items-start gap-1.5 px-1 pt-2 text-[10px] leading-relaxed text-wkai-text-dim">
+            <Smartphone size={11} className="mt-px shrink-0" />
+            A phone shows up here once it is acting as a webcam over USB or Wi-Fi
+            (Windows "Connected Camera", DroidCam, Iriun and similar). Bluetooth
+            cannot carry video, so no phone will appear over Bluetooth.
+          </p>
+        )}
+
+        {tab === "cameras" && cameras.length === 0 && (
+          <p className="text-xs text-wkai-text-dim text-center py-4">
+            No cameras found — connect one and refresh
+          </p>
+        )}
 
         {tab === "monitors" && monitors.length === 0 && (
           <p className="text-xs text-wkai-text-dim text-center py-4">

@@ -104,6 +104,9 @@ export type WsEventType =
   | "colab-assist-request"
   | "colab-assist-response"
   | "session-ended"
+  | "removed-from-session"
+  | "assessment-launched"
+  | "assessment-closed"
   | "instructor-offline"
   | "instructor-online"
   | "error";
@@ -115,7 +118,7 @@ export interface WsMessage<T = unknown> {
 }
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
-export type RoomTab = "guide" | "files" | "editor" | "error" | "ai-helper" | "live" | "messages";
+export type RoomTab = "guide" | "files" | "editor" | "error" | "ai-helper" | "live" | "messages" | "quiz";
 
 export interface LiveExplanation {
   transcript: string;

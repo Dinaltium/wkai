@@ -135,20 +135,23 @@ function Hero() {
           ))}
         </ul>
 
-        {/* Product Showcase Window (matching aoagents.dev presentation) */}
-        <div className="hero-fade mt-12 w-full">
-          <FramedWindowVideo
-            src="/videos/wkai-showcase-master.mp4"
-            title="wkai · Ada Lovelace · Intro to Python loops"
-            badge="Live Session"
-            className="w-full max-w-5xl shadow-2xl"
-          />
-        </div>
-
         <p className="hero-fade mt-14 flex items-center gap-2 text-xs text-zinc-500">
           <ArrowDown size={13} className="animate-bounce" />
           Scroll
         </p>
+      </div>
+
+      {/* The product itself, deliberately OUTSIDE .hero-copy.
+          Inside it, the scroll timeline's autoAlpha:0 took the showcase down
+          with the headline: the clip dimmed as you scrolled and was fully
+          invisible by 65%, which reads as a video that vanished after playing.
+          The copy still leaves; the product stays. */}
+      <div className="shell relative z-10 -mt-4 w-full pb-24">
+        <FramedWindowVideo
+          src="/videos/wkai-showcase-master.mp4"
+          title="wkai · Ada Lovelace · Intro to Python loops"
+          className="w-full max-w-5xl"
+        />
       </div>
     </section>
   );

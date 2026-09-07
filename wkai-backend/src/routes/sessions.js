@@ -10,6 +10,8 @@ import {
   setSessionIngress,
   getSessionIngress,
   clearSessionIngress,
+  isStudentRemoved,
+  clearRemovedStudents,
 } from "../db/redis.js";
 import { broadcast, cleanupSession } from "../ws/server.js";
 import { clearSessionMemory } from "../ai/memory.js";
@@ -164,6 +166,13 @@ sessionRouter.post("/:roomCode/join", joinLimiter, async (req, res, next) => {
       }
     }
 
+    // Someone the instructor removed does not get a new token by rejoining
+    // under the same name.
+    const requestedName = String(studentName ?? "Student").trim().slice(0, 60) || "Student";
+    if (await isStudentRemoved(session.id, null, requestedName)) {
+      return res.status(403).json({ error: "The instructor removed you from this session." });
+    }
+
     const [blocks, files] = await Promise.all([
       query("SELECT * FROM guide_blocks WHERE session_id = $1 ORDER BY created_at ASC",  [session.id]),
       query("SELECT * FROM shared_files WHERE session_id = $1 ORDER BY shared_at DESC", [session.id]),
@@ -173,7 +182,7 @@ sessionRouter.post("/:roomCode/join", joinLimiter, async (req, res, next) => {
     // The student presents this token on the WS connection; the server derives
     // studentId/studentName from it, so neither can be spoofed.
     const assignedStudentId = randomUUID();
-    const safeName = String(studentName ?? "Student").trim().slice(0, 60) || "Student";
+    const safeName = requestedName;
     const joinToken = issueStudentJoinToken({
       sessionId:   session.id,
       roomCode:    session.room_code,
@@ -250,6 +259,7 @@ sessionRouter.patch("/:id/end", requireSessionToken({ requiredRole: "instructor"
     }
     await deleteSessionData(session.id);
     await clearStudentConnections(session.id);
+    await clearRemovedStudents(session.id);
     clearSessionMemory(session.id);
     cleanupSession(session.id);
 

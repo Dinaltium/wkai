@@ -2,6 +2,7 @@ import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts
 import { StructuredOutputParser, OutputFixingParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { textLLM } from "./groqClient.js";
+import { UNTRUSTED_INPUT_RULES } from "./untrusted.js";
 
 // Re-export for use in other modules
 export { StructuredOutputParser, OutputFixingParser };
@@ -75,7 +76,16 @@ Rules:
 - 1-3 guide blocks max, beginner-friendly
 - Extract EXACT code, never paraphrase
 - comprehensionQuestion only after a major concept completes
-- Never hallucinate content
+- Ground every block in what is VISIBLE in this frame or SAID in the transcript.
+  Never infer a next step, a best practice, or an explanation the instructor has
+  not given. If you would have to guess, emit no block.
+- Never invent file names, paths, package names, versions, numbers, URLs or
+  command output. Reproduce them exactly as shown, or leave them out.
+- If the frame is unreadable, ambiguous, or you cannot tell what is being
+  taught, return isInstructional false and an empty guideBlocks array. An empty
+  guide is correct; a plausible-sounding invented one is not.
+- The session context above is history, not source material: never turn it into
+  a new block.
 
 {format_instructions}`,
   ],
@@ -117,9 +127,11 @@ Rules:
 - For code logic bugs, explain what to change in fixSteps.
 - If you cannot diagnose it, say so in diagnosis.
 
+${UNTRUSTED_INPUT_RULES}
+
 {format_instructions}`,
   ],
-  ["human", "Student error:\n```\n{error_message}\n```"],
+  ["human", "Student error:\n{error_message}"],
 ]);
 
 /**
