@@ -3,6 +3,7 @@ import { useRef, useEffect } from "react";
 interface FramedWindowVideoProps {
   src: string;
   title?: string;
+  /** Kept for call-site compatibility; the frame no longer draws chrome. */
   badge?: string;
   poster?: string;
   className?: string;
@@ -11,14 +12,18 @@ interface FramedWindowVideoProps {
 }
 
 /**
- * Renders an app showcase video framed in a desktop window with macOS traffic lights,
- * subtle border, ambient backdrop glow, and smooth playback, echoing the aoagents.dev
- * presentation style.
+ * A product clip presented the way aoagents.dev presents its app: nested dark
+ * shells with a thin bezel and a soft bloom behind, on a near-black page.
+ *
+ * The macOS traffic lights are gone deliberately. The clips already contain the
+ * WKAI app's own header — room title, tabs, live badge — so a fake window bar
+ * on top of them was a second, competing chrome, and it read as a screenshot of
+ * a screenshot. Measured against the real thing: shell radius 20 / border
+ * white 7%, inner radius 16 / border white 4%, bloom at white 12% blurred 60px.
  */
 export function FramedWindowVideo({
   src,
   title = "wkai — workshop session",
-  badge,
   poster,
   className = "",
   aspectRatio = "aspect-[16/10]",
@@ -26,68 +31,74 @@ export function FramedWindowVideo({
 }: FramedWindowVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Every clip has a poster beside it, so the frame is never an empty black
+  // rectangle while the video is paused, buffering, or blocked from autoplay.
+  const posterSrc = poster ?? src.replace(/\.mp4$/, "-poster.jpg");
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.play().catch(() => {
-      // Autoplay blocked fallback
-    });
+
+    // Six autoplaying clips on one page is six decoders running for content
+    // nobody is looking at. Play only what is on screen — and starting on
+    // intersection is also what gets the first frame moving reliably, since a
+    // play() fired before the element is visible can be rejected outright.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void v.play().catch(() => {});
+        else v.pause();
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(v);
+
+    // Belt and braces for the loop: a muted looping video should never end, but
+    // a throttled background tab can fire `ended` anyway, which would leave the
+    // frame holding its last painted frame for good.
+    const restart = () => {
+      v.currentTime = 0;
+      void v.play().catch(() => {});
+    };
+    v.addEventListener("ended", restart);
+
+    return () => {
+      observer.disconnect();
+      v.removeEventListener("ended", restart);
+    };
   }, [src]);
 
   return (
     <div
-      className={`relative group isolate ${
-        fillContainer ? "flex h-full w-full flex-col" : ""
-      } ${className}`}
+      className={`relative isolate ${fillContainer ? "flex h-full w-full flex-col" : ""} ${className}`}
     >
-      {/* Subtle backdrop glow */}
+      {/* Ambient bloom: light coming off the panel, not a coloured glow around it. */}
       <div
-        className="absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-teal-500/10 via-emerald-500/5 to-transparent blur-xl opacity-75 transition-opacity duration-700 group-hover:opacity-100"
+        className="pointer-events-none absolute inset-[10%] top-[20%] -z-10 rounded-3xl bg-white/[0.12] blur-[60px]"
         aria-hidden="true"
       />
 
-      {/* Main Window Frame */}
+      {/* Outer shell */}
       <div
-        className={`relative overflow-hidden rounded-xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/80 backdrop-blur-md ${
+        className={`relative rounded-[20px] border border-white/[0.07] bg-[#141417] p-1.5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] ${
           fillContainer ? "flex flex-1 min-h-0 flex-col" : ""
         }`}
       >
-        {/* Titlebar / Chrome */}
-        <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/[0.08] bg-zinc-900/60 px-3.5 backdrop-blur-sm">
-          {/* Traffic lights */}
-          <div className="flex items-center gap-2" aria-hidden="true">
-            <span className="h-3 w-3 rounded-full bg-[#ff5f56]/90 shadow-[0_0_8px_rgba(255,95,86,0.3)]" />
-            <span className="h-3 w-3 rounded-full bg-[#ffbd2e]/90 shadow-[0_0_8px_rgba(255,189,46,0.3)]" />
-            <span className="h-3 w-3 rounded-full bg-[#27c93f]/90 shadow-[0_0_8px_rgba(39,201,63,0.3)]" />
-          </div>
-
-          {/* Window title / address pill */}
-          <div className="flex items-center gap-2 rounded-md bg-white/[0.04] px-3 py-0.5 text-xs text-zinc-400 font-mono border border-white/[0.04]">
-            <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse" />
-            <span className="truncate max-w-[220px] sm:max-w-[340px]">{title}</span>
-          </div>
-
-          {/* Right badge / indicator */}
-          <div className="flex items-center text-[11px] font-mono text-zinc-500">
-            {badge ?? "Live"}
-          </div>
-        </div>
-
-        {/* Video Canvas */}
+        {/* Inner pane holding the clip */}
         <div
-          className={`relative w-full overflow-hidden bg-zinc-950 ${
+          className={`relative w-full overflow-hidden rounded-[16px] border border-white/[0.04] bg-[#0f0f12] ${
             fillContainer ? "flex-1 min-h-0" : aspectRatio
           }`}
         >
           <video
             ref={videoRef}
             src={src}
-            poster={poster}
+            poster={posterSrc}
+            aria-label={title}
             autoPlay
             loop
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
             className="h-full w-full object-cover object-top"
           />
         </div>
