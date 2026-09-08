@@ -10,8 +10,6 @@ permissions:
 
 jobs:
   build:
-    env:
-      HAS_TAURI_SIGNING: ${{ secrets.TAURI_PRIVATE_KEY != '' && secrets.TAURI_KEY_PASSWORD != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -60,13 +58,22 @@ jobs:
         run: npm install
         working-directory: wkai
 
-      - name: Build Tauri app (signed)
-        if: env.HAS_TAURI_SIGNING == 'true'
+      - name: Require updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::No updater signing key. Set the TAURI_SIGNING_PRIVATE_KEY repository secret (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD if the key has one)."
+            exit 1
+          fi
+
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_KEY_PASSWORD }}
         with:
           projectPath: wkai
           args: ${{ matrix.args }}
@@ -75,17 +82,9 @@ jobs:
           releaseBody: "Automated WKAI desktop app release"
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
 
-      - name: Build Tauri app (unsigned)
-        if: env.HAS_TAURI_SIGNING != 'true'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: wkai
-          args: ${{ matrix.args }}
-          tagName: ${{ github.ref_name }}
-          releaseName: WKAI ${{ github.ref_name }}
-          releaseBody: "Automated WKAI desktop app release (unsigned)"
-          releaseDraft: false
-          prerelease: false
+      - name: Verify updater signature against the shipped pubkey
+        shell: bash
+        run: node ./scripts/verify-updater-signature.mjs
+        working-directory: wkai

@@ -113,8 +113,6 @@ jobs:
   build-release:
     needs: bump-and-tag
     if: needs.bump-and-tag.outputs.tagged == 'true'
-    env:
-      HAS_TAURI_SIGNING: ${{ secrets.TAURI_PRIVATE_KEY != '' && secrets.TAURI_KEY_PASSWORD != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -170,13 +168,28 @@ jobs:
         run: npm install
         working-directory: wkai
 
-      - name: Build Tauri app (signed)
-        if: env.HAS_TAURI_SIGNING == 'true'
+      # An unsigned build produces a release that installed apps can never
+      # update to, and it does so quietly. Fail here instead, so a missing key
+      # is a broken pipeline rather than a release nobody can install.
+      - name: Require updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::No updater signing key. Set the TAURI_SIGNING_PRIVATE_KEY repository secret (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD if the key has one)."
+            exit 1
+          fi
+
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Tauri v2 names. The v1 names (TAURI_PRIVATE_KEY / TAURI_KEY_PASSWORD)
+          # are ignored by the v2 CLI, which is why releases shipped without a
+          # latest.json for months.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_KEY_PASSWORD }}
         with:
           projectPath: wkai
           args: ${{ matrix.args }}
@@ -185,17 +198,29 @@ jobs:
           releaseBody: "Automated WKAI desktop app release"
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
 
-      - name: Build Tauri app (unsigned)
-        if: env.HAS_TAURI_SIGNING != 'true'
-        uses: tauri-apps/tauri-action@v0
+      # The signature is only useful if it verifies against the pubkey compiled
+      # into the app. A key rotation that forgets tauri.conf.json would ship a
+      # release every client rejects, so prove it here.
+      - name: Verify updater signature against the shipped pubkey
+        shell: bash
+        run: node ./scripts/verify-updater-signature.mjs
+        working-directory: wkai
+
+      - name: Verify release carries updater metadata
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: wkai
-          args: ${{ matrix.args }}
-          tagName: v${{ needs.bump-and-tag.outputs.version }}
-          releaseName: WKAI v${{ needs.bump-and-tag.outputs.version }}
-          releaseBody: "Automated WKAI desktop app release (unsigned)"
-          releaseDraft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ needs.bump-and-tag.outputs.version }}"
+          NAMES=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          echo "$NAMES"
+          echo "$NAMES" | grep -qx 'latest.json' || {
+            echo "::error::Release $TAG has no latest.json - in-app updates would silently do nothing."
+            exit 1
+          }
+          echo "$NAMES" | grep -q '\-setup\.exe\.sig$' || {
+            echo "::error::Release $TAG has no signed NSIS installer - the Windows updater has nothing to install."
+            exit 1
+          }
