@@ -7548,6 +7548,8 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "uuid",
+ "webview2-com",
+ "windows 0.61.3",
  "xcap",
 ]
 

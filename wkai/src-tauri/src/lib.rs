@@ -11,6 +11,7 @@ mod audio;
 mod file_watcher;
 mod native_capture;
 mod recording;
+mod webview_permissions;
 
 pub use commands::*;
 
@@ -80,6 +81,12 @@ pub fn run() {
             }
 
             if let Some(window) = app.get_webview_window("main") {
+                // Best-effort: if this fails the instructor just sees WebView2's
+                // own prompt again, which is worse UX but still works.
+                if let Err(e) = webview_permissions::suppress_native_media_prompts(&window) {
+                    log::warn!("Could not take over device permission prompts: {e}");
+                }
+
                 let _ = window.show();
                 let _ = window.set_focus();
             }

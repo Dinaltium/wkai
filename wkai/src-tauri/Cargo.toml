@@ -90,3 +90,10 @@ codegen-units = 4
 lto = "thin"
 opt-level = "s"
 strip = false
+
+# WebView2 permission interception, so device consent stays in the app's own
+# dialog instead of a floating browser bar. Versions match what wry already
+# resolves, so this pulls in nothing new.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38.2"
+windows = { version = "0.61.3", features = ["Win32_Foundation"] }
