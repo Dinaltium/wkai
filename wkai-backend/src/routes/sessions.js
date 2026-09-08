@@ -227,6 +227,58 @@ sessionRouter.get("/:roomCode", async (req, res, next) => {
   }
 });
 
+// ─── PATCH /api/sessions/:id/password ────────────────────────────────────────
+
+const UpdatePasswordSchema = z.object({
+  // Absent, null, or empty all mean "this room no longer needs a password".
+  sessionPassword: z.string().max(128).nullish(),
+});
+
+/**
+ * Change or clear the room password while the session is running.
+ *
+ * The password is stored only as a scrypt hash and the instructor app keeps it
+ * nowhere at all — it is local state on the setup form and gone the moment the
+ * session starts. So an instructor who forgot what they typed had no way back:
+ * students could not join, and the only remedy was ending the workshop and
+ * starting a new room, losing the guide built up so far.
+ *
+ * Students already in the room hold signed join tokens, so changing the
+ * password never disconnects anyone mid-session.
+ */
+sessionRouter.patch(
+  "/:id/password",
+  requireSessionToken({ requiredRole: "instructor" }),
+  async (req, res, next) => {
+    try {
+      const { sessionPassword } = UpdatePasswordSchema.parse(req.body ?? {});
+      const trimmed = sessionPassword?.trim() ?? "";
+      const passwordHash = trimmed ? hashPassword(trimmed) : null;
+
+      const { rows } = await query(
+        `UPDATE sessions SET session_password_hash = $1
+         WHERE id = $2 AND status != 'ended'
+         RETURNING id, room_code, session_password_hash`,
+        [passwordHash, req.params.id]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({ error: "Session not found or already ended" });
+      }
+
+      res.json({
+        roomCode: rows[0].room_code,
+        passwordRequired: rows[0].session_password_hash != null,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ error: "A room password can be at most 128 characters." });
+      }
+      next(err);
+    }
+  }
+);
+
 // ─── PATCH /api/sessions/:id/end ─────────────────────────────────────────────
 
 sessionRouter.patch("/:id/end", requireSessionToken({ requiredRole: "instructor" }), async (req, res, next) => {

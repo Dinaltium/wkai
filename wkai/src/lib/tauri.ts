@@ -79,6 +79,33 @@ export async function endSession(
   await postJson(`${backendUrl}/api/sessions/${sessionId}/end`, undefined, instructorToken);
 }
 
+/**
+ * Change the room password mid-session, or clear it by passing an empty string.
+ *
+ * postJson() picks its method from whether a body is present, and this endpoint
+ * needs PATCH *with* one, so it calls fetch directly.
+ */
+export async function updateSessionPassword(
+  sessionId: string,
+  backendUrl: string,
+  sessionPassword: string,
+  instructorToken?: string
+): Promise<{ passwordRequired: boolean }> {
+  const res = await fetch(`${backendUrl}/api/sessions/${sessionId}/password`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(instructorToken ? { Authorization: `Bearer ${instructorToken}` } : {}),
+    },
+    body: JSON.stringify({ sessionPassword }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(detail || `Backend returned ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function getSessionStatus(
   sessionId: string,
   backendUrl: string

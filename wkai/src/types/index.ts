@@ -11,6 +11,9 @@ export interface Session {
   status: SessionStatus;
   /** Signed session-ownership token — sent on the WS connection and end-session call. */
   instructorToken?: string;
+  /** Whether students must enter a password to join. The password itself is
+   *  never held here — only its scrypt hash exists, server-side. */
+  passwordRequired?: boolean;
   /** Folder this session belongs to; its earlier sessions feed the AI's context. */
   workspaceId?: string | null;
   workspaceName?: string | null;
