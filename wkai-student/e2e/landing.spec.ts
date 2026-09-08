@@ -34,10 +34,14 @@ test.describe("error routes", () => {
     await expect(page).toHaveURL(/\/join$/);
   });
 
-  test("a room URL with a bad code sends the student back to join with a reason", async ({ page }) => {
+  test("a room URL with a bad code says so, and offers the code entry", async ({ page }) => {
     await page.goto("/room/ZZZZZZ");
 
-    await expect(page).toHaveURL(/\/join$/, { timeout: 20_000 });
-    await expect(page.getByRole("alert")).toContainText(/ZZZZZZ/);
+    // Answered where the student already is. Bouncing them to /join used to
+    // throw away the one piece of context worth keeping: which code failed.
+    await expect(page.getByRole("alert")).toContainText(/ZZZZZZ/, { timeout: 20_000 });
+
+    await page.getByRole("link", { name: /Enter a different code/ }).click();
+    await expect(page).toHaveURL(/\/join$/);
   });
 });

@@ -25,7 +25,9 @@ export async function joinRoomThroughUi(
   await page.getByPlaceholder("Alex Smith").fill(studentName);
   await enterRoomCode(page, roomCode);
   if (password !== undefined) {
-    await page.getByPlaceholder("Leave empty if there is none").fill(password);
+    // The field only exists once the preflight reports this room has a
+    // password, which happens as soon as the sixth character lands.
+    await page.getByPlaceholder("Ask your instructor").fill(password);
   }
   await page.getByRole("button", { name: "Join session" }).click();
 }

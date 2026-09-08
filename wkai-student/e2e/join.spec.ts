@@ -49,7 +49,7 @@ test.describe("joining a workshop", () => {
     await joinRoomThroughUi(page, session.roomCode, "Grace Hopper", "wrong-password");
     await expect(page.getByRole("alert")).toContainText(/password/i);
 
-    await page.getByPlaceholder("Leave empty if there is none").fill("hunter2");
+    await page.getByPlaceholder("Ask your instructor").fill("hunter2");
     await page.getByRole("button", { name: "Join session" }).click();
     await expect(page).toHaveURL(new RegExp(`/room/${session.roomCode}$`));
   });
