@@ -77,13 +77,34 @@ function getLocalIp() {
   return null;
 }
 
+// Where the student site actually lives. It is a separately deployed SPA, so
+// the backend cannot infer it from its own network interfaces: on a host like
+// Render, getLocalIp() returns the private container address, which is how the
+// invite dialog ended up handing instructors links like http://10.26.160.3:3000
+// that no student could ever open. Only a LAN dev run can be inferred.
+const DEFAULT_STUDENT_URL = "https://wkai.vercel.app";
+const IS_HOSTED = Boolean(process.env.RENDER_EXTERNAL_URL);
+
+function trimTrailingSlash(url) {
+  return url ? url.replace(/\/$/, "") : null;
+}
+
+function getStudentUrl(ip) {
+  const configured = trimTrailingSlash(process.env.STUDENT_URL);
+  if (configured) return configured;
+  if (IS_HOSTED) return DEFAULT_STUDENT_URL;
+  return ip ? `http://${ip}:3000` : null;
+}
+
 app.get('/api/network-info', (_req, res) => {
   const ip = getLocalIp();
   res.json({
     localIp: ip,
     port: process.env.PORT ?? 4000,
-    studentUrl: ip ? `http://${ip}:3000` : null,
-    backendUrl: ip ? `http://${ip}:${process.env.PORT ?? 4000}` : null,
+    studentUrl: getStudentUrl(ip),
+    backendUrl:
+      trimTrailingSlash(process.env.RENDER_EXTERNAL_URL) ??
+      (ip ? `http://${ip}:${process.env.PORT ?? 4000}` : null),
   });
 });
 
