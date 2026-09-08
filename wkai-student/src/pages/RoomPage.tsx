@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { useStore } from "../store";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 import { RoomHeader } from "../components/shared/RoomHeader";
@@ -11,7 +10,6 @@ import { AIHelperPanel } from "../components/ai/AIHelperPanel";
 import { ScreenPreview } from "../components/guide/ScreenPreview";
 import { MessagePanel } from "../components/messages/MessagePanel";
 import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
-import { joinRoom } from "../lib/api";
 import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
 import { InstructorOfflineBanner } from "../components/shared/InstructorOfflineBanner";
 import { CodeEditor } from "../components/shared/CodeEditor";
@@ -20,66 +18,17 @@ import { ComprehensionModal } from "../components/comprehension/ComprehensionMod
 import { AssessmentPanel } from "../components/quiz/AssessmentPanel";
 import { InstructorAwayModal } from "../components/shared/InstructorAwayModal";
 import { RemovedFromSessionModal } from "../components/shared/RemovedFromSessionModal";
+import { RoomEntryGate } from "../components/shared/RoomEntryGate";
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
-  const navigate = useNavigate();
-  const { session, sessionEnded, instructorOffline, removedFromSession, activeTab, setActiveTab, pendingQuestion, setAuth, setSession, setGuideBlocks, setSharedFiles } = useStore();
+  const { session, sessionEnded, instructorOffline, removedFromSession, activeTab, setActiveTab, pendingQuestion } = useStore();
   // "I know, I am staying" — dismissing the away prompt drops back to the
   // banner rather than nagging every time the instructor's socket flaps.
   const [awayDismissed, setAwayDismissed] = useState(false);
   const [removalDismissed, setRemovalDismissed] = useState(false);
   const { send } = useRoomSocket(code!);
   const { remoteStream } = useWebRtcReceiver(send);
-  const bootstrappingRef = useRef(!session && !sessionEnded);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSession() {
-      if (session || sessionEnded || !code) return;
-
-      bootstrappingRef.current = true;
-      try {
-        const studentName = localStorage.getItem("wkai_student_name") || "Student";
-        const data = await joinRoom(code, studentName);
-        if (cancelled) return;
-
-        if (data.session.status === "ended") {
-          navigate("/join", {
-            replace: true,
-            state: { error: "That session has ended. Ask your instructor for a new code." },
-          });
-          return;
-        }
-
-        // Re-issued identity + token (e.g. after a page reload); the WS hook
-        // reconnects once the token lands in the store.
-        setAuth(data.studentId, data.joinToken);
-        setSession(data.session);
-        setGuideBlocks(data.guideBlocks);
-        setSharedFiles(data.sharedFiles);
-      } catch {
-        // Send them back to the one place that can fix this — the code entry —
-        // with a reason, rather than dropping them on the marketing page.
-        if (!cancelled) {
-          navigate("/join", {
-            replace: true,
-            state: { error: `Could not join room ${code}. Check the code with your instructor.` },
-          });
-        }
-      } finally {
-        if (!cancelled) bootstrappingRef.current = false;
-      }
-    }
-
-    loadSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, navigate, session, sessionEnded, setAuth, setSession, setGuideBlocks, setSharedFiles]);
-
   // A returning instructor makes the prompt relevant again next time.
   useEffect(() => {
     if (!instructorOffline) setAwayDismissed(false);
@@ -93,12 +42,21 @@ export function RoomPage() {
     }
   }, [sessionEnded, activeTab, setActiveTab]);
 
-  if ((bootstrappingRef.current || (!session && !sessionEnded)) && !sessionEnded) {
+  // Arriving on an invite link with nothing in this tab yet: ask who they are
+  // (and for the room password, if this room has one) before joining. A reload
+  // mid-session restores the stored session and skips straight past this.
+  //
+  // The stored session is checked against the code in the URL, because it is
+  // kept per tab rather than per room: opening a second invite link in a tab
+  // that had already joined somewhere else used to re-render the first room
+  // under the new room's URL.
+  const storedRoomMatches =
+    !!session && session.roomCode?.toUpperCase() === (code ?? "").toUpperCase();
+
+  if (!storedRoomMatches && !sessionEnded) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-wkai-bg px-6 text-center">
-        <Loader2 size={22} className="animate-spin text-accent-text" />
-        <p className="text-sm font-medium text-wkai-text">Joining room {code}</p>
-        <p className="text-xs text-wkai-text-dim">Checking the code and setting up your live connection.</p>
+      <div className="h-full overflow-y-auto bg-wkai-bg">
+        <RoomEntryGate code={(code ?? "").toUpperCase()} />
       </div>
     );
   }

@@ -78,6 +78,26 @@ export async function joinRoom(
   return data;
 }
 
+export interface RoomPreflight {
+  id: string;
+  roomCode: string;
+  status: Session["status"];
+  passwordRequired: boolean;
+}
+
+/**
+ * Ask what a room needs before trying to enter it.
+ *
+ * Without this the student app had to guess: the join form showed a password
+ * box on every room with "(only if asked for one)" next to it, and a link
+ * straight to /room/:code joined with no password at all, so a protected room
+ * failed with "check the code" when the code was perfectly correct.
+ */
+export async function getRoomPreflight(roomCode: string): Promise<RoomPreflight> {
+  const { data } = await api.get<RoomPreflight>(`/api/sessions/${roomCode.toUpperCase()}`);
+  return data;
+}
+
 export async function getRoomState(roomCode: string, joinToken?: string): Promise<JoinRoomResponse> {
   const { data } = await api.get<JoinRoomResponse>(
     `/api/sessions/${roomCode.toUpperCase()}`,

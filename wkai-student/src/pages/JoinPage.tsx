@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import axios from "axios";
-import { joinRoom } from "../lib/api";
+import { getRoomPreflight, joinRoom } from "../lib/api";
 import { useStore } from "../store";
 import { SettingsFab } from "../components/shared/SettingsFab";
 
@@ -26,7 +26,39 @@ export function JoinPage() {
   }, []);
 
   const roomCode = chars.join("").toUpperCase();
-  const isComplete = chars.every((c) => c !== "") && name.trim().length > 0;
+  const codeComplete = chars.every((c) => c !== "");
+  const isComplete = codeComplete && name.trim().length > 0;
+
+  // Ask the server what this room needs as soon as the code is complete, so the
+  // password box appears only for rooms that actually have one. It used to be
+  // shown on every join, labelled "(only if asked for one)", which left the
+  // student guessing whether a blank field was going to be the reason it failed.
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  useEffect(() => {
+    if (!codeComplete) {
+      setPasswordRequired(false);
+      return;
+    }
+
+    let cancelled = false;
+    getRoomPreflight(roomCode)
+      .then((room) => {
+        if (cancelled) return;
+        setPasswordRequired(room.passwordRequired);
+        if (room.status === "ended") {
+          setError("That session has already ended. Ask your instructor for a new code.");
+        }
+      })
+      .catch(() => {
+        // Stay quiet here: an unknown code is worth reporting when they press
+        // Join, not while they are still typing the last character.
+        if (!cancelled) setPasswordRequired(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [codeComplete, roomCode]);
 
   function handleChar(i: number, val: string) {
     const ch = val.replace(/[^a-zA-Z0-9]/g, "").slice(-1).toUpperCase();
@@ -144,9 +176,10 @@ export function JoinPage() {
           </div>
         </fieldset>
 
+        {passwordRequired && (
         <div className="mb-5">
           <label htmlFor="room-password" className="mb-1.5 block text-sm font-medium text-wkai-text">
-            Room password <span className="font-normal text-wkai-text-dim">(only if asked for one)</span>
+            Room password
           </label>
           {/* "new-password", not "off": Chrome ignores autocomplete="off" on a
               password field when it holds a saved credential, and fills it as a
@@ -159,14 +192,16 @@ export function JoinPage() {
             name="room-password"
             className="input h-12 px-4"
             type="password"
-            placeholder="Leave empty if there is none"
+            placeholder="Ask your instructor"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
             data-lpignore="true"
             data-1p-ignore
           />
+          <p className="mt-1.5 text-xs text-wkai-text-dim">This room is password protected.</p>
         </div>
+        )}
 
         {error && (
           <p
@@ -178,7 +213,7 @@ export function JoinPage() {
           </p>
         )}
 
-        <button className="btn-primary w-full py-3 text-base" type="submit" disabled={!isComplete || loading}>
+        <button className="btn-primary w-full py-3 text-base" type="submit" disabled={!isComplete || loading || (passwordRequired && !password)}>
           {loading
             ? <><Loader2 size={16} className="animate-spin" /> Joining…</>
             : <>Join session <ArrowRight size={16} /></>
