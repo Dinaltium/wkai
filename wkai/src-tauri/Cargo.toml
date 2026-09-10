@@ -42,6 +42,13 @@ reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 
 # Screen capture
 image = { version = "0.25", features = ["jpeg", "png"] }
+# The `image` crate's JPEG encoder has no SIMD path and was the hard ceiling on
+# capture framerate: 36ms for a typical 1080p desktop frame (~28fps), and ~95ms
+# on dense content like a detailed wallpaper (~10fps), which is where the live
+# stream visibly fell apart. This one encodes the same frame in 17ms, and
+# slightly smaller. Kept alongside `image`, which still does capture-side
+# resizing and PNG.
+jpeg-encoder = { version = "0.6", features = ["simd"] }
 
 # Audio capture
 cpal = "0.15"
