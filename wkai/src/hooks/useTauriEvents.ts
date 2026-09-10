@@ -83,6 +83,17 @@ export function useTauriEvents() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ audioB64: event.payload.audio_b64, mimeType: "audio/wav" }),
         });
+        if (!whisperRes.ok) {
+          // Distinguish "the server said no" from "the server never answered".
+          // Both used to surface as a bare "transcription failed", which reads
+          // as an audio fault and sends you looking at the microphone.
+          const detail = await whisperRes.text().catch(() => "");
+          addDebugLog(
+            `Transcription rejected by the server (${whisperRes.status}): ${detail.slice(0, 160)}`,
+            "warn"
+          );
+          return;
+        }
         const { transcript } = await whisperRes.json();
         if (!transcript?.trim()) return;
         // Whisper does not return an empty string for silence — it invents a
@@ -106,7 +117,15 @@ export function useTauriEvents() {
         }));
       } catch (err) {
         console.warn("[Audio] Transcription failed:", err);
-        addDebugLog("Audio transcription failed", "warn");
+        // Reaching here means the request never completed — the backend was
+        // unreachable, not that the audio was bad. Say which, and say where:
+        // when this fires every chunk in a row it is the connection, and the
+        // old message sent people hunting for a microphone problem instead.
+        const reason = err instanceof Error ? err.message : String(err);
+        addDebugLog(
+          `Could not reach the server to transcribe (${settings.backendUrl}): ${reason}`,
+          "warn"
+        );
       }
     });
 

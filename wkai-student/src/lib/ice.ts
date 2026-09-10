@@ -1,4 +1,5 @@
 import { getBackendUrl } from "./api";
+import { useStore } from "../store";
 
 /**
  * ICE servers come from the backend so both peers agree on one configuration
@@ -19,7 +20,14 @@ export async function getRtcConfig(): Promise<RTCConfiguration> {
 
   inFlight = (async () => {
     try {
-      const res = await fetch(`${getBackendUrl()}/api/webrtc/ice`);
+      // The endpoint is guarded: TURN credentials are metered, so the backend
+      // hands them only to someone already in a room. Without this header the
+      // request comes back 401 and we fall through to STUN — which looks like
+      // working code right up until a student has no direct path.
+      const token = useStore.getState().joinToken;
+      const res = await fetch(`${getBackendUrl()}/api/webrtc/ice`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error(`ICE config ${res.status}`);
       const data = (await res.json()) as { iceServers: RTCIceServer[]; hasTurn: boolean };
       if (!data.iceServers?.length) throw new Error("ICE config empty");

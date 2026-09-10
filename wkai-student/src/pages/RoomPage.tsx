@@ -10,6 +10,7 @@ import { AIHelperPanel } from "../components/ai/AIHelperPanel";
 import { ScreenPreview } from "../components/guide/ScreenPreview";
 import { MessagePanel } from "../components/messages/MessagePanel";
 import { useWebRtcReceiver } from "../hooks/useWebRtcReceiver";
+import { useSfuReceiver } from "../hooks/useSfuReceiver";
 import { SessionEndedBanner } from "../components/shared/SessionEndedBanner";
 import { InstructorOfflineBanner } from "../components/shared/InstructorOfflineBanner";
 import { CodeEditor } from "../components/shared/CodeEditor";
@@ -28,7 +29,15 @@ export function RoomPage() {
   const [awayDismissed, setAwayDismissed] = useState(false);
   const [removalDismissed, setRemovalDismissed] = useState(false);
   const { send } = useRoomSocket(code!);
-  const { remoteStream } = useWebRtcReceiver(send);
+  const { remoteStream: sfuStream, active: sfuActive } = useSfuReceiver();
+  // The SFU wins when it has a stream: an instructor publishing to it is
+  // deliberately in online mode, and the mesh offer is then the stale path.
+  //
+  // The mesh is switched off rather than merely ignored. Leaving it connected
+  // pulled a second full copy of the same screen down the same connection just
+  // to throw it away, which is what made the picture crawl and black out.
+  const { remoteStream: meshStream } = useWebRtcReceiver(send, !sfuActive);
+  const remoteStream = sfuActive && sfuStream ? sfuStream : meshStream;
   // A returning instructor makes the prompt relevant again next time.
   useEffect(() => {
     if (!instructorOffline) setAwayDismissed(false);

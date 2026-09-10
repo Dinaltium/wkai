@@ -5,6 +5,8 @@ import { MicTest } from "../components/instructor/MicTest";
 import { AITest } from "../components/instructor/AITest";
 import { ThemeControls } from "../components/shared/ThemeControls";
 import { CHECK_FOR_UPDATES_EVENT } from "../components/shared/UpdateManager";
+import { resetRtcConfigCache } from "../lib/ice";
+import type { StreamingMode } from "../types";
 import { listAudioInputDevices } from "../lib/tauri";
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -160,6 +162,34 @@ export function SettingsPage() {
         </section>
 
         {/* Capture */}
+        <section className="card space-y-4 p-4">
+          <h2 className="text-xs font-semibold text-wkai-text">
+            Streaming
+          </h2>
+          <Field
+            label="Where students are"
+            hint="Room keeps the screen share on the local network. Online adds a relay for students on other networks."
+          >
+            <select
+              className="input text-xs"
+              value={settings.streamingMode}
+              onChange={(e) => {
+                updateSettings({ streamingMode: e.target.value as StreamingMode });
+                // The next peer must not reuse a config built for the old mode.
+                resetRtcConfigCache();
+              }}
+            >
+              <option value="lan">In this room (local network)</option>
+              <option value="online">Online (students elsewhere)</option>
+            </select>
+          </Field>
+          <p className="text-xs text-wkai-text-dim">
+            {settings.streamingMode === "lan"
+              ? "Media stays on the local network and never leaves the building. Students joining from another network may not connect."
+              : "Students with no direct path fall back to a relay. Uses more of your upload, and relayed traffic counts against the relay's quota."}
+          </p>
+        </section>
+
         <section className="card space-y-4 p-4">
           <h2 className="text-xs font-semibold text-wkai-text">
             Capture

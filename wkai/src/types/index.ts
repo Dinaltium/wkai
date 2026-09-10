@@ -185,7 +185,21 @@ export interface AppSettings {
   micDevice: string;
   /** getUserMedia deviceId for the mic students hear. Empty = system default. */
   micDeviceId: string;
+  /**
+   * Where the screen share is allowed to travel.
+   *
+   * "lan"    — everyone is in the room. Media stays on the local network, no
+   *            relay is offered, and the uplink budget is raised because a
+   *            local network carries far more than an internet uplink.
+   * "online" — students may be on other networks. A TURN relay is offered for
+   *            anyone with no direct path, and the budget is sized for a real
+   *            upload link.
+   */
+  streamingMode: StreamingMode;
 }
+
+/** @see AppSettings.streamingMode */
+export type StreamingMode = "lan" | "online";
 
 /**
  * Per-session override of the AI/recording toggles above. Seeded from

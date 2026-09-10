@@ -3,6 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useWebRtcPublisher } from "../hooks/useWebRtcPublisher";
+import { useSfuPublisher } from "../hooks/useSfuPublisher";
 import { useNativeCapture } from "../hooks/useNativeCapture";
 import { useCaptureDevices } from "../hooks/useCaptureDevices";
 import { useSessionRecorder } from "../hooks/useSessionRecorder";
@@ -63,7 +64,18 @@ export function SessionRuntimeProvider({ children }: { children: React.ReactNode
     backendUrl: settings.backendUrl,
     token: session?.instructorToken,
   });
-  const publisher = useWebRtcPublisher(session?.id ?? null, send, on, off);
+  // Online mode publishes once to the SFU and lets Cloudflare fan it out. The
+  // mesh is the fallback for when that is not working — it takes the session
+  // back the moment the SFU drops, but it must not run *beside* it: two full
+  // copies of the same screen leaving one uplink is what makes the share stall.
+  const sfu = useSfuPublisher(settings.streamingMode === "online");
+  const publisher = useWebRtcPublisher(
+    session?.id ?? null,
+    send,
+    on,
+    off,
+    sfu.publishing,
+  );
 
   const capture = useNativeCapture();
   const devices = useCaptureDevices();

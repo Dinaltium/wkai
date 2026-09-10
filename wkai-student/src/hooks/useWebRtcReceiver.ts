@@ -3,7 +3,16 @@ import type { WebRtcIceCandidatePayload, WebRtcOfferPayload } from "../types";
 import { useStore } from "../store";
 import { getRtcConfig } from "../lib/ice";
 
-export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
+/**
+ * @param enabled false while the SFU is delivering the screen. The direct
+ *   connection is then a second copy of a stream already arriving, and pulling
+ *   both down one connection is what makes the picture stall and black out —
+ *   so it is closed, not just left unwatched.
+ */
+export function useWebRtcReceiver(
+  send: <T>(type: string, payload: T) => void,
+  enabled = true,
+) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const queuedIceRef = useRef<RTCIceCandidateInit[]>([]);
@@ -29,6 +38,13 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
   };
 
   useEffect(() => {
+    if (!enabled) {
+      // Hand over to the SFU: drop the direct connection instead of holding it
+      // open alongside. Re-enabling below asks for a fresh offer.
+      closePeer();
+      return;
+    }
+
     const handleOffer = async (event: Event) => {
       const payload = (event as CustomEvent<WebRtcOfferPayload>).detail;
       if (!payload?.sdp) return;
@@ -133,9 +149,10 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
       window.removeEventListener("wkai:webrtc-session-reset", handleReset);
       closePeer();
     };
-  }, [addDebugLog, send, studentId]);
+  }, [addDebugLog, send, studentId, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     const hasLiveTrack = () => {
       if (!remoteStream) return false;
       const [videoTrack] = remoteStream.getVideoTracks();
@@ -173,7 +190,7 @@ export function useWebRtcReceiver(send: <T>(type: string, payload: T) => void) {
       document.removeEventListener("visibilitychange", applyVisibilityPolicy);
       window.removeEventListener("wkai:socket-open", handleSocketOpen);
     };
-  }, [remoteStream, backgroundLiveEnabled, addDebugLog, send, studentId]);
+  }, [remoteStream, backgroundLiveEnabled, addDebugLog, send, studentId, enabled]);
 
   return { remoteStream };
 }

@@ -48,12 +48,30 @@ export function useNativeCapture() {
   // Optional on-screen preview. Whatever view is mounted attaches its own
   // canvas here and gets a copy of each frame; nothing depends on it existing.
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // True while a frame is being decoded. The pull loop skips a tick rather
-  // than queuing while this is set — the backend hands out "current state",
-  // never a backlog, so there is never anything worth queuing.
-  const decodingRef = useRef(false);
+  /**
+   * How many frame decodes may be in flight at once.
+   *
+   * This used to be a boolean — one decode at a time, every tick that arrived
+   * mid-decode simply dropped. That made the whole pipeline's ceiling
+   * 1/decode_time: a 1080p JPEG decodes in ~29ms here, so the pump could not
+   * exceed ~34fps no matter what framerate was selected, and 60fps was
+   * unreachable by construction.
+   *
+   * Decoding is off-thread and parallelises almost linearly — measured on this
+   * machine at 1080p: 34fps with one in flight, 87fps with three. Three is the
+   * knee of that curve; beyond it the extra decodes only add latency and
+   * memory, since capture upstream never produces that fast.
+   */
+  const MAX_DECODES_IN_FLIGHT = 3;
+  const decodesInFlightRef = useRef(0);
   const capturingRef = useRef(false);
   const lastFrameTimestampRef = useRef(0);
+  /**
+   * Timestamp of the newest frame actually drawn. Concurrent decodes can finish
+   * out of order, and drawing an older frame after a newer one shows as a
+   * visible stutter-and-rewind, so late arrivals are discarded.
+   */
+  const lastDrawnTimestampRef = useRef(0);
   const pumpActiveRef = useRef(false);
   const pumpTimerRef = useRef<number | null>(null);
 
@@ -167,13 +185,23 @@ export function useNativeCapture() {
         const width = view.getUint32(0, true);
         const height = view.getUint32(4, true);
         const timestamp = Number(view.getBigUint64(8, true));
-        if (timestamp === lastFrameTimestampRef.current) return;
+        // Claimed before the decode, so the other decodes in flight skip this
+        // frame instead of all racing to decode the same one.
+        if (timestamp <= lastFrameTimestampRef.current) return;
         lastFrameTimestampRef.current = timestamp;
 
         const jpegBytes = new Uint8Array(buf, 16);
         const bitmap = await createImageBitmap(
           new Blob([jpegBytes], { type: "image/jpeg" })
         );
+
+        // A slower decode of an older frame can land after a newer one. Showing
+        // it would rewind the picture, so drop it rather than draw backwards.
+        if (timestamp < lastDrawnTimestampRef.current) {
+          bitmap.close();
+          return;
+        }
+        lastDrawnTimestampRef.current = timestamp;
 
         const canvas = getCaptureCanvas();
         if (canvas.width !== width || canvas.height !== height) {
@@ -202,15 +230,15 @@ export function useNativeCapture() {
 
       const pumpTick = () => {
         if (!pumpActiveRef.current) return;
-        if (capturingRef.current && !decodingRef.current) {
-          decodingRef.current = true;
+        if (capturingRef.current && decodesInFlightRef.current < MAX_DECODES_IN_FLIGHT) {
+          decodesInFlightRef.current++;
           invoke<ArrayBuffer>("get_latest_frame")
             .then((buf) => (buf && buf.byteLength > 0 ? drawFrame(buf) : undefined))
             .catch((err) =>
               console.error("[NativeCapture] Frame pull failed:", err)
             )
             .finally(() => {
-              decodingRef.current = false;
+              decodesInFlightRef.current--;
             });
         }
       };
@@ -351,6 +379,7 @@ export function useNativeCapture() {
       setIsLoading(true);
       setError(null);
       lastFrameTimestampRef.current = 0;
+      lastDrawnTimestampRef.current = 0;
       try {
         await invoke("start_native_capture", { target, config });
         // Drive the pull loop from here, not the "capturing" status event —

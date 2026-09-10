@@ -91,6 +91,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   aiTranscriptionEnabled: true,
   micDevice: "",
   micDeviceId: "",
+  // Defaults to the room, which is what WKAI is for. Online costs a relay and
+  // a smaller per-student share, so it should be a deliberate choice.
+  streamingMode: "lan",
 };
 
 const SETTINGS_STORAGE_KEY = "wkai_instructor_settings";

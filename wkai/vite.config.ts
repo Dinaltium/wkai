@@ -19,6 +19,9 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
+    // Bind every interface so the instructor UI can also be opened from a
+    // second machine on the same wifi while testing a real room.
+    host: true,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
