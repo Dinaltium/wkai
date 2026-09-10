@@ -51,7 +51,23 @@ const MIN_FLUSH_CONTENT_WORDS = 12;
 export function initWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
-  wss.on("connection", async (ws, req) => {
+  // The join path below reads Redis and Postgres several times. On a flaky
+  // uplink — a phone hotspot, a campus wifi mid-roam — one of those reads times
+  // out, and an async listener has nowhere to reject to: Node treats it as an
+  // unhandled rejection and ends the process. One student's slow query took the
+  // whole room down with it, instructor included. Fail that one socket instead.
+  wss.on("connection", (ws, req) => {
+    handleConnection(ws, req).catch((err) => {
+      console.error("[WS] Connection setup failed:", err?.message ?? err);
+      try {
+        ws.close(1011, "server error while joining");
+      } catch {
+        /* the socket may already be gone; nothing left to do */
+      }
+    });
+  });
+
+  async function handleConnection(ws, req) {
     const { query: qs } = parse(req.url, true);
 
     // Everything below this line is async (token verify, session lookup, Redis
@@ -200,6 +216,9 @@ export function initWebSocketServer(httpServer) {
       // Announce presence to any students already waiting (covers both a
       // returning instructor and one who joins after students).
       broadcast(sessionId, { type: "instructor-online", payload: {} }, ws);
+      // …and find out who those students are. Nothing else tells an instructor
+      // arriving second, so without this the panel stays empty for the session.
+      sendStudentList(sessionId);
     }
 
     if (role === "student" && previousSocket !== ws) {
@@ -213,13 +232,7 @@ export function initWebSocketServer(httpServer) {
       }, ws);
 
       // Also send full list to instructor if they are online
-      broadcastToInstructor(sessionId, {
-        type: "student-list",
-        payload: { students: Array.from(room.values())
-          .filter(s => s.role === "student")
-          .map(s => ({ studentId: s.studentId, studentName: s.studentName, joinedAt: s.joinedAt }))
-        }
-      });
+      sendStudentList(sessionId);
     }
 
     const state = await getSessionData(sessionId);
@@ -276,6 +289,9 @@ export function initWebSocketServer(httpServer) {
         if (role === "student") {
           const count = await decrementStudentCount(sessionId, studentId);
           broadcast(sessionId, { type: "student-left", payload: { count } });
+          // student-left carries only a count, so without this the instructor's
+          // panel keeps showing whoever just walked out.
+          sendStudentList(sessionId);
         }
 
         if (isInstructor) {
@@ -289,7 +305,7 @@ export function initWebSocketServer(httpServer) {
     });
 
     ws.on("error", (err) => console.error("[WS] Client error:", err.message));
-  });
+  }
 
   console.log("[WS] WebSocket server initialized");
 }
@@ -869,5 +885,35 @@ export function broadcastToInstructor(sessionId, msg) {
 
 export function getRoomSize(sessionId) {
   return rooms.get(sessionId)?.size ?? 0;
+}
+
+/** Everyone currently holding a student socket on this session. */
+function rosterOf(sessionId) {
+  const room = rooms.get(sessionId);
+  if (!room) return [];
+  return Array.from(room.values())
+    .filter((client) => client.role === "student")
+    .map((client) => ({
+      studentId: client.studentId,
+      studentName: client.studentName,
+      joinedAt: client.joinedAt,
+    }));
+}
+
+/**
+ * Tell the instructor who is in the room.
+ *
+ * The counts and the roster used to travel separately, and only a student
+ * *arriving* ever sent the roster. An instructor who connected after the
+ * students — including one whose socket came back after a restart — was told
+ * "1 student" and never told which, so the panel sat on "No students yet"
+ * beside a header reading 1. A student leaving had the same gap in reverse.
+ * Every change of membership now resends the whole list.
+ */
+function sendStudentList(sessionId) {
+  broadcastToInstructor(sessionId, {
+    type: "student-list",
+    payload: { students: rosterOf(sessionId) },
+  });
 }
 

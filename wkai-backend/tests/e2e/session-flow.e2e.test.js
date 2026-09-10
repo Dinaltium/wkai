@@ -142,7 +142,11 @@ describe("the live room over WebSockets", () => {
     assert.equal(joined.payload.studentName, "Grace");
     assert.ok(joined.payload.count >= 1);
 
-    const list = await instructor.waitFor("student-list");
+    // The instructor is also sent an (empty) roster the moment it connects, so
+    // wait for the one sent by an arrival rather than whichever came first.
+    const list = await instructor.waitFor("student-list", {
+      where: (m) => m.payload?.students?.length > 0,
+    });
     assert.ok(
       list.payload.students.some((s) => s.studentName === "Grace"),
       "the roster sent to the instructor should include the student who just joined"
