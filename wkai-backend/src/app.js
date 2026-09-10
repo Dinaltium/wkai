@@ -1,5 +1,5 @@
 import express from "express";
-import os from 'os';
+import { getLocalIp } from "./utils/network.js";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -67,16 +67,9 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "wkai-backend", ts: new Date().toISOString() });
 });
 
-function getLocalIp() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] ?? []) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
-    }
-  }
-  return null;
-}
-
+// Adapters that exist on a dev machine but cannot carry a student's traffic:
+// VPNs, hypervisors and container bridges all hand out addresses that are
+// either link-local or private to this host.
 // Where the student site actually lives. It is a separately deployed SPA, so
 // the backend cannot infer it from its own network interfaces: on a host like
 // Render, getLocalIp() returns the private container address, which is how the

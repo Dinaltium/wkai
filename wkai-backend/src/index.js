@@ -1,7 +1,11 @@
 import "dotenv/config";
 import http from "http";
-import os from 'os';
 import { app } from "./app.js";
+// Same picker the API uses. index.js had its own "first non-internal IPv4"
+// version, which on a machine with Tailscale or a disconnected Ethernet port
+// printed a 169.254 link-local address as the Student URL — an address no
+// phone on the same wifi can ever reach.
+import { getLocalIp } from "./utils/network.js";
 import { initWebSocketServer } from "./ws/server.js";
 import { connectDb } from "./db/client.js";
 import { connectRedis } from "./db/redis.js";
@@ -10,18 +14,6 @@ import { startKeepAlive } from "./utils/keepAlive.js";
 import { assertSecurityConfig } from "./auth/sessionAccess.js";
 
 const PORT = process.env.PORT ?? 4000;
-
-function getLocalIp() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] ?? []) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
-    }
-  }
-  return null;
-}
 
 async function main() {
   debugLog("BOOT", "starting backend process", {

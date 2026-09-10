@@ -128,6 +128,30 @@ export async function clearSessionIngress(sessionId) {
   await redis.del(`livekit_ingress:${sessionId}`);
 }
 
+/**
+ * Where the instructor's screen share lives on the Cloudflare SFU.
+ *
+ * Students cannot pull a track without knowing the publisher's SFU session id
+ * and track name, and those only exist once the instructor has published. Kept
+ * in Redis rather than memory so a backend restart mid-workshop does not orphan
+ * a room full of students who can no longer find the stream.
+ */
+export async function setSfuPublisher(sessionId, publisher) {
+  await redis.setEx(`sfu_publisher:${sessionId}`, 86_400, JSON.stringify(publisher));
+}
+export async function getSfuPublisher(sessionId) {
+  const raw = await redis.get(`sfu_publisher:${sessionId}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+export async function clearSfuPublisher(sessionId) {
+  await redis.del(`sfu_publisher:${sessionId}`);
+}
+
 /** Store the latest Whisper transcript for a session (30s TTL — rolling window) */
 export async function setTranscript(sessionId, transcript) {
   await redis.setEx(`transcript:${sessionId}`, 30, transcript);
