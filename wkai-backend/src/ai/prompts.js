@@ -94,7 +94,9 @@ Rules:
     [
       {
         type: "image_url",
-        image_url: { url: "data:image/png;base64,{frame_b64}", detail: "high" },
+        // JPEG, not PNG: capture_screen() encodes JPEG, and the data URL has to
+        // say so rather than relying on the provider sniffing the bytes.
+        image_url: { url: "data:image/jpeg;base64,{frame_b64}", detail: "high" },
       },
       {
         type: "text",

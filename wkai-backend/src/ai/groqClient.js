@@ -1,5 +1,8 @@
 import { ChatGroq } from "@langchain/groq";
 import Groq from "groq-sdk";
+import { isQuotaExhausted, isRequestTooLarge } from "./groqErrors.js";
+
+export { isQuotaExhausted, isRequestTooLarge, quotaRetryMinutes } from "./groqErrors.js";
 
 // ─── Raw Groq SDK (Whisper audio only — LangChain has no audio transcription) ─
 export const groqRaw = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -9,11 +12,18 @@ export const groqRaw = new Groq({ apiKey: process.env.GROQ_API_KEY });
 // Not 3.6: that revision emits a <think> block ahead of its answer and spends
 // the whole token budget on it, so every frame truncated mid-JSON and only got
 // through by paying for an OutputFixingParser repair call (~5s vs ~0.7s here).
+// 900, not 1024: Groq enforces an output-tokens-per-minute ceiling of 1000 on
+// this tier and checks max_tokens against it *before* running anything, so a
+// 1024 request is rejected outright — "Request too large … reduce max_tokens",
+// with x-should-retry: false. Every frame failed the same way, which is what an
+// empty guide looks like from the outside. The JSON this returns fits well
+// inside 900; the earlier 1024 was headroom for a model revision we no longer
+// use.
 export const visionLLM = new ChatGroq({
   apiKey:      process.env.GROQ_API_KEY,
   model:       "qwen/qwen3.8-27b",
   temperature: 0.2,
-  maxTokens:   1024,
+  maxTokens:   900,
 });
 
 // Text model — GPT-OSS-120B: stronger reasoning + native tool-calling than
@@ -44,6 +54,7 @@ export const WHISPER_MODEL = "whisper-large-v3";
 // retrying a malformed request just wastes the backoff budget.
 function isRetryableGroqError(err) {
   const status = err?.status ?? err?.response?.status;
+  if (isQuotaExhausted(err) || isRequestTooLarge(err)) return false;
   if (status === 429) return true;
   if (typeof status === "number" && status >= 500 && status <= 599) return true;
 

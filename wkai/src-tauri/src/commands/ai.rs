@@ -22,9 +22,23 @@ pub async fn capture_screen() -> Result<String, String> {
     
     let mut dynamic_image = image::DynamicImage::ImageRgba8(image);
     
-    // Resize if too large (e.g. 4K) to save bandwidth and CPU
-    if dynamic_image.width() > 1920 {
-        dynamic_image = dynamic_image.resize(1920, 1080, image::imageops::FilterType::Triangle);
+    // The vision model is billed by image area, and this is the single largest
+    // cost in the whole session: one 1920x1200 frame is ~3,900 tokens against a
+    // 200,000/day allowance. At a frame every 25s that is about twenty minutes
+    // of teaching before the day's budget is gone and the guide goes quiet —
+    // which reads as the AI being broken rather than out of credit.
+    //
+    // 1280 wide keeps editor text legible enough to quote code exactly (the
+    // prompt requires verbatim extraction) while costing roughly half as much,
+    // and the old threshold left the common 1920-wide desktop untouched.
+    const MAX_AI_FRAME_WIDTH: u32 = 1280;
+    if dynamic_image.width() > MAX_AI_FRAME_WIDTH {
+        let height = MAX_AI_FRAME_WIDTH * dynamic_image.height() / dynamic_image.width();
+        dynamic_image = dynamic_image.resize(
+            MAX_AI_FRAME_WIDTH,
+            height,
+            image::imageops::FilterType::Triangle,
+        );
     }
     
     let mut buffer = Cursor::new(Vec::new());
