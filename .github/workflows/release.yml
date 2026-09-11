@@ -78,6 +78,9 @@ jobs:
             libdbus-1-dev \
             libpipewire-0.3-dev \
             libclang-dev \
+            libgbm-dev \
+            libdrm-dev \
+            libegl1-mesa-dev \
             libssl-dev \
             pkg-config \
             patchelf
