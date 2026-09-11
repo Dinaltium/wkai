@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Download, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
@@ -14,12 +14,25 @@ const OS_LABEL: Record<OsOption, string> = {
 
 const DEFAULT_REPO_OWNER = import.meta.env.VITE_GITHUB_REPO_OWNER ?? "Dinaltium";
 const DEFAULT_REPO_NAME = import.meta.env.VITE_GITHUB_REPO_NAME ?? "wkai";
+const RELEASES_URL = `https://github.com/${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}/releases/latest`;
 
-function matchesOs(name: string, os: OsOption) {
-  const lower = name.toLowerCase();
-  if (os === "windows") return lower.endsWith(".msi") || lower.endsWith(".exe");
-  if (os === "macos") return lower.endsWith(".dmg") || lower.endsWith(".app.tar.gz");
-  return lower.endsWith(".appimage") || lower.endsWith(".deb");
+type Asset = { name: string; browser_download_url: string; size: number };
+type Release = { tag_name: string; assets: Asset[] };
+
+// Preferred installer per OS, in order. Linux users on Debian/Ubuntu get the
+// .deb; the AppImage is the fallback and is also what the in-app updater uses.
+const PREFERENCE: Record<OsOption, string[]> = {
+  windows: [".msi", ".exe"],
+  macos: [".dmg", ".app.tar.gz"],
+  linux: [".deb", ".appimage"],
+};
+
+function pickAsset(assets: Asset[], os: OsOption): Asset | undefined {
+  for (const ext of PREFERENCE[os]) {
+    const hit = assets.find((a) => a.name.toLowerCase().endsWith(ext));
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 function detectOs(): OsOption {
@@ -29,36 +42,41 @@ function detectOs(): OsOption {
   return "windows";
 }
 
+function formatSize(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function DownloadPage() {
   const [os, setOs] = useState<OsOption>(detectOs);
-  const [loading, setLoading] = useState(false);
+  const [release, setRelease] = useState<Release | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const repoLabel = useMemo(() => `${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}`, []);
 
-  async function handleDownload() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `https://api.github.com/repos/${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}/releases/latest`
-      );
-      if (!res.ok) {
-        throw new Error(`GitHub returned ${res.status}. Try again in a moment.`);
+  // Resolve the latest release once, up front. The download control is then a
+  // plain link, so the click is a direct, user-initiated download rather than
+  // a script navigation after an await — which browsers may treat as a page
+  // load or block as an automatic download.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://api.github.com/repos/${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}/releases/latest`,
+          { signal: ctrl.signal, headers: { Accept: "application/vnd.github+json" } }
+        );
+        if (!res.ok) throw new Error(`GitHub returned ${res.status}.`);
+        const data = await res.json();
+        setRelease({ tag_name: data.tag_name, assets: Array.isArray(data.assets) ? data.assets : [] });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Could not reach GitHub.");
       }
-      const release = await res.json();
-      const assets = Array.isArray(release.assets) ? release.assets : [];
-      const target = assets.find((asset: { name: string }) => matchesOs(asset.name, os));
-      if (!target?.browser_download_url) {
-        throw new Error(`The latest release has no ${OS_LABEL[os]} build yet.`);
-      }
-      window.location.href = target.browser_download_url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+    })();
+    return () => ctrl.abort();
+  }, []);
+
+  const asset = release ? pickAsset(release.assets, os) : undefined;
 
   return (
     <div className="flex min-h-full items-center justify-center bg-wkai-bg px-4 py-10 sm:py-16">
@@ -87,22 +105,40 @@ export function DownloadPage() {
             ))}
           </div>
 
-          <button className="btn-primary mt-4 w-full" onClick={handleDownload} disabled={loading}>
-            {loading
-              ? <><Loader2 size={15} className="animate-spin" /> Finding the latest build…</>
-              : <><Download size={15} /> Download for {OS_LABEL[os]}</>
-            }
-          </button>
+          {!release && !error && (
+            <button className="btn-primary mt-4 w-full" disabled>
+              <Loader2 size={15} className="animate-spin" /> Finding the latest build…
+            </button>
+          )}
+
+          {release && asset && (
+            <a className="btn-primary mt-4 w-full" href={asset.browser_download_url} download={asset.name} rel="noopener">
+              <Download size={15} /> Download for {OS_LABEL[os]}
+            </a>
+          )}
+
+          {release && !asset && (
+            <a className="btn-primary mt-4 w-full" href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
+              <Download size={15} /> No {OS_LABEL[os]} build yet — see all releases
+            </a>
+          )}
 
           {error && (
-            <p role="alert" className="mt-3 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-xs leading-relaxed text-danger">
-              <AlertCircle size={14} className="mt-px shrink-0" />
-              {error}
-            </p>
+            <>
+              <p role="alert" className="mt-4 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-xs leading-relaxed text-danger">
+                <AlertCircle size={14} className="mt-px shrink-0" />
+                {error}
+              </p>
+              <a className="btn-primary mt-3 w-full" href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
+                <Download size={15} /> Open the releases page
+              </a>
+            </>
           )}
 
           <p className="mt-4 text-xs text-wkai-text-dim">
-            Builds come from GitHub Releases · {repoLabel}
+            {release && asset
+              ? <>{release.tag_name} · {asset.name} · {formatSize(asset.size)}</>
+              : <>Builds come from GitHub Releases · {repoLabel}</>}
           </p>
         </div>
       </div>
