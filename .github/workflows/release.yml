@@ -125,6 +125,7 @@ jobs:
   # Skips itself when the Drive secrets are not configured.
   mirror:
     needs: build
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check for mirror credentials

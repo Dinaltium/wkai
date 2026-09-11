@@ -247,10 +247,19 @@ jobs:
             echo "::error::Release $TAG has no latest.json - in-app updates would silently do nothing."
             exit 1
           }
-          echo "$NAMES" | grep -q '\-setup\.exe\.sig$' || {
-            echo "::error::Release $TAG has no signed NSIS installer - the Windows updater has nothing to install."
-            exit 1
-          }
+          # Each platform's job checks only its own bundle: the matrix runs in
+          # parallel, so the other platform's assets may not be uploaded yet.
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "$NAMES" | grep -q '\-setup\.exe\.sig$' || {
+              echo "::error::Release $TAG has no signed NSIS installer - the Windows updater has nothing to install."
+              exit 1
+            }
+          else
+            echo "$NAMES" | grep -q '\.AppImage\.sig$' || {
+              echo "::error::Release $TAG has no signed AppImage - the Linux updater has nothing to install."
+              exit 1
+            }
+          fi
 
   # GitHub's release CDN is unreachable from some networks while the API is
   # fine. Mirror the installers to Google Drive and record the links in the
@@ -258,7 +267,8 @@ jobs:
   # Skips itself when the Drive secrets are not configured.
   mirror:
     needs: [bump-and-tag, build-release]
-    if: needs.bump-and-tag.outputs.tagged == 'true'
+    # always(): mirror whatever did get built, even if one platform failed.
+    if: always() && needs.bump-and-tag.outputs.tagged == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check for mirror credentials
