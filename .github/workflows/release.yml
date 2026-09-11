@@ -76,6 +76,8 @@ jobs:
             libxcb-shm0-dev \
             libxrandr-dev \
             libdbus-1-dev \
+            libpipewire-0.3-dev \
+            libclang-dev \
             libssl-dev \
             pkg-config \
             patchelf
