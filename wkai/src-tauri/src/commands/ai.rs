@@ -1,10 +1,19 @@
-use xcap::Monitor;
-use base64::{engine::general_purpose, Engine as _};
-use std::io::Cursor;
-use image::ImageFormat;
-
+// On Linux the app has no native capture (xcap would drag in PipeWire and a
+// glibc floor above Ubuntu 22.04). The frontend grabs AI frames from its own
+// screen-share stream there, so this command only needs to say so clearly.
+#[cfg(target_os = "linux")]
 #[tauri::command]
 pub async fn capture_screen() -> Result<String, String> {
+    Err("Native screen capture is not available on Linux; frames come from the browser capture stream.".to_string())
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+pub async fn capture_screen() -> Result<String, String> {
+    use base64::{engine::general_purpose, Engine as _};
+    use image::ImageFormat;
+    use std::io::Cursor;
+    use xcap::Monitor;
     let monitors = Monitor::all().map_err(|e| {
         log::error!("Failed to list monitors: {}", e);
         format!("Failed to list monitors: {}", e)

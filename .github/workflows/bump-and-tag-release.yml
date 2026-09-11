@@ -134,7 +134,7 @@ jobs:
         include:
           - platform: windows-latest
             args: ""
-          - platform: ubuntu-24.04
+          - platform: ubuntu-22.04
             args: "--bundles appimage,deb"
           # - platform: macos-latest
           #   args: "--bundles dmg"
@@ -168,7 +168,7 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-24.04'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -177,16 +177,6 @@ jobs:
             libayatana-appindicator3-dev \
             libasound2-dev \
             librsvg2-dev \
-            libxcb1-dev \
-            libxcb-randr0-dev \
-            libxcb-shm0-dev \
-            libxrandr-dev \
-            libdbus-1-dev \
-            libpipewire-0.3-dev \
-            libclang-dev \
-            libgbm-dev \
-            libdrm-dev \
-            libegl1-mesa-dev \
             libssl-dev \
             pkg-config \
             patchelf

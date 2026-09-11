@@ -76,7 +76,6 @@ chrono = { version = "0.4", features = ["serde"] }
 # Channel for threading
 flume = "0.11"
 tauri-plugin-updater = "2.10.1"
-xcap = "0.9.4"
 
 [profile.dev]
 incremental = true
@@ -101,6 +100,12 @@ strip = false
 # WebView2 permission interception, so device consent stays in the app's own
 # dialog instead of a floating browser bar. Versions match what wry already
 # resolves, so this pulls in nothing new.
+# xcap pulls in PipeWire on Linux, which forces a newer glibc than the
+# Ubuntu 22.04 machines this ships to. Linux capture goes through the
+# webview's getDisplayMedia instead, so xcap is desktop-native only.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+xcap = "0.9.4"
+
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38.2"
 windows = { version = "0.61.3", features = ["Win32_Foundation"] }
