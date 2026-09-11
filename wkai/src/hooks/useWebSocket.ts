@@ -100,13 +100,31 @@ export function useWebSocket({ sessionId, backendUrl, token }: UseWsOptions) {
             useAppStore.getState().addDebugLog("AI answered a student question (instructor did not reply in 45s)", "info");
             break;
           case "ai-frame-result": {
-            const p = msg.payload as { isInstructional?: boolean; blockCount?: number; summary?: string; error?: string };
+            const p = msg.payload as {
+              isInstructional?: boolean;
+              blockCount?: number;
+              proposedCount?: number;
+              dropped?: { type?: string; reason?: string }[];
+              summary?: string;
+              error?: string;
+            };
             if (p.error) {
               useAppStore.getState().addDebugLog(`AI frame analysis failed: ${p.error}`, "error");
             } else {
+              const kept = p.blockCount ?? 0;
+              // "0 guide blocks" beside a paragraph describing the screen reads
+              // as the AI being broken. Say whether it wrote nothing or whether
+              // what it wrote was rejected, and on what grounds.
+              const rejected = (p.dropped ?? []).map((d) => d.reason).filter(Boolean);
+              const verdict =
+                kept > 0
+                  ? `${kept} guide block(s)`
+                  : rejected.length > 0
+                    ? `nothing shown — ${rejected.length} block(s) rejected: ${[...new Set(rejected)].join(", ")}`
+                    : "nothing to add";
               useAppStore.getState().addDebugLog(
-                `AI frame analyzed — ${p.blockCount ?? 0} guide block(s)${p.summary ? `: ${p.summary}` : ""}`,
-                (p.blockCount ?? 0) > 0 ? "success" : "info"
+                `AI frame analyzed — ${verdict}${p.summary ? `: ${p.summary}` : ""}`,
+                kept > 0 ? "success" : rejected.length > 0 ? "warn" : "info"
               );
             }
             break;

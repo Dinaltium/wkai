@@ -19,6 +19,7 @@ import { detectShareIntent } from "../ai/graphs/intentAgent.js";
 import { replyToStudentMessage, expandInstructorTranscript, analyzeColabContent } from "../ai/Agents/index.js";
 import { fetchNotebook } from "../ai/colabFetch.js";
 import { processScreenFrame } from "../ai/pipeline.js";
+import { isQuotaExhausted, quotaRetryMinutes } from "../ai/groqClient.js";
 import { runQueued } from "../ai/sessionQueue.js";
 import { verifySessionToken } from "../auth/sessionAccess.js";
 import { contentWords, isLowSignalTranscript, isStockHallucination } from "../ai/transcriptQuality.js";
@@ -435,7 +436,7 @@ async function handleScreenFrame(ws, payload) {
     // that cadence ever tightens.
     const result = await runQueued(sessionId, () => processScreenFrame(sessionId, frameB64, transcript));
     console.log(
-      `[ScreenFrame] isInstructional=${result.isInstructional} blocks=${result.guideBlocks.length} summary="${(result.summary ?? "").slice(0, 80)}"`
+      `[ScreenFrame] isInstructional=${result.isInstructional} blocks=${result.guideBlocks.length}/${result.proposedCount ?? result.guideBlocks.length} summary="${(result.summary ?? "").slice(0, 80)}"`
     );
 
     // Mirror the outcome into the instructor's Debug Console. Without this the
@@ -447,6 +448,8 @@ async function handleScreenFrame(ws, payload) {
       payload: {
         isInstructional: result.isInstructional,
         blockCount:      result.guideBlocks.length,
+        proposedCount:   result.proposedCount ?? result.guideBlocks.length,
+        dropped:         result.dropped ?? [],
         summary:         result.summary ?? "",
       },
     }));
@@ -461,9 +464,17 @@ async function handleScreenFrame(ws, payload) {
       broadcast(sessionId, { type: "guide-block", payload: formatGuideBlock(rows[0]) });
     }
   } catch (err) {
-    console.error("[WS] Screen frame processing error:", err.message);
+    // A spent daily quota is not a malfunction, and saying "AI frame analysis
+    // failed" for it sends people looking through the pipeline for a bug that
+    // is not there. Name it, and say when it comes back.
+    const quota = isQuotaExhausted(err);
+    const minutes = quota ? quotaRetryMinutes(err) : null;
+    const message = quota
+      ? `Groq token quota is spent — guide blocks are paused${minutes ? ` for about ${minutes} min` : ""}`
+      : err.message;
+    console.error(`[WS] Screen frame processing ${quota ? "paused" : "error"}:`, err.message);
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "ai-frame-result", payload: { error: err.message } }));
+      ws.send(JSON.stringify({ type: "ai-frame-result", payload: { error: message, quotaExhausted: quota } }));
     }
   }
 }
