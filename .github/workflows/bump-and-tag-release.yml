@@ -110,6 +110,21 @@ jobs:
           git push origin "$TAG"
           echo "tagged=true" >> "$GITHUB_OUTPUT"
 
+      # With more than one platform in the build matrix, each tauri-action run
+      # races to create the same release and the loser fails with a 422.
+      # Create it once here so the builders only ever attach assets.
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.version.outputs.value }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --title "WKAI $TAG" --notes "Automated WKAI desktop app release"
+          fi
+
   build-release:
     needs: bump-and-tag
     if: needs.bump-and-tag.outputs.tagged == 'true'
@@ -119,8 +134,8 @@ jobs:
         include:
           - platform: windows-latest
             args: ""
-          # - platform: ubuntu-22.04
-          #   args: "--bundles appimage,deb"
+          - platform: ubuntu-22.04
+            args: "--bundles appimage,deb"
           # - platform: macos-latest
           #   args: "--bundles dmg"
 
@@ -162,6 +177,13 @@ jobs:
             libayatana-appindicator3-dev \
             libasound2-dev \
             librsvg2-dev \
+            libxcb1-dev \
+            libxcb-randr0-dev \
+            libxcb-shm0-dev \
+            libxrandr-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            pkg-config \
             patchelf
 
       - name: Install deps
