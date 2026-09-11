@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Users, LogOut, Check, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeMenu } from "./ThemeMenu";
+import { WkaiLogo } from "./WkaiLogo";
 
 export function RoomHeader() {
   const { session, connected, instructorOffline, studentCount } = useStore();
@@ -29,7 +30,7 @@ export function RoomHeader() {
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-wkai-border bg-wkai-surface px-3 sm:px-4">
       {/* Identity: who is teaching, what this session is */}
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <img src="/wkai-logo.svg" alt="" className="h-7 w-7 shrink-0 object-contain" />
+        <WkaiLogo className="h-7 w-7 shrink-0" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-tight text-wkai-text">
             {session?.workshopTitle ?? "Workshop"}

@@ -4,6 +4,7 @@ import { useGSAP } from "@gsap/react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { clsx } from "clsx";
 import { EASE, ScrollTrigger, gsap, prefersReducedMotion } from "../../lib/motion";
+import { WkaiLogo } from "../shared/WkaiLogo";
 
 const SECTIONS = [
   { id: "how", label: "How it works" },
@@ -113,7 +114,7 @@ export function FloatingDock() {
             className="flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 lg:min-h-0"
             aria-label="WKAI home"
           >
-            <img src="/wkai-logo.svg" alt="" className="h-6 w-6 object-contain" />
+            <WkaiLogo className="h-6 w-6" />
             <span className="display text-sm tracking-[-0.02em] text-wkai-text">WKAI</span>
           </Link>
 

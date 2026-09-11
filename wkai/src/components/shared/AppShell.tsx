@@ -8,6 +8,7 @@ import { UpdateManager } from "./UpdateManager";
 import { MediaPermissionDialog } from "./MediaPermissionDialog";
 import { SessionClock } from "./SessionClock";
 import { SessionRuntimeProvider } from "../../session/SessionRuntimeProvider";
+import { WkaiLogo } from "./WkaiLogo";
 
 const TITLES: Record<string, string> = {
   "/": "Start a workshop",
@@ -29,7 +30,7 @@ export function AppShell() {
     <div className="flex h-full w-full bg-wkai-bg text-wkai-text">
       {/* ─── Navigation rail ─────────────────────────────────────────── */}
       <aside className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1 border-r border-wkai-border bg-wkai-surface py-3">
-        <img src="/wkai-logo.svg" alt="WKAI" className="mb-3 h-8 w-8 select-none object-contain" />
+        <WkaiLogo className="mb-3 h-8 w-8 select-none" />
 
         <NavItem to="/" icon={Home} label="Setup" end />
         {inSession && <NavItem to="/session" icon={Radio} label="Session" />}

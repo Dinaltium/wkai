@@ -5,6 +5,7 @@ import axios from "axios";
 import { getRoomPreflight, joinRoom } from "../lib/api";
 import { useStore } from "../store";
 import { SettingsFab } from "../components/shared/SettingsFab";
+import { WkaiLogo } from "../components/shared/WkaiLogo";
 
 export function JoinPage() {
   const navigate = useNavigate();
@@ -124,7 +125,7 @@ export function JoinPage() {
     <div className="flex min-h-full flex-col items-center justify-center px-4 py-10 sm:py-16">
       <form onSubmit={handleJoin} className="w-full max-w-[22rem]">
         <div className="mb-8 space-y-2 text-center">
-          <img src="/wkai-logo.svg" alt="" className="mx-auto mb-4 h-12 w-12 object-contain" />
+          <WkaiLogo className="mx-auto mb-4 h-12 w-12" />
           <h1 className="text-2xl font-bold text-wkai-text">Join the workshop</h1>
           <p className="text-sm text-wkai-text-dim">
             Enter the six-character code your instructor showed on screen.

@@ -4,6 +4,7 @@ import { AlertCircle, ArrowRight, Loader2 } from "lucide-react";
 import axios from "axios";
 import { getRoomPreflight, joinRoom } from "../../lib/api";
 import { useStore } from "../../store";
+import { WkaiLogo } from "./WkaiLogo";
 
 /**
  * The door for anyone arriving on /room/:code from an invite link.
@@ -117,7 +118,7 @@ export function RoomEntryGate({ code }: { code: string }) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center px-4 py-10 sm:py-16">
         <div className="w-full max-w-[22rem] text-center">
-          <img src="/wkai-logo.svg" alt="" className="mx-auto mb-4 h-12 w-12 object-contain" />
+          <WkaiLogo className="mx-auto mb-4 h-12 w-12" />
           <p
             role="alert"
             className="mb-6 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-3 text-left text-sm leading-relaxed text-danger"
@@ -139,7 +140,7 @@ export function RoomEntryGate({ code }: { code: string }) {
     <div className="flex min-h-full flex-col items-center justify-center px-4 py-10 sm:py-16">
       <form onSubmit={handleSubmit} className="w-full max-w-[22rem]">
         <div className="mb-8 space-y-2 text-center">
-          <img src="/wkai-logo.svg" alt="" className="mx-auto mb-4 h-12 w-12 object-contain" />
+          <WkaiLogo className="mx-auto mb-4 h-12 w-12" />
           <h1 className="text-2xl font-bold text-wkai-text">What's your name?</h1>
           <p className="text-sm text-wkai-text-dim">
             You're joining room{" "}

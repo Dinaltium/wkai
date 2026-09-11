@@ -10,6 +10,7 @@ import { HorizontalFeatures } from "../components/marketing/HorizontalFeatures";
 import { FramedWindowVideo } from "../components/marketing/FramedWindowVideo";
 import { SettingsFab } from "../components/shared/SettingsFab";
 import { EASE, gsap, prefersReducedMotion } from "../lib/motion";
+import { WkaiLogo } from "../components/shared/WkaiLogo";
 
 export function LandingPage() {
   return (
@@ -418,7 +419,7 @@ function Footer() {
     <footer className="stage border-t border-white/10">
       <div className="shell flex flex-col gap-4 py-8 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2.5">
-          <img src="/wkai-logo.svg" alt="" className="h-7 w-7 object-contain" />
+          <WkaiLogo className="h-7 w-7" />
           <span className="text-sm text-zinc-400">WKAI — Workshop AI</span>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-400 sm:ml-auto">
