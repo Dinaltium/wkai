@@ -309,7 +309,9 @@ export function SessionRuntimeProvider({ children }: { children: React.ReactNode
     let cancelled = false;
     const tick = async () => {
       try {
-        const frameB64 = await captureScreen();
+        // Linux captures in the webview, so the frame comes from the share
+        // stream; elsewhere grabFrame() resolves null and the native grab runs.
+        const frameB64 = (await capture.grabFrame()) ?? (await captureScreen());
         if (!cancelled) send("screen-frame", { frameB64 });
       } catch (err) {
         addDebugLog(
@@ -324,7 +326,7 @@ export function SessionRuntimeProvider({ children }: { children: React.ReactNode
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [selectedTarget, send, sessionAiSettings?.aiGuideBlocksEnabled]);
+  }, [selectedTarget, send, sessionAiSettings?.aiGuideBlocksEnabled, capture.grabFrame]);
 
   // Mic → Whisper → guide blocks. Keyed on the session rather than the capture
   // target: what the instructor says is worth transcribing whether or not a

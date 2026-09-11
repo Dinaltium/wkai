@@ -84,6 +84,60 @@ export function useNativeCapture() {
   const targetFpsRef = useRef<number>(30);
   const onStreamReadyRef = useRef<((stream: MediaStream) => void)[]>([]);
 
+  // Linux has no native capture backend (see linux/capture.rs). There the
+  // webview captures with getDisplayMedia through the desktop portal and this
+  // hook hands that stream out directly instead of decoding native frames
+  // into a canvas. `platformRef` is what startCapture branches on; the
+  // `platform` state exists for the UI and can lag the first call.
+  const platformRef = useRef<string>("unknown");
+  const isPortal = () => platformRef.current.startsWith("linux");
+  // Plays the portal stream off-screen so its frames can be drawn into the
+  // preview canvas and grabbed for the AI path.
+  const portalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const portalPreviewTimerRef = useRef<number | null>(null);
+
+  const stopPortalPreview = () => {
+    if (portalPreviewTimerRef.current !== null) {
+      window.clearInterval(portalPreviewTimerRef.current);
+      portalPreviewTimerRef.current = null;
+    }
+    const v = portalVideoRef.current;
+    if (v) {
+      v.pause();
+      v.srcObject = null;
+      portalVideoRef.current = null;
+    }
+  };
+
+  const startPortalPreview = (stream: MediaStream) => {
+    stopPortalPreview();
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+    void video.play().catch(() => {});
+    portalVideoRef.current = video;
+    portalPreviewTimerRef.current = window.setInterval(() => {
+      const preview = canvasRef.current;
+      if (!preview || video.readyState < 2 || !video.videoWidth) return;
+      if (preview.width !== video.videoWidth || preview.height !== video.videoHeight) {
+        preview.width = video.videoWidth;
+        preview.height = video.videoHeight;
+      }
+      preview.getContext("2d", { alpha: false })?.drawImage(video, 0, 0);
+    }, 1000 / 15);
+  };
+
+  const stopPortalCapture = () => {
+    capturingRef.current = false;
+    stopPortalPreview();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setStatus({ status: "idle", error: undefined, backend: "linux-portal" });
+  };
+
   // Hands out the capture MediaStream once the first frame has been drawn.
   // Resolves null on timeout instead of hanging forever: callers set
   // sharedDisplayStream from this, and a promise that never settles left the
@@ -160,8 +214,10 @@ export function useNativeCapture() {
     async function init() {
       try {
         const backend = await invoke<string>("get_platform_backend");
+        platformRef.current = backend;
         setPlatform(backend);
       } catch {
+        platformRef.current = "unknown";
         setPlatform("unknown");
       }
 
@@ -230,6 +286,9 @@ export function useNativeCapture() {
 
       const pumpTick = () => {
         if (!pumpActiveRef.current) return;
+        // The portal stream is already a MediaStream; there are no native
+        // frames to pull.
+        if (isPortal()) return;
         if (capturingRef.current && decodesInFlightRef.current < MAX_DECODES_IN_FLIGHT) {
           decodesInFlightRef.current++;
           invoke<ArrayBuffer>("get_latest_frame")
@@ -307,6 +366,7 @@ export function useNativeCapture() {
         pumpTimerRef.current = null;
       }
       unlisteners.forEach((fn) => fn());
+      stopPortalPreview();
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -381,6 +441,40 @@ export function useNativeCapture() {
       lastFrameTimestampRef.current = 0;
       lastDrawnTimestampRef.current = 0;
       try {
+        if (platformRef.current === "unknown") {
+          platformRef.current = await invoke<string>("get_platform_backend").catch(() => "unknown");
+        }
+
+        if (isPortal()) {
+          // The system picker chooses the screen or window; `target` is the
+          // single placeholder entry the Linux backend lists.
+          const fps = config.fps || 30;
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { frameRate: { ideal: fps } },
+            audio: false,
+          });
+          const [track] = stream.getVideoTracks();
+          // "Stop sharing" in the portal's own UI ends the track; mirror that
+          // into our state or the session keeps believing it is live.
+          track.addEventListener("ended", () => stopPortalCapture());
+
+          stopPortalPreview();
+          streamRef.current = stream;
+          capturingRef.current = true;
+          targetFpsRef.current = fps;
+          startPortalPreview(stream);
+          setStatus({ status: "capturing", error: undefined, backend: "linux-portal" });
+
+          const waiters = onStreamReadyRef.current;
+          onStreamReadyRef.current = [];
+          waiters.forEach((resolve) => resolve(stream));
+
+          if (recordingOptions?.saveLocal && recordingOptions.dir) {
+            startLocalRecording(recordingOptions.dir, recordingOptions.format);
+          }
+          return;
+        }
+
         await invoke("start_native_capture", { target, config });
         // Drive the pull loop from here, not the "capturing" status event —
         // the backend never actually emits that event, so gating on it left
@@ -409,6 +503,11 @@ export function useNativeCapture() {
     setIsLoading(true);
     capturingRef.current = false;
     try {
+      if (isPortal()) {
+        stopPortalCapture();
+        stopLocalRecording();
+        return;
+      }
       await invoke("stop_native_capture");
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -421,6 +520,33 @@ export function useNativeCapture() {
       setIsLoading(false);
     }
   }, [stopLocalRecording]);
+
+  /**
+   * One JPEG frame of the current capture as base64, for the AI screen-frame
+   * path. Only the portal (Linux) path can serve this from the webview; on
+   * native platforms the Rust `capture_screen` command grabs the screen
+   * directly and this resolves null so the caller falls through to it.
+   *
+   * Capped at 1280 wide for the same reason as the native command: the
+   * vision model is billed by area and this fires every ~25s.
+   */
+  const grabFrame = useCallback(async (): Promise<string | null> => {
+    if (!isPortal()) return null;
+    const video = portalVideoRef.current;
+    if (!video || video.readyState < 2 || !video.videoWidth) {
+      throw new Error("Screen share is not producing frames yet");
+    }
+    const MAX_W = 1280;
+    const scale = Math.min(1, MAX_W / video.videoWidth);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) throw new Error("Could not get a 2D context for the frame grab");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    return dataUrl.slice(dataUrl.indexOf(",") + 1);
+  }, []);
 
   // Refresh status manually
   const refreshStatus = useCallback(async () => {
@@ -446,5 +572,6 @@ export function useNativeCapture() {
     canvasRef,
     attachCanvas,
     getStream,
+    grabFrame,
   };
 }

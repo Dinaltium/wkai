@@ -60,9 +60,46 @@ pub fn suppress_native_media_prompts<R: tauri::Runtime>(
     Ok(())
 }
 
-/// Non-Windows targets get WebView2's behaviour for free: WKWebView and
-/// WebKitGTK route their prompts through the app, not a floating bar.
-#[cfg(not(target_os = "windows"))]
+/// WebKitGTK ships with media streams switched off and, absent a handler,
+/// denies every permission request. Both must be flipped or getDisplayMedia
+/// and getUserMedia fail silently — and on Linux the screen share *is*
+/// getDisplayMedia, since there is no native capture backend there.
+///
+/// Every user-media request is granted: the page is our own bundled UI, and
+/// the instructor is the one who clicked "share".
+#[cfg(target_os = "linux")]
+pub fn suppress_native_media_prompts<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    window.with_webview(|platform| {
+        use webkit2gtk::glib::object::ObjectExt;
+        use webkit2gtk::{
+            DeviceInfoPermissionRequest, PermissionRequestExt, SettingsExt,
+            UserMediaPermissionRequest, WebViewExt,
+        };
+
+        let webview = platform.inner();
+        if let Some(settings) = webview.settings() {
+            settings.set_enable_media_stream(true);
+            settings.set_enable_mediasource(true);
+        }
+        webview.connect_permission_request(|_, request| {
+            let grant = request.is::<UserMediaPermissionRequest>()
+                || request.is::<DeviceInfoPermissionRequest>();
+            if grant {
+                request.allow();
+            } else {
+                request.deny();
+            }
+            true
+        });
+    })?;
+    Ok(())
+}
+
+/// WKWebView routes its prompts through the app, not a floating bar; nothing
+/// to do here.
+#[cfg(target_os = "macos")]
 pub fn suppress_native_media_prompts<R: tauri::Runtime>(
     _window: &tauri::WebviewWindow<R>,
 ) -> Result<(), Box<dyn std::error::Error>> {
