@@ -251,3 +251,88 @@ jobs:
             echo "::error::Release $TAG has no signed NSIS installer - the Windows updater has nothing to install."
             exit 1
           }
+
+  # GitHub's release CDN is unreachable from some networks while the API is
+  # fine. Mirror the installers to Google Drive and record the links in the
+  # release notes, where the download page can read them via the API.
+  # Skips itself when the Drive secrets are not configured.
+  mirror:
+    needs: [bump-and-tag, build-release]
+    if: needs.bump-and-tag.outputs.tagged == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for mirror credentials
+        id: creds
+        shell: bash
+        env:
+          SA: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          FOLDER: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          if [ -n "$SA" ] && [ -n "$FOLDER" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "GDRIVE_SERVICE_ACCOUNT_JSON / GDRIVE_FOLDER_ID not set - skipping mirror."
+          fi
+
+      - name: Checkout
+        if: steps.creds.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+
+      - name: Setup Node
+        if: steps.creds.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        if: steps.creds.outputs.enabled == 'true'
+        run: npm install
+        working-directory: wkai
+
+      - name: Download release assets
+        if: steps.creds.outputs.enabled == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ needs.bump-and-tag.outputs.version }}"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir release-assets
+          ls -la release-assets
+
+      - name: Upload to Google Drive
+        if: steps.creds.outputs.enabled == 'true'
+        shell: bash
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: node wkai/scripts/upload-mirror.mjs release-assets > mirrors.json && cat mirrors.json
+
+      - name: Write mirror links into the release notes
+        if: steps.creds.outputs.enabled == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ needs.bump-and-tag.outputs.version }}"
+          CURRENT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body)
+          # Drop any previous mirrors block, then append the fresh one.
+          BASE=$(printf '%s' "$CURRENT" | sed '/<!-- mirrors -->/,$d')
+          {
+            printf '%s\n\n' "$BASE"
+            echo '<!-- mirrors -->'
+            echo '### Mirror (Google Drive)'
+            echo 'If the GitHub download does not start, use these:'
+            echo
+            node -e '
+              const m = JSON.parse(require("fs").readFileSync("mirrors.json","utf8"));
+              for (const [n,u] of Object.entries(m)) console.log(`- [${n}](${u})`);
+            '
+            echo
+            echo '```json mirrors'
+            cat mirrors.json
+            echo '```'
+          } > notes.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md

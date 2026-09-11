@@ -17,7 +17,22 @@ const DEFAULT_REPO_NAME = import.meta.env.VITE_GITHUB_REPO_NAME ?? "wkai";
 const RELEASES_URL = `https://github.com/${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}/releases/latest`;
 
 type Asset = { name: string; browser_download_url: string; size: number };
-type Release = { tag_name: string; assets: Asset[] };
+type Release = { tag_name: string; assets: Asset[]; mirrors: Record<string, string> };
+
+// CI appends a fenced ```json mirrors block to the release notes with
+// asset name -> Google Drive URL. The notes arrive through api.github.com,
+// which is reachable on networks where the release CDN is not.
+function parseMirrors(body: unknown): Record<string, string> {
+  if (typeof body !== "string") return {};
+  const m = body.match(/```json mirrors\s*([\s\S]*?)```/);
+  if (!m) return {};
+  try {
+    const parsed = JSON.parse(m[1]);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 // Preferred installer per OS, in order. Linux users on Debian/Ubuntu get the
 // .deb; the AppImage is the fallback and is also what the in-app updater uses.
@@ -67,7 +82,11 @@ export function DownloadPage() {
         );
         if (!res.ok) throw new Error(`GitHub returned ${res.status}.`);
         const data = await res.json();
-        setRelease({ tag_name: data.tag_name, assets: Array.isArray(data.assets) ? data.assets : [] });
+        setRelease({
+          tag_name: data.tag_name,
+          assets: Array.isArray(data.assets) ? data.assets : [],
+          mirrors: parseMirrors(data.body),
+        });
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Could not reach GitHub.");
@@ -77,6 +96,7 @@ export function DownloadPage() {
   }, []);
 
   const asset = release ? pickAsset(release.assets, os) : undefined;
+  const mirror = asset && release ? release.mirrors[asset.name] : undefined;
 
   return (
     <div className="flex min-h-full items-center justify-center bg-wkai-bg px-4 py-10 sm:py-16">
@@ -112,9 +132,19 @@ export function DownloadPage() {
           )}
 
           {release && asset && (
-            <a className="btn-primary mt-4 w-full" href={asset.browser_download_url} download={asset.name} rel="noopener">
-              <Download size={15} /> Download for {OS_LABEL[os]}
-            </a>
+            <>
+              <a className="btn-primary mt-4 w-full" href={asset.browser_download_url} download={asset.name} rel="noopener">
+                <Download size={15} /> Download for {OS_LABEL[os]}
+              </a>
+              {mirror && (
+                <p className="mt-2.5 text-center text-xs text-wkai-text-dim">
+                  Download not starting?{" "}
+                  <a href={mirror} rel="noopener" className="underline underline-offset-2 transition-colors hover:text-wkai-text">
+                    Use the mirror
+                  </a>
+                </p>
+              )}
+            </>
           )}
 
           {release && !asset && (
