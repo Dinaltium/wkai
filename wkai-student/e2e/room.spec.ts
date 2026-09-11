@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { endSession, openSession } from "./support/backend";
-import { joinRoomThroughUi } from "./support/room";
+import { dismissInstructorAway, joinRoomThroughUi } from "./support/room";
 
 /** The tab bar is a nav of buttons, with aria-current marking the open one. */
 function sections(page: import("@playwright/test").Page) {
@@ -34,6 +34,10 @@ test.describe("inside the room", () => {
     for (const label of ["Guide", "Files", "AI Helper", "Live", "Q&A"]) {
       await expect(tabs.getByRole("button", { name: label })).toBeVisible();
     }
+
+    // This test is about the tab bar, not about presence, and the away modal
+    // will cover it as soon as the grace period lapses.
+    await dismissInstructorAway(page);
 
     await tabs.getByRole("button", { name: "Files" }).click();
     await expect(tabs.getByRole("button", { name: "Files" })).toHaveAttribute(

@@ -31,3 +31,20 @@ export async function joinRoomThroughUi(
   }
   await page.getByRole("button", { name: "Join session" }).click();
 }
+
+/**
+ * Dismisses the "instructor is not here" modal if it has appeared.
+ *
+ * No test connects an instructor, so once the server's grace period lapses the
+ * modal opens over the room and its backdrop swallows every click. Whether it
+ * arrives before a given assertion depends on how fast the rest of the suite
+ * ran, which made one tab-bar test fail only in a full run and pass on its own.
+ * Tests that are not about presence should get past it explicitly.
+ */
+export async function dismissInstructorAway(page: Page): Promise<void> {
+  const stay = page.getByRole("button", { name: "Stay in the session" });
+  if (await stay.isVisible().catch(() => false)) {
+    await stay.click();
+    await stay.waitFor({ state: "hidden" });
+  }
+}
