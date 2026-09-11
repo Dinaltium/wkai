@@ -531,20 +531,41 @@ export function useNativeCapture() {
    * vision model is billed by area and this fires every ~25s.
    */
   const grabFrame = useCallback(async (): Promise<string | null> => {
-    if (!isPortal()) return null;
-    const video = portalVideoRef.current;
-    if (!video || video.readyState < 2 || !video.videoWidth) {
-      throw new Error("Screen share is not producing frames yet");
+    // Windows and macOS have a native capture_screen command; let it run.
+    if (!platformRef.current.startsWith("linux")) return null;
+
+    // Portal: the live video element. X11: the canvas the pull loop decodes
+    // native frames into — it always holds the newest one.
+    let source: CanvasImageSource;
+    let srcW: number;
+    let srcH: number;
+    if (isPortal()) {
+      const video = portalVideoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth) {
+        throw new Error("Screen share is not producing frames yet");
+      }
+      source = video;
+      srcW = video.videoWidth;
+      srcH = video.videoHeight;
+    } else {
+      const canvas = captureCanvasRef.current;
+      if (!canvas || !canvas.width || !capturingRef.current) {
+        throw new Error("Screen capture is not producing frames yet");
+      }
+      source = canvas;
+      srcW = canvas.width;
+      srcH = canvas.height;
     }
+
     const MAX_W = 1280;
-    const scale = Math.min(1, MAX_W / video.videoWidth);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const scale = Math.min(1, MAX_W / srcW);
+    const out = document.createElement("canvas");
+    out.width = Math.round(srcW * scale);
+    out.height = Math.round(srcH * scale);
+    const ctx = out.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("Could not get a 2D context for the frame grab");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    ctx.drawImage(source, 0, 0, out.width, out.height);
+    const dataUrl = out.toDataURL("image/jpeg", 0.8);
     return dataUrl.slice(dataUrl.indexOf(",") + 1);
   }, []);
 

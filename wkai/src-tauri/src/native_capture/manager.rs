@@ -43,7 +43,7 @@ impl CaptureManager {
         #[cfg(target_os = "linux")]
         {
             log::info!("[CaptureManager] detected platform: Linux");
-            Box::new(crate::native_capture::linux::LinuxCaptureBackend::new())
+            crate::native_capture::linux::new_backend()
         }
         #[cfg(target_os = "macos")]
         {
