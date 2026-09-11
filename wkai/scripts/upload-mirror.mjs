@@ -8,32 +8,52 @@
  * release notes reach users the CDN cannot.
  *
  * Usage:  node scripts/upload-mirror.mjs <dir-with-assets>
- * Env:    GDRIVE_SERVICE_ACCOUNT_JSON  service-account key (JSON text)
- *         GDRIVE_FOLDER_ID             target folder, shared with the SA as Editor
+ * Env:    GDRIVE_FOLDER_ID              target folder id
+ *
+ *         Either (uploads as a real user — required for My Drive, since
+ *         service accounts have no storage quota as of 2025):
+ *         GDRIVE_OAUTH_CLIENT_ID / GDRIVE_OAUTH_CLIENT_SECRET / GDRIVE_OAUTH_REFRESH_TOKEN
+ *           (mint the refresh token once with scripts/gdrive-auth.mjs)
+ *
+ *         Or (only works into a Shared Drive the account is a member of):
+ *         GDRIVE_SERVICE_ACCOUNT_JSON
  */
 import fs from "node:fs";
 import path from "node:path";
-import { JWT } from "google-auth-library";
+import { JWT, OAuth2Client } from "google-auth-library";
 
 const dir = process.argv[2];
 if (!dir || !fs.existsSync(dir)) {
   console.error(`usage: upload-mirror.mjs <dir>  (got: ${dir})`);
   process.exit(2);
 }
-const saJson = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
 const folderId = process.env.GDRIVE_FOLDER_ID;
-if (!saJson || !folderId) {
-  console.error("GDRIVE_SERVICE_ACCOUNT_JSON and GDRIVE_FOLDER_ID are required.");
+if (!folderId) {
+  console.error("GDRIVE_FOLDER_ID is required.");
   process.exit(2);
 }
 
-const sa = JSON.parse(saJson);
-const auth = new JWT({
-  email: sa.client_email,
-  key: sa.private_key,
-  scopes: ["https://www.googleapis.com/auth/drive"],
-});
-const { token } = await auth.getAccessToken();
+async function accessToken() {
+  const { GDRIVE_OAUTH_CLIENT_ID: id, GDRIVE_OAUTH_CLIENT_SECRET: secret, GDRIVE_OAUTH_REFRESH_TOKEN: refresh } = process.env;
+  if (id && secret && refresh) {
+    const client = new OAuth2Client({ clientId: id, clientSecret: secret });
+    client.setCredentials({ refresh_token: refresh });
+    const { token } = await client.getAccessToken();
+    console.error("auth: OAuth user");
+    return token;
+  }
+  const saJson = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
+  if (saJson) {
+    const sa = JSON.parse(saJson);
+    const jwt = new JWT({ email: sa.client_email, key: sa.private_key, scopes: ["https://www.googleapis.com/auth/drive"] });
+    const { token } = await jwt.getAccessToken();
+    console.error("auth: service account");
+    return token;
+  }
+  console.error("No Drive credentials: set the GDRIVE_OAUTH_* trio or GDRIVE_SERVICE_ACCOUNT_JSON.");
+  process.exit(2);
+}
+const token = await accessToken();
 const API = "https://www.googleapis.com/drive/v3";
 const headers = { Authorization: `Bearer ${token}` };
 

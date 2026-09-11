@@ -276,13 +276,17 @@ jobs:
         shell: bash
         env:
           SA: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          OAUTH_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          OAUTH_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          OAUTH_REFRESH: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
           FOLDER: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |
-          if [ -n "$SA" ] && [ -n "$FOLDER" ]; then
+          HAVE_OAUTH=false; [ -n "$OAUTH_ID" ] && [ -n "$OAUTH_SECRET" ] && [ -n "$OAUTH_REFRESH" ] && HAVE_OAUTH=true
+          if [ -n "$FOLDER" ] && { [ "$HAVE_OAUTH" = true ] || [ -n "$SA" ]; }; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "GDRIVE_SERVICE_ACCOUNT_JSON / GDRIVE_FOLDER_ID not set - skipping mirror."
+            echo "Drive credentials not set (GDRIVE_OAUTH_* trio or GDRIVE_SERVICE_ACCOUNT_JSON, plus GDRIVE_FOLDER_ID) - skipping mirror."
           fi
 
       - name: Checkout
@@ -317,6 +321,9 @@ jobs:
         shell: bash
         env:
           GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: node wkai/scripts/upload-mirror.mjs release-assets > mirrors.json && cat mirrors.json
 
